@@ -14,6 +14,28 @@ dist-ssr
 coverage
 *.local
 
+# Local environment and provider material
+.env
+.env.*
+!.env.example
+.firebase/
+firebase-debug.log*
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json
+*credential*.json
+*.pem
+*.key
+
+# Protected local hand-offs and browser database snapshots
+migration-exports/
+turnagain-firebase-migration-*/
+private-auth-snapshots/
+*.private-auth.json
+*.auth-snapshot.json
+*local-auth*.json
+*local-database*.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -24,13 +46,7 @@ coverage
 *.sln
 *.sw?
 
-*.tsbuildinfo
-
 .eslintcache
-
-# Cypress
-/cypress/videos/
-/cypress/screenshots/
 
 # Vitest
 __screenshots__/
