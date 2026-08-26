@@ -39,10 +39,11 @@ function hasPlausibleSuburbName(value) {
 }
 
 /**
- * Accepts a suburb name, exactly one Victorian four-digit postcode, or both.
- * The optional VIC/Victoria label does not count as the suburb-name evidence.
+ * Accepts a plausible suburb name, exactly one Victorian four-digit postcode, or both.
+ * Suburb text is format-checked rather than geographically verified; the optional
+ * VIC/Victoria label does not count as suburb-name evidence.
  */
-function isPlausibleVictorianLocation(location) {
+function isPlausibleLocation(location) {
   if (!LOCATION_PATTERN.test(location)) {
     return false
   }
@@ -94,8 +95,8 @@ export function validateSearchInput(input = {}) {
 
   if (values.location.length > LOCATION_MAX_LENGTH) {
     errors.location = 'Location must be 60 characters or fewer.'
-  } else if (values.location && !isPlausibleVictorianLocation(values.location)) {
-    errors.location = 'Enter a Victorian suburb and/or four-digit postcode.'
+  } else if (values.location && !isPlausibleLocation(values.location)) {
+    errors.location = 'Enter a suburb name and/or Victorian four-digit postcode.'
   }
 
   return {

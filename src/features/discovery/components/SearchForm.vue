@@ -86,9 +86,7 @@ const submitSearch = async () => {
 
     <div class="search-form__fields">
       <div class="field-group">
-        <label for="item-search">
-          What item do you have?
-        </label>
+        <label for="item-search">What item do you have?</label>
         <input
           id="item-search"
           ref="itemInput"
@@ -100,7 +98,7 @@ const submitSearch = async () => {
           enterkeyhint="next"
           placeholder="For example, laptop or bicycle…"
           :aria-invalid="Boolean(errors.item)"
-          :aria-describedby="errors.item ? 'item-hint item-error' : 'item-hint'"
+          :aria-describedby="errors.item ? 'item-error' : undefined"
           @input="clearFieldError('item')"
         />
         <p v-if="errors.item" id="item-error" class="field-error">
@@ -109,9 +107,7 @@ const submitSearch = async () => {
       </div>
 
       <div class="field-group">
-        <label for="location-search">
-          Suburb or postcode
-        </label>
+        <label for="location-search">Suburb or postcode</label>
         <input
           id="location-search"
           ref="locationInput"
@@ -124,7 +120,7 @@ const submitSearch = async () => {
           enterkeyhint="search"
           placeholder="For example, Clayton 3168…"
           :aria-invalid="Boolean(errors.location)"
-          :aria-describedby="errors.location ? 'location-hint location-error' : 'location-hint'"
+          :aria-describedby="errors.location ? 'location-error' : undefined"
           @input="clearFieldError('location')"
         />
 
