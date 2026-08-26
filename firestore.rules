@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isPublishedService() {
+      return resource.data.status == 'published';
+    }
+
+    function hasValidRatingHistogram() {
+      return resource.data.histogram is list
+        && resource.data.histogram.size() == 5
+        && resource.data.histogram[0] is int
+        && resource.data.histogram[1] is int
+        && resource.data.histogram[2] is int
+        && resource.data.histogram[3] is int
+        && resource.data.histogram[4] is int
+        && resource.data.histogram[0] >= 0
+        && resource.data.histogram[1] >= 0
+        && resource.data.histogram[2] >= 0
+        && resource.data.histogram[3] >= 0
+        && resource.data.histogram[4] >= 0;
+    }
+
+    function isValidRatingSummary() {
+      return resource.data.keys().hasOnly(['ratingCount', 'ratingSum', 'averageRating', 'histogram', 'updatedAt'])
+        && resource.data.ratingCount is int
+        && resource.data.ratingCount > 0
+        && resource.data.ratingSum is int
+        && resource.data.ratingSum >= resource.data.ratingCount
+        && resource.data.ratingSum <= resource.data.ratingCount * 5
+        && resource.data.averageRating is number
+        && resource.data.averageRating >= 1
+        && resource.data.averageRating <= 5
+        && hasValidRatingHistogram()
+        && resource.data.histogram[0]
+          + resource.data.histogram[1]
+          + resource.data.histogram[2]
+          + resource.data.histogram[3]
+          + resource.data.histogram[4] == resource.data.ratingCount
+        && resource.data.histogram[0] + resource.data.histogram[1] * 2 + resource.data.histogram[2] * 3 + resource.data.histogram[3] * 4 + resource.data.histogram[4] * 5 == resource.data.ratingSum
+        && resource.data.averageRating == float(resource.data.ratingSum) / resource.data.ratingCount
+        && resource.data.updatedAt is timestamp;
+    }
+
+    match /services/{serviceId} {
+      allow get: if isPublishedService();
+      allow list: if isPublishedService()
+        && request.query.limit != null
+        && request.query.limit <= 100;
+      allow create, update, delete: if false;
+
+      match /aggregates/rating-summary {
+        allow get: if isValidRatingSummary();
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /ratings/{uid} {
+        allow get: if isOwner(uid);
+        allow list: if false;
+        allow create, update, delete: if false;
+      }
+
+      match /{nestedDocument=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
