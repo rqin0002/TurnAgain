@@ -10,13 +10,13 @@ const completeRegistration = () => router.push({ name: 'account' })
 <template>
   <section class="page-section">
     <div class="shell auth-page__layout">
-      <div class="reading-width auth-page__intro">
+      <header class="auth-page__intro">
         <h1 class="page-title">Create an account</h1>
         <p>
           Registration creates a local member profile. Privileged roles cannot be selected during
           self-registration.
         </p>
-      </div>
+      </header>
 
       <div class="surface surface--padded surface--raised auth-card">
         <RegisterForm @success="completeRegistration" />

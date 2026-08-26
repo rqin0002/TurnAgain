@@ -146,7 +146,12 @@ main {
 .auth-page__intro,
 .auth-card {
   width: 100%;
+  max-width: 38rem;
   justify-self: center;
+}
+
+.auth-page__intro {
+  text-align: center;
 }
 
 .auth-page__intro p,
@@ -156,10 +161,6 @@ main {
   margin: 1rem 0 0;
   color: var(--color-text-muted);
   font-size: 1.05rem;
-}
-
-.auth-card {
-  max-width: 38rem;
 }
 
 .auth-form {
