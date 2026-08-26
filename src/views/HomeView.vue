@@ -35,11 +35,6 @@ const findOptions = (search) =>
       <div class="surface surface--padded surface--raised" aria-label="Find local options">
         <SearchForm @submit="findOptions" />
       </div>
-
-      <p class="home-hero__privacy">
-        A precise address is not required. Search with a suburb or postcode, or leave location blank
-        to explore the current catalogue.
-      </p>
     </div>
   </section>
 </template>
@@ -59,6 +54,10 @@ const findOptions = (search) =>
 
 .home-hero__intro {
   max-width: 46rem;
+}
+
+.home-hero__intro > .eyebrow {
+  margin-bottom: 1rem;
 }
 
 h1 {
