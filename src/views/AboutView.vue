@@ -303,7 +303,7 @@ const pageContent = {
             <p class="eyebrow">{{ pageContent.howItWorks.eyebrow }}</p>
             <h2 :id="pageContent.howItWorks.titleId">{{ pageContent.howItWorks.title }}</h2>
           </div>
-          <p>{{ pageContent.howItWorks.intro }}</p>
+          <p v-if="pageContent.howItWorks.intro">{{ pageContent.howItWorks.intro }}</p>
         </div>
 
         <ol class="pathway-list">
@@ -387,7 +387,7 @@ const pageContent = {
             <p class="eyebrow">{{ pageContent.prototype.eyebrow }}</p>
             <h2 :id="pageContent.prototype.titleId">{{ pageContent.prototype.title }}</h2>
           </div>
-          <p>{{ pageContent.prototype.intro }}</p>
+          <p v-if="pageContent.prototype.intro">{{ pageContent.prototype.intro }}</p>
         </div>
 
         <div class="boundary-grid">
@@ -398,7 +398,7 @@ const pageContent = {
             :class="group.className"
             :aria-labelledby="group.titleId"
           >
-            <p class="boundary-card__status">{{ group.status }}</p>
+            <p v-if="group.status" class="boundary-card__status">{{ group.status }}</p>
             <h3 :id="group.titleId">{{ group.title }}</h3>
             <ul>
               <li v-for="item in group.items" :key="item">{{ item }}</li>
@@ -440,7 +440,7 @@ const pageContent = {
         <div>
           <h2 :id="pageContent.callToAction.titleId">{{ pageContent.callToAction.title }}</h2>
         </div>
-        <div class="about-cta__actions">
+        <div v-if="pageContent.callToAction.actions?.length" class="about-cta__actions">
           <RouterLink
             v-for="action in pageContent.callToAction.actions"
             :key="action.key"
