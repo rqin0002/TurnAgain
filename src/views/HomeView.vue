@@ -25,7 +25,7 @@ const findOptions = (search) =>
   <section class="home-hero page-section">
     <div class="shell home-hero__layout">
       <div class="home-hero__intro">
-        <p class="eyebrow">Melbourne circular-economy guide</p>
+        <p class="eyebrow">Melbourne circular economy guide</p>
         <h1>Give your things another turn.</h1>
         <p class="home-hero__lead">
           Find local reuse, repair and recycling options for unwanted or broken items.

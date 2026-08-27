@@ -31,10 +31,10 @@ const roleLabel = (role) => role.charAt(0).toUpperCase() + role.slice(1)
           </RouterLink>
         </div>
       </div>
-
+      <!-- Delete aside part after all project finish -->
       <aside class="surface surface--padded auth-demo" aria-labelledby="demo-accounts-heading">
         <h2 id="demo-accounts-heading">Local demo accounts</h2>
-        <p>These credentials are public test data for this local Firebase-ready prototype only.</p>
+        <p>Delete aside part in LoginView.vue for final release</p>
         <dl>
           <div v-for="account in DEMO_ACCOUNTS" :key="account.uid">
             <dt>{{ roleLabel(account.role) }}</dt>
