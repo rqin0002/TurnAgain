@@ -83,7 +83,7 @@ const logOut = async () => {
   <footer class="app-footer">
     <div class="shell app-footer__inner">
       <p><strong>TurnAgain</strong> — Keeping useful things in circulation.</p>
-      <p>From 2026</p>
+      <p>Copyright © TurnAgain. All Rights Reserved.</p>
     </div>
   </footer>
 </template>
