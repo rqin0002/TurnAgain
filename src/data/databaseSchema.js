@@ -32,7 +32,7 @@ const RATING_STATUSES = ['active', 'removed']
 // persisted. This helps detect stale, misspelled, or unexpected data.
 const DATABASE_KEYS = ['schemaVersion', 'dataset', 'collections', 'localAuthAccounts']
 const DATASET_KEYS = ['id', 'updatedAt', 'catalogue']
-const CATALOGUE_KEYS = ['catalogueType', 'checkedAt', 'coverage', 'notice']
+const CATALOGUE_KEYS = ['catalogueType', 'checkedAt', 'coverage']
 const SERVICE_KEYS = [
   'id',
   'name',
@@ -474,9 +474,6 @@ function validateDataset(database, issues) {
         issues.push('dataset.catalogue.checkedAt must be a real calendar date.')
       }
       validateString(database.dataset.catalogue.coverage, 'dataset.catalogue.coverage', issues, {
-        max: 500,
-      })
-      validateString(database.dataset.catalogue.notice, 'dataset.catalogue.notice', issues, {
         max: 500,
       })
     }

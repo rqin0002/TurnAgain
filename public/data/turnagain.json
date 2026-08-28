@@ -6,9 +6,7 @@
     "catalogue": {
       "catalogueType": "prototype",
       "checkedAt": "2026-08-22",
-      "coverage": "Selected Melbourne and Victorian services",
-      "notice": "Prototype catalogue compiled with AI assistance from the linked official sources. Confirm current eligibility, accepted items, dates and fees with each provider before visiting."
-    }
+      "coverage": "Selected Melbourne and Victorian services"    }
   },
   "collections": {
     "services": [
