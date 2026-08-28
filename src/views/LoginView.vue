@@ -19,7 +19,7 @@ const roleLabel = (role) => role.charAt(0).toUpperCase() + role.slice(1)
     <div class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Sign in</h1>
-        <p>Access your local TurnAgain account and role-aware pages on this device.</p>
+        <p>Access your  TurnAgain account</p>
       </header>
 
       <div class="surface surface--padded surface--raised auth-card">

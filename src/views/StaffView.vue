@@ -3,17 +3,14 @@
     <div class="shell reading-width staff-page">
       <h1 class="page-title">Staff workspace</h1>
       <p class="staff-page__lead">
-        This is a static, read-only demonstration of the staff route. It contains no secret,
-        destructive, provider-backed, or administrative operation.
+        This is a staff route.
       </p>
 
       <div class="state-panel">
         <div>
-          <h2>Local role demonstration</h2>
+          <h2>Role </h2>
           <p>
-            Local roles and this client-side route guard are not a production security boundary.
-            Future production authorization must use trusted server-side claims and enforced data
-            rules.
+            You are logged in as a staff member. Staff members can view and edit the TurnAgain service catalogue.
           </p>
         </div>
       </div>

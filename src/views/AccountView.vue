@@ -9,7 +9,7 @@ const authStore = useAuthStore()
     <div class="shell reading-width">
       <h1 class="page-title">Your account</h1>
       <p class="account-page__lead">
-        This public profile is read from the current local session. Password data is never shown.
+        This public profile is read from the current local session.
       </p>
 
       <dl class="surface surface--padded profile-list">
@@ -28,8 +28,7 @@ const authStore = useAuthStore()
       </dl>
 
       <p class="auth-boundary-note">
-        This account and its session are local-demo data on this device, not Firebase-connected
-        production authentication.
+        This is account route.
       </p>
     </div>
   </section>
