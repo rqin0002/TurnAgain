@@ -2,67 +2,340 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return isAuthenticated() && request.auth.uid == uid;
     }
 
-    function isPublishedService() {
-      return resource.data.status == 'published';
+    function hasExactFields(data, fields) {
+      return data is map
+        && data.keys().hasAll(fields)
+        && data.keys().hasOnly(fields);
     }
 
-    function hasValidRatingHistogram() {
-      return resource.data.histogram is list
-        && resource.data.histogram.size() == 5
-        && resource.data.histogram[0] is int
-        && resource.data.histogram[1] is int
-        && resource.data.histogram[2] is int
-        && resource.data.histogram[3] is int
-        && resource.data.histogram[4] is int
-        && resource.data.histogram[0] >= 0
-        && resource.data.histogram[1] >= 0
-        && resource.data.histogram[2] >= 0
-        && resource.data.histogram[3] >= 0
-        && resource.data.histogram[4] >= 0;
+    function isValidId(value) {
+      return value is string
+        && value.size() >= 1
+        && value.size() <= 128
+        && value.matches('^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$');
     }
 
-    function isValidRatingSummary() {
-      return resource.data.keys().hasOnly(['ratingCount', 'ratingSum', 'averageRating', 'histogram', 'updatedAt'])
-        && resource.data.ratingCount is int
-        && resource.data.ratingCount > 0
-        && resource.data.ratingSum is int
-        && resource.data.ratingSum >= resource.data.ratingCount
-        && resource.data.ratingSum <= resource.data.ratingCount * 5
-        && resource.data.averageRating is number
-        && resource.data.averageRating >= 1
-        && resource.data.averageRating <= 5
-        && hasValidRatingHistogram()
-        && resource.data.histogram[0]
-          + resource.data.histogram[1]
-          + resource.data.histogram[2]
-          + resource.data.histogram[3]
-          + resource.data.histogram[4] == resource.data.ratingCount
-        && resource.data.histogram[0] + resource.data.histogram[1] * 2 + resource.data.histogram[2] * 3 + resource.data.histogram[3] * 4 + resource.data.histogram[4] * 5 == resource.data.ratingSum
-        && resource.data.averageRating == float(resource.data.ratingSum) / resource.data.ratingCount
-        && resource.data.updatedAt is timestamp;
+    function isValidDateString(value) {
+      return value is string
+        && value.size() == 10
+        && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidEmail(value) {
+      return value is string
+        && value.size() >= 3
+        && value.size() <= 254
+        && value == value.lower()
+        && value.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$');
+    }
+
+    function isValidCatalogue(data) {
+      return hasExactFields(
+          data,
+          [
+            'datasetId',
+            'schemaVersion',
+            'catalogueType',
+            'checkedAt',
+            'coverage',
+            'updatedAt'
+          ]
+        )
+        && isValidId(data.datasetId)
+        && data.schemaVersion is int
+        && data.schemaVersion == 1
+        && data.catalogueType is string
+        && data.catalogueType.size() >= 1
+        && data.catalogueType.size() <= 50
+        && isValidDateString(data.checkedAt)
+        && data.coverage is string
+        && data.coverage.size() >= 1
+        && data.coverage.size() <= 500
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProfile(data, uid) {
+      return hasExactFields(
+          data,
+          ['uid', 'email', 'displayName', 'role', 'status', 'createdAt', 'updatedAt']
+        )
+        && isValidId(data.uid)
+        && data.uid == uid
+        && isValidEmail(data.email)
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 50
+        && data.role in ['member', 'staff', 'admin']
+        && data.status in ['active', 'disabled']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.createdAt <= data.updatedAt;
+    }
+
+    function isValidRating(data) {
+      return hasExactFields(
+          data,
+          ['score', 'reviewText', 'status', 'createdAt', 'updatedAt']
+        )
+        && data.score is int
+        && data.score >= 1
+        && data.score <= 5
+        && (
+          data.reviewText == null
+          || (
+            data.reviewText is string
+            && data.reviewText.size() >= 1
+            && data.reviewText.size() <= 1000
+            && data.reviewText.toUtf8().size() <= 4000
+          )
+        )
+        && data.status == 'active'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.createdAt <= data.updatedAt;
+    }
+
+    function isValidHistogram(histogram, ratingCount, ratingSum) {
+      return histogram is list
+        && histogram.size() == 5
+        && histogram[0] is int
+        && histogram[1] is int
+        && histogram[2] is int
+        && histogram[3] is int
+        && histogram[4] is int
+        && histogram[0] >= 0
+        && histogram[1] >= 0
+        && histogram[2] >= 0
+        && histogram[3] >= 0
+        && histogram[4] >= 0
+        && histogram[0] + histogram[1] + histogram[2] + histogram[3] + histogram[4]
+          == ratingCount
+        && histogram[0] + histogram[1] * 2 + histogram[2] * 3
+          + histogram[3] * 4 + histogram[4] * 5 == ratingSum;
+    }
+
+    function isValidRatingSummary(data) {
+      return hasExactFields(data, ['ratingCount', 'ratingSum', 'histogram', 'updatedAt'])
+        && data.ratingCount is int
+        && data.ratingCount >= 0
+        && data.ratingCount <= 1000000
+        && data.ratingSum is int
+        && data.ratingSum >= data.ratingCount
+        && data.ratingSum <= data.ratingCount * 5
+        && isValidHistogram(data.histogram, data.ratingCount, data.ratingSum)
+        && data.updatedAt is timestamp;
+    }
+
+    function servicePath(serviceId) {
+      return /databases/$(database)/documents/services/$(serviceId);
+    }
+
+    function profilePath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function ratingPath(serviceId, uid) {
+      return /databases/$(database)/documents/services/$(serviceId)/ratings/$(uid);
+    }
+
+    function summaryPath(serviceId) {
+      return /databases/$(database)/documents/services/$(serviceId)/aggregates/rating-summary;
+    }
+
+    function isPublishedService(serviceId) {
+      let path = servicePath(serviceId);
+      return exists(path)
+        && get(path).data.id == serviceId
+        && get(path).data.status == 'published';
+    }
+
+    function isActiveProfile(uid) {
+      let path = profilePath(uid);
+      return isAuthenticated()
+        && exists(path)
+        && get(path).data.uid == uid
+        && get(path).data.status == 'active'
+        && get(path).data.role in ['member', 'staff', 'admin']
+        && ('email' in request.auth.token)
+        && request.auth.token.email is string
+        && get(path).data.email == request.auth.token.email;
+    }
+
+    function scoreBucket(score, bucket) {
+      return score == bucket ? 1 : 0;
+    }
+
+    function isExactRatingCreateDelta(beforeSummary, afterSummary, score) {
+      return afterSummary.ratingCount == beforeSummary.ratingCount + 1
+        && afterSummary.ratingSum == beforeSummary.ratingSum + score
+        && afterSummary.histogram[0]
+          == beforeSummary.histogram[0] + scoreBucket(score, 1)
+        && afterSummary.histogram[1]
+          == beforeSummary.histogram[1] + scoreBucket(score, 2)
+        && afterSummary.histogram[2]
+          == beforeSummary.histogram[2] + scoreBucket(score, 3)
+        && afterSummary.histogram[3]
+          == beforeSummary.histogram[3] + scoreBucket(score, 4)
+        && afterSummary.histogram[4]
+          == beforeSummary.histogram[4] + scoreBucket(score, 5);
+    }
+
+    function isExactRatingUpdateDelta(
+      beforeSummary,
+      afterSummary,
+      beforeScore,
+      afterScore
+    ) {
+      return afterSummary.ratingCount == beforeSummary.ratingCount
+        && afterSummary.ratingSum == beforeSummary.ratingSum + afterScore - beforeScore
+        && afterSummary.histogram[0] == beforeSummary.histogram[0]
+          + scoreBucket(afterScore, 1) - scoreBucket(beforeScore, 1)
+        && afterSummary.histogram[1] == beforeSummary.histogram[1]
+          + scoreBucket(afterScore, 2) - scoreBucket(beforeScore, 2)
+        && afterSummary.histogram[2] == beforeSummary.histogram[2]
+          + scoreBucket(afterScore, 3) - scoreBucket(beforeScore, 3)
+        && afterSummary.histogram[3] == beforeSummary.histogram[3]
+          + scoreBucket(afterScore, 4) - scoreBucket(beforeScore, 4)
+        && afterSummary.histogram[4] == beforeSummary.histogram[4]
+          + scoreBucket(afterScore, 5) - scoreBucket(beforeScore, 5);
+    }
+
+    function isSummaryCoupledToRating(serviceId) {
+      let path = summaryPath(serviceId);
+      let beforeSummary = get(path);
+      let afterSummary = getAfter(path);
+      return exists(path)
+        && existsAfter(path)
+        && afterSummary.data.updatedAt == request.time
+        && afterSummary.data
+          .diff(beforeSummary.data)
+          .affectedKeys()
+          .hasAny(['updatedAt']);
+    }
+
+    function ratingMutationMatchesSummary(serviceId, beforeSummary, afterSummary) {
+      let path = ratingPath(serviceId, request.auth.uid);
+      let ratingExists = exists(path);
+      let beforeRating = get(path);
+      let afterRating = getAfter(path);
+      return existsAfter(path)
+        && afterRating.data.updatedAt == request.time
+        && (
+          (
+            !ratingExists
+            && afterRating.data.createdAt == request.time
+            && isExactRatingCreateDelta(
+              beforeSummary,
+              afterSummary,
+              afterRating.data.score
+            )
+          )
+          || (
+            ratingExists
+            && afterRating.data.createdAt == beforeRating.data.createdAt
+            && afterRating.data
+              .diff(beforeRating.data)
+              .affectedKeys()
+              .hasAny(['updatedAt'])
+            && isExactRatingUpdateDelta(
+              beforeSummary,
+              afterSummary,
+              beforeRating.data.score,
+              afterRating.data.score
+            )
+          )
+        );
+    }
+
+    match /catalogues/{catalogueId} {
+      allow get: if catalogueId == 'current' && isValidCatalogue(resource.data);
+      allow list, create, update, delete: if false;
     }
 
     match /services/{serviceId} {
-      allow get: if isPublishedService();
-      allow list: if isPublishedService()
+      // Published service content is public. The repository performs the full
+      // schema check for both direct and list reads before displaying it.
+      allow get: if resource.data.status == 'published';
+
+      // Rules are not filters. The query proves only status and its maximum
+      // result count; the repository validates every returned document.
+      allow list: if resource.data.status == 'published'
         && request.query.limit != null
+        && request.query.limit > 0
         && request.query.limit <= 100;
+
       allow create, update, delete: if false;
 
       match /aggregates/rating-summary {
-        allow get: if isValidRatingSummary();
+        allow get: if isPublishedService(serviceId)
+          && isValidRatingSummary(resource.data);
         allow list: if false;
-        allow create, update, delete: if false;
+
+        allow update: if isAuthenticated()
+          && isValidRatingSummary(resource.data)
+          && isValidRatingSummary(request.resource.data)
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['ratingCount', 'ratingSum', 'histogram', 'updatedAt'])
+          && request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasAny(['updatedAt'])
+          && ratingMutationMatchesSummary(
+            serviceId,
+            resource.data,
+            request.resource.data
+          );
+
+        // Every service summary, including zero, is created only by a trusted
+        // administrative migration before users can submit a rating.
+        allow create, delete: if false;
       }
 
       match /ratings/{uid} {
-        allow get: if isOwner(uid);
+        // The owner must be able to read a not-yet-created document before the
+        // first transaction. Existing content is validated by the repository;
+        // other users and collection queries remain denied here.
+        allow get: if isOwner(uid)
+          && isPublishedService(serviceId)
+          && isActiveProfile(uid);
         allow list: if false;
-        allow create, update, delete: if false;
+
+        allow create: if isOwner(uid)
+          && isPublishedService(serviceId)
+          && isActiveProfile(uid)
+          && isValidRating(request.resource.data)
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && isSummaryCoupledToRating(serviceId);
+
+        allow update: if isOwner(uid)
+          && isPublishedService(serviceId)
+          && isActiveProfile(uid)
+          && isValidRating(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['score', 'reviewText', 'updatedAt'])
+          && request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasAny(['updatedAt'])
+          && isSummaryCoupledToRating(serviceId);
+
+        allow delete: if false;
       }
 
       match /{nestedDocument=**} {
@@ -71,9 +344,24 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
+      // Only the owner can read the profile; the auth repository rejects any
+      // malformed or inactive profile before exposing a public user object.
       allow get: if isOwner(uid);
       allow list: if false;
-      allow create, update, delete: if false;
+
+      // Self-registration can create only the caller's active member profile.
+      // Privileged staff/admin profiles are provisioned administratively.
+      allow create: if isOwner(uid)
+        && isValidProfile(request.resource.data, uid)
+        && ('email' in request.auth.token)
+        && request.auth.token.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'member'
+        && request.resource.data.status == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update, delete: if false;
     }
 
     match /{document=**} {
