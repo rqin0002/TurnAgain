@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import { AuthError } from '../data/AuthError.js'
-import { createLocalAuthRepository } from '../data/localAuthRepository.js'
+import { createFirebaseAuthRepository } from '../data/firebaseAuthRepository.js'
 
 const AUTH_STORE_ID = 'auth'
 const ALLOWED_ROLES = new Set(['member', 'staff', 'admin'])
@@ -40,7 +40,7 @@ const getPublicErrorMessage = (error) =>
  *   login: (input: unknown) => Promise<object>,
  *   logout: () => Promise<null>,
  *   restoreSession: () => Promise<object | null>
- * }} repository - Authentication operations; the default runtime uses the local adapter.
+ * }} repository - Authentication operations; the default runtime uses Firebase.
  * @returns {ReturnType<typeof defineStore>} A `useAuthStore(pinia?)` function.
  */
 export function createAuthStore(repository) {
@@ -171,7 +171,6 @@ export function createAuthStore(repository) {
           errorMessage.value = getPublicErrorMessage(error)
         }
       } finally {
-        // In-memory state fails closed; persistent revocation still depends on sessionStorage.
         if (operation === latestOperation) {
           user.value = null
           status.value = 'anonymous'
@@ -202,5 +201,4 @@ export function createAuthStore(repository) {
   })
 }
 
-/** Shared runtime auth store backed by the local Firebase-ready adapter. */
-export const useAuthStore = createAuthStore(createLocalAuthRepository())
+export const useAuthStore = createAuthStore(createFirebaseAuthRepository())

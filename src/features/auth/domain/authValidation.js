@@ -1,7 +1,7 @@
 const DISPLAY_NAME_MIN_LENGTH = 2
 const DISPLAY_NAME_MAX_LENGTH = 50
 const EMAIL_MAX_LENGTH = 254
-const PASSWORD_MIN_LENGTH = 10
+const PASSWORD_MIN_LENGTH = 6
 const PASSWORD_MAX_LENGTH = 128
 
 const DISPLAY_NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} .'’.-]*$/u
@@ -76,7 +76,7 @@ export function validateRegistrationInput(input = {}) {
   if (!password) {
     errors.password = 'Enter a password.'
   } else if (stringLength(password) < PASSWORD_MIN_LENGTH) {
-    errors.password = 'Password must be at least 10 characters.'
+    errors.password = 'Password must be at least 6 characters.'
   } else if (stringLength(password) > PASSWORD_MAX_LENGTH) {
     errors.password = 'Password must be 128 characters or fewer.'
   }

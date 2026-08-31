@@ -3,11 +3,11 @@ import { computed, inject, onBeforeUnmount, ref, toValue, watch } from 'vue'
 import { useAuthStore } from '../../auth/stores/authStore.js'
 import {
   RatingRepositoryError,
-  createLocalRatingRepository,
-} from '../data/localRatingRepository.js'
+  createFirestoreRatingRepository,
+} from '../data/firestoreRatingRepository.js'
 
 const GENERIC_RATING_ERROR = 'Ratings are temporarily unavailable.'
-const runtimeRatingRepository = createLocalRatingRepository()
+const runtimeRatingRepository = createFirestoreRatingRepository()
 
 /** Injection key for replacing the runtime rating repository in component tests or future adapters. */
 export const RATING_REPOSITORY_KEY = Symbol('turnagain-rating-repository')
