@@ -1,6 +1,5 @@
 /**
- * Public credentials for the three local-only demonstration identities.
- * The repository derives production-strength password records before persistence.
+ * Public credentials for the three demonstration identities.
  *
  * @type {ReadonlyArray<Readonly<{ uid: string, email: string, password: string, role: string }>>}
  */
