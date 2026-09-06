@@ -1,9 +1,9 @@
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore/lite'
 
-import { firestore } from '../../../firebase/firebaseClient.js'
+import { firestoreLite } from '../../../firebase/firebaseFirestoreLiteClient.js'
+import { isCalendarDate, isHttpsUrl } from '../../../utils/catalogueValidation.js'
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u
 const ALLOWED_ACTIONS = new Set(['repair', 'reuse', 'recycle'])
 const SERVICE_REQUIRED_KEYS = new Set([
   'acceptedItems',
@@ -59,18 +59,6 @@ const isStringList = (value, maximumEntries = 50) =>
   value.length <= maximumEntries &&
   value.every((entry) => isBoundedString(entry, 100))
 
-const isHttpsUrl = (value) => {
-  if (typeof value !== 'string') {
-    return false
-  }
-
-  try {
-    return new URL(value).protocol === 'https:'
-  } catch {
-    return false
-  }
-}
-
 const toIsoTimestamp = (value) => {
   if (typeof value?.toDate !== 'function') {
     return null
@@ -88,7 +76,7 @@ const projectMetadata = (candidate) => {
     !Number.isInteger(candidate.schemaVersion) ||
     candidate.schemaVersion < 1 ||
     !isBoundedString(candidate.catalogueType, 50) ||
-    !DATE_PATTERN.test(candidate.checkedAt) ||
+    !isCalendarDate(candidate.checkedAt) ||
     !isBoundedString(candidate.coverage, 500)
   ) {
     return null
@@ -123,7 +111,7 @@ const projectService = (documentId, candidate) => {
     !hasExactKeys(source, new Set(['checkedAt', 'organisation', 'url'])) ||
     !isBoundedString(source.organisation, 150) ||
     !isHttpsUrl(source.url) ||
-    !DATE_PATTERN.test(source.checkedAt) ||
+    !isCalendarDate(source.checkedAt) ||
     createdAt === null ||
     updatedAt === null
   ) {
@@ -178,7 +166,7 @@ const mapRepositoryError = (error) => {
  */
 export function createFirestoreServiceRepository(dependencies = {}) {
   const settings = isPlainObject(dependencies) ? dependencies : {}
-  const db = settings.db ?? firestore
+  const db = settings.db ?? firestoreLite
   const firestoreApi = settings.firestoreApi ?? DEFAULT_FIRESTORE_API
 
   const fetchServiceCatalogue = async ({ signal } = {}) => {

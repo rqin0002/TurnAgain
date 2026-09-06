@@ -3,31 +3,73 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
 } from 'firebase/auth'
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 
-import { firebaseAuth, firestore } from '../../../firebase/firebaseClient.js'
-import { validateLoginInput, validateRegistrationInput } from '../domain/authValidation.js'
+import { firebaseAuth } from '../../../firebase/firebaseAuthClient.js'
+import {
+  validateLoginInput,
+  validatePasswordResetInput,
+  validateRegistrationInput,
+} from '../domain/authValidation.js'
 import { AuthError } from './AuthError.js'
 
 const ALLOWED_ROLES = new Set(['member', 'staff', 'admin'])
+const NON_DISCLOSING_RESET_CODES = new Set([
+  'auth/invalid-credential',
+  'auth/user-disabled',
+  'auth/user-not-found',
+])
 
 const DEFAULT_AUTH_API = Object.freeze({
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
 })
 
-const DEFAULT_FIRESTORE_API = Object.freeze({ doc, getDoc, serverTimestamp, setDoc })
+let defaultFirestoreContextPromise = null
+
+/**
+ * Loads profile storage only when an authenticated identity needs Firestore.
+ * Anonymous application bootstrap therefore avoids downloading the larger
+ * Firestore SDK while authenticated restoration, login and registration keep
+ * the same profile-validation boundary.
+ */
+const loadDefaultFirestoreContext = () => {
+  if (defaultFirestoreContextPromise === null) {
+    defaultFirestoreContextPromise = Promise.all([
+      import('firebase/firestore/lite'),
+      import('../../../firebase/firebaseFirestoreLiteClient.js'),
+    ])
+      .then(([firestoreApi, { firestoreLite }]) =>
+        Object.freeze({
+          db: firestoreLite,
+          firestoreApi: Object.freeze({
+            doc: firestoreApi.doc,
+            getDoc: firestoreApi.getDoc,
+            serverTimestamp: firestoreApi.serverTimestamp,
+            setDoc: firestoreApi.setDoc,
+          }),
+        }),
+      )
+      .catch((error) => {
+        defaultFirestoreContextPromise = null
+        throw error
+      })
+  }
+
+  return defaultFirestoreContextPromise
+}
 
 const isPlainObject = (value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -57,6 +99,18 @@ const mapFirebaseAuthError = (error) => {
   }
 
   return new AuthError('unexpected')
+}
+
+const mapPasswordResetError = (error) => {
+  if (error instanceof AuthError) {
+    return error
+  }
+
+  if (error?.code === 'auth/invalid-email' || error?.code === 'auth/missing-email') {
+    return new AuthError('invalid-input')
+  }
+
+  return new AuthError('recovery-unavailable')
 }
 
 const projectPublicProfile = (snapshot, firebaseUser) => {
@@ -96,25 +150,58 @@ const projectPublicProfile = (snapshot, firebaseUser) => {
  *   initialize: () => Promise<object | null>,
  *   register: (input: unknown) => Promise<object>,
  *   login: (input: unknown) => Promise<object>,
+ *   requestPasswordReset: (input: unknown) => Promise<null>,
  *   logout: () => Promise<null>,
- *   restoreSession: () => Promise<object | null>
+ *   restoreSession: () => Promise<object | null>,
+ *   subscribeToSessionChanges: (listener: (uid: string | null) => void) => () => void
  * }} Repository matching the existing auth-store contract.
  */
 export function createFirebaseAuthRepository(dependencies = {}) {
   const settings = isPlainObject(dependencies) ? dependencies : {}
   const auth = settings.auth ?? firebaseAuth
-  const db = settings.db ?? firestore
   const authApi = settings.authApi ?? DEFAULT_AUTH_API
-  const firestoreApi = settings.firestoreApi ?? DEFAULT_FIRESTORE_API
+  const injectedDb = settings.db ?? null
+  const injectedFirestoreApi = settings.firestoreApi ?? null
 
   let initializationPromise = null
+  let firestoreContextPromise = null
+
+  const getFirestoreContext = () => {
+    if (firestoreContextPromise === null) {
+      if (injectedDb !== null && injectedFirestoreApi !== null) {
+        firestoreContextPromise = Promise.resolve({
+          db: injectedDb,
+          firestoreApi: injectedFirestoreApi,
+        })
+      } else {
+        firestoreContextPromise = loadDefaultFirestoreContext()
+          .then((defaults) => ({
+            db: injectedDb ?? defaults.db,
+            firestoreApi: injectedFirestoreApi ?? defaults.firestoreApi,
+          }))
+          .catch((error) => {
+            firestoreContextPromise = null
+            throw error
+          })
+      }
+    }
+
+    return firestoreContextPromise
+  }
 
   const loadProfile = async (firebaseUser, invalidProfileCode) => {
     let snapshot
     try {
+      const { db, firestoreApi } = await getFirestoreContext()
       snapshot = await firestoreApi.getDoc(firestoreApi.doc(db, 'users', firebaseUser.uid))
     } catch (error) {
       throw mapFirebaseAuthError(error)
+    }
+
+    // A cross-tab sign-out/account change can finish during the profile read.
+    // Never restore that stale identity or sign out its replacement account.
+    if (auth.currentUser?.uid !== firebaseUser.uid) {
+      throw new AuthError('session-expired')
     }
 
     const profile = projectPublicProfile(snapshot, firebaseUser)
@@ -152,15 +239,17 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       initializationPromise = (async () => {
         try {
           await authApi.setPersistence(auth, authApi.browserLocalPersistence)
-          const firebaseUser = await waitForInitialUser()
-          return firebaseUser === null ? null : await loadProfile(firebaseUser, 'session-expired')
+          await waitForInitialUser()
         } catch (error) {
+          initializationPromise = null
           throw mapFirebaseAuthError(error)
         }
       })()
     }
 
-    return initializationPromise
+    // Cache SDK readiness, not a user's profile. A recreated store must read
+    // the current identity rather than the account present at first bootstrap.
+    return initializationPromise.then(restoreSession)
   }
 
   const restoreSession = async () => {
@@ -168,6 +257,20 @@ export function createFirebaseAuthRepository(dependencies = {}) {
     return firebaseUser === null || firebaseUser === undefined
       ? null
       : loadProfile(firebaseUser, 'session-expired')
+  }
+
+  const subscribeToSessionChanges = (listener) => {
+    // Deliver the initial snapshot as well: the identity can change between a
+    // completed profile read and this subscription. The store ignores a
+    // snapshot that already matches its settled user, so no extra read is needed.
+    let previousUid
+    return authApi.onAuthStateChanged(auth, (firebaseUser) => {
+      const uid = firebaseUser?.uid ?? null
+      if (uid !== previousUid) {
+        previousUid = uid
+        listener(uid)
+      }
+    })
   }
 
   const login = async (input) => {
@@ -212,6 +315,7 @@ export function createFirebaseAuthRepository(dependencies = {}) {
         displayName: validation.values.displayName,
       })
 
+      const { db, firestoreApi } = await getFirestoreContext()
       const timestamp = firestoreApi.serverTimestamp()
       await firestoreApi.setDoc(firestoreApi.doc(db, 'users', firebaseUser.uid), {
         uid: firebaseUser.uid,
@@ -234,12 +338,36 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       throw mapFirebaseAuthError(error)
     }
 
+    if (auth.currentUser?.uid !== firebaseUser.uid) {
+      throw new AuthError('session-expired')
+    }
+
     return Object.freeze({
       uid: firebaseUser.uid,
       email: normalizeEmail(firebaseUser.email),
       displayName: validation.values.displayName,
       role: 'member',
     })
+  }
+
+  const requestPasswordReset = async (input) => {
+    const validation = validatePasswordResetInput(input)
+    if (!validation.isValid) {
+      throw new AuthError('invalid-input')
+    }
+
+    try {
+      await authApi.sendPasswordResetEmail(auth, validation.values.email)
+    } catch (error) {
+      // A reset request must never confirm whether an account exists or is
+      // disabled. The UI presents the same success state for these outcomes.
+      if (NON_DISCLOSING_RESET_CODES.has(error?.code)) {
+        return null
+      }
+      throw mapPasswordResetError(error)
+    }
+
+    return null
   }
 
   const logout = async () => {
@@ -251,5 +379,13 @@ export function createFirebaseAuthRepository(dependencies = {}) {
     }
   }
 
-  return Object.freeze({ initialize, register, login, logout, restoreSession })
+  return Object.freeze({
+    initialize,
+    register,
+    login,
+    requestPasswordReset,
+    logout,
+    restoreSession,
+    subscribeToSessionChanges,
+  })
 }

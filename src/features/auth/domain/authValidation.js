@@ -120,3 +120,26 @@ export function validateLoginInput(input = {}) {
     errors,
   }
 }
+
+/**
+ * Validates a password-recovery request without revealing account existence.
+ * Only the normalized email address leaves this boundary.
+ *
+ * @param {unknown} [input={}] Raw recovery form fields.
+ * @returns {{
+ *   isValid: boolean,
+ *   values: { email: string },
+ *   errors: { email: string }
+ * }} Stable validation state for the recovery form and Firebase adapter.
+ */
+export function validatePasswordResetInput(input = {}) {
+  const fields = getInput(input)
+  const values = { email: normalizeEmail(fields.email) }
+  const errors = { email: validateEmail(values.email) }
+
+  return {
+    isValid: !errors.email,
+    values,
+    errors,
+  }
+}

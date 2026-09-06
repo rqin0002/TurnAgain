@@ -1,6 +1,7 @@
 import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore'
 
-import { firebaseAuth, firestore } from '../../../firebase/firebaseClient.js'
+import { firebaseAuth } from '../../../firebase/firebaseAuthClient.js'
+import { firestore } from '../../../firebase/firebaseFirestoreClient.js'
 import { validateRatingInput } from '../domain/ratingValidation.js'
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
@@ -18,13 +19,27 @@ const isPlainObject = (value) =>
 
 const isValidId = (value) => typeof value === 'string' && ID_PATTERN.test(value)
 
-const isTimestamp = (value) => typeof value?.toDate === 'function' || typeof value === 'string'
+const timestampMillis = (value) => {
+  try {
+    const millis = value?.toMillis?.()
+    return typeof millis === 'number' && Number.isFinite(millis) ? millis : null
+  } catch {
+    return null
+  }
+}
+
+const hasExactFields = (candidate, fields) =>
+  isPlainObject(candidate) &&
+  Object.keys(candidate).length === fields.length &&
+  fields.every((field) => Object.hasOwn(candidate, field))
 
 const projectSummary = (candidate) => {
   if (
-    !isPlainObject(candidate) ||
+    !hasExactFields(candidate, ['ratingCount', 'ratingSum', 'histogram', 'updatedAt']) ||
+    timestampMillis(candidate.updatedAt) === null ||
     !Number.isInteger(candidate.ratingCount) ||
     candidate.ratingCount < 0 ||
+    candidate.ratingCount > 1000000 ||
     !Number.isInteger(candidate.ratingSum) ||
     candidate.ratingSum < 0 ||
     !Array.isArray(candidate.histogram) ||
@@ -52,15 +67,23 @@ const projectSummary = (candidate) => {
 }
 
 const projectRating = (candidate, serviceId, userId) => {
+  const createdAt = timestampMillis(candidate?.createdAt)
+  const updatedAt = timestampMillis(candidate?.updatedAt)
+  const validation = validateRatingInput({
+    score: candidate?.score,
+    reviewText: candidate?.reviewText,
+  })
   if (
-    !isPlainObject(candidate) ||
-    !Number.isInteger(candidate.score) ||
-    candidate.score < 1 ||
-    candidate.score > 5 ||
-    (candidate.reviewText !== null && typeof candidate.reviewText !== 'string') ||
+    !hasExactFields(candidate, ['score', 'reviewText', 'status', 'createdAt', 'updatedAt']) ||
+    !validation.isValid ||
+    (candidate.reviewText !== null &&
+      (typeof candidate.reviewText !== 'string' ||
+        candidate.reviewText.length === 0 ||
+        Array.from(candidate.reviewText).length > 1000)) ||
     candidate.status !== 'active' ||
-    !isTimestamp(candidate.createdAt) ||
-    !isTimestamp(candidate.updatedAt)
+    createdAt === null ||
+    updatedAt === null ||
+    createdAt > updatedAt
   ) {
     return null
   }
@@ -133,6 +156,9 @@ export function createFirestoreRatingRepository(dependencies = {}) {
 
     try {
       const snapshot = await firestoreApi.getDoc(getPaths(serviceId, userId).rating)
+      if (auth.currentUser?.uid !== userId) {
+        throw new RatingRepositoryError('user-ineligible')
+      }
       if (!snapshot.exists()) {
         return null
       }
@@ -169,6 +195,10 @@ export function createFirestoreRatingRepository(dependencies = {}) {
         const profileSnapshot = await transaction.get(paths.profile)
         const ratingSnapshot = await transaction.get(paths.rating)
         const summarySnapshot = await transaction.get(paths.summary)
+
+        if (auth.currentUser?.uid !== userId) {
+          throw new RatingRepositoryError('user-ineligible')
+        }
 
         if (!serviceSnapshot.exists() || serviceSnapshot.data().status !== 'published') {
           throw new RatingRepositoryError('service-unavailable')

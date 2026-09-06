@@ -1,22 +1,37 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
 
 /**
- * Firebase Web configuration identifies this public client application. These
- * values are not administrator credentials; Firebase Auth and Firestore Rules
- * remain the authorization boundaries for remote data access.
+ * Read Firebase's public web-client identifiers from the local Vite
+ * environment. Vite still exposes `VITE_` values to the browser at runtime, as
+ * Firebase requires, but keeping concrete project values out of tracked source
+ * prevents accidental repository disclosure and keeps environments swappable.
+ * Firebase Auth, Firestore Rules, and provider-side API restrictions remain the
+ * actual authorization boundaries.
  */
-const FIREBASE_CONFIG = Object.freeze({
-  apiKey: 'AIzaSyB02b9MveXGa_3m4E2VgJKGF76bz4gN0dI',
-  authDomain: 'fit5032-7b50f.firebaseapp.com',
-  projectId: 'fit5032-7b50f',
-  storageBucket: 'fit5032-7b50f.firebasestorage.app',
-  messagingSenderId: '308362338146',
-  appId: '1:308362338146:web:7629d332404108796cd63b',
-})
+const readFirebaseConfig = () => {
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  }
 
-const firebaseApp = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp()
+  const missingFields = Object.entries(config)
+    .filter(([, value]) => typeof value !== 'string' || value.trim() === '')
+    .map(([field]) => field)
 
-export const firebaseAuth = getAuth(firebaseApp)
-export const firestore = getFirestore(firebaseApp)
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Firebase client configuration is incomplete. Add ${missingFields.join(', ')} to an untracked .env file.`,
+    )
+  }
+
+  return Object.freeze(config)
+}
+
+const FIREBASE_CONFIG = readFirebaseConfig()
+
+/** Shared Firebase application instance; product SDKs initialise in their own modules. */
+export const firebaseApp = getApps().length === 0 ? initializeApp(FIREBASE_CONFIG) : getApp()
