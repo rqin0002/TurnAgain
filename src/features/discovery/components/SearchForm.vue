@@ -30,16 +30,13 @@ const errors = reactive({ item: '', location: '' })
 const errorSummary = ref('')
 
 watch(
-  () => props.initialItem,
-  (value) => {
-    item.value = value
-  },
-)
-
-watch(
-  () => props.initialLocation,
-  (value) => {
-    location.value = value
+  () => [props.initialItem, props.initialLocation],
+  ([nextItem, nextLocation]) => {
+    item.value = nextItem
+    location.value = nextLocation
+    errors.item = ''
+    errors.location = ''
+    errorSummary.value = ''
   },
 )
 
@@ -49,7 +46,11 @@ const clearFieldError = (field) => {
 }
 
 const submitSearch = async () => {
-  const result = validateSearchInput({ item: item.value, location: location.value })
+  // Native autofill may update a control without notifying v-model first.
+  const result = validateSearchInput({
+    item: itemInput.value?.value ?? item.value,
+    location: locationInput.value?.value ?? location.value,
+  })
 
   errors.item = result.errors.item
   errors.location = result.errors.location
@@ -157,20 +158,10 @@ label {
   font-weight: 700;
 }
 
-.label-optional,
-.field-hint {
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-.field-hint,
 .field-error {
   margin: 0.35rem 0 0;
   font-size: 0.875rem;
   line-height: 1.4;
-}
-
-.field-error {
   color: var(--color-danger);
   font-weight: 650;
 }
@@ -218,10 +209,6 @@ label {
   .search-form__action {
     grid-column: auto;
     padding-top: 1.85rem;
-  }
-
-  .search-form--compact .field-hint {
-    min-height: 2.45rem;
   }
 }
 </style>

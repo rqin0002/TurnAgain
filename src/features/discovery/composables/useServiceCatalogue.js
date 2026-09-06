@@ -69,7 +69,10 @@ export function useServiceCatalogue({ loader = fetchServiceCatalogue, autoLoad =
       void load()
     }
   })
-  onBeforeUnmount(() => activeController?.abort())
+  onBeforeUnmount(() => {
+    ++requestSequence
+    activeController?.abort()
+  })
 
   return {
     status,

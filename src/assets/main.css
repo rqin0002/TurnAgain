@@ -58,6 +58,16 @@ main {
   text-wrap: balance;
 }
 
+/* Reusable visually-hidden text keeps labels available to assistive technology. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Keyboard navigation. */
 .skip-link {
   position: fixed;
@@ -197,6 +207,21 @@ main {
 .auth-form__submit {
   width: 100%;
   margin-top: 0.5rem;
+}
+
+.auth-form__recovery {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.35rem;
+}
+
+.auth-form__recovery a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--color-brand-strong);
+  font-weight: 700;
+  text-underline-offset: 0.18em;
 }
 
 .auth-form__spinner {

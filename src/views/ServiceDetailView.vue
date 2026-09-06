@@ -1,7 +1,8 @@
 <script setup>
 import { computed, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 
+import { useBackNavigation } from '../composables/useBackNavigation.js'
 import { useServiceCatalogue } from '../features/discovery/composables/useServiceCatalogue.js'
 import {
   formatActionType,
@@ -10,7 +11,7 @@ import {
 import ServiceRatings from '../features/ratings/components/ServiceRatings.vue'
 
 const route = useRoute()
-const router = useRouter()
+const { goBack } = useBackNavigation({ name: 'find-nearby' })
 const { status, services, metadata, errorMessage, retry } = useServiceCatalogue()
 
 const requestedId = computed(() => {
@@ -26,19 +27,21 @@ const service = computed(() =>
 
 // The router supplies a useful generic title immediately; once catalogue data
 // arrives, the specific service name gives browser history a clearer label.
-watch(service, (value) => {
-  if (value) {
-    document.title = `${value.name} | TurnAgain`
-  }
-})
+watch(
+  service,
+  (value) => {
+    if (value) {
+      document.title = `${value.name} | TurnAgain`
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
   <section class="page-section">
     <div class="shell detail-page">
-      <button class="text-button detail-page__back" type="button" @click="router.back()">
-        ← Back
-      </button>
+      <button class="text-button detail-page__back" type="button" @click="goBack">← Back</button>
 
       <div v-if="status === 'loading'" class="state-panel" role="status" aria-live="polite">
         <div>

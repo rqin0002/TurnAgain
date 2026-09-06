@@ -111,12 +111,15 @@ export function searchServices(services, criteria = {}) {
 
   const selectedActions = getSelectedActions(criteria)
   const comparator = createComparator(criteria.sort)
+  // Validation accepts VIC/Victoria labels; the catalogue need not repeat the
+  // state on every Melbourne address for those same valid searches to match.
+  const location = String(criteria.location ?? '').replace(/\bVIC(?:TORIA)?\b/giu, '')
 
   return services
     .filter(
       (service) =>
         matchesText(getItemSearchText(service), criteria.item) &&
-        matchesText(getLocationSearchText(service), criteria.location) &&
+        matchesText(getLocationSearchText(service), location) &&
         matchesSelectedActions(service, selectedActions),
     )
     .map((service, originalIndex) => ({ service, originalIndex }))

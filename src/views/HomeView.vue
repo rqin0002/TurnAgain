@@ -77,13 +77,6 @@ h1 {
   font-size: clamp(1.05rem, 2.5vw, 1.25rem);
 }
 
-.home-hero__privacy {
-  max-width: 50rem;
-  margin: -0.5rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
 @media (min-width: 1400px) {
   .home-hero {
     min-height: 48rem;
