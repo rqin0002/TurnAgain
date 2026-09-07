@@ -1,5 +1,36 @@
 rules_version = '2';
 
+// ============================================================================
+// Assumed data model
+// ============================================================================
+// catalogues/current (public get): datasetId, schemaVersion, catalogueType,
+//   checkedAt, coverage, updatedAt.
+// services/{serviceId} (public when published): id, name, actionTypes,
+//   acceptedItems, aliases, summary, optional address, suburb, postcode,
+//   searchAreas, status, source map, createdAt, updatedAt. Client writes denied.
+// services/{serviceId}/aggregates/rating-summary (public get): ratingCount,
+//   ratingSum, five-bucket histogram, updatedAt.
+// services/{serviceId}/ratings/{uid} (owner only): score, reviewText, status,
+//   createdAt, updatedAt.
+// users/{uid} (private owner only): uid, email, displayName, role, status,
+//   createdAt, updatedAt.
+// activities/{activityId} (public when published): id, title, summary,
+//   activityType, suitableItems, acceptedConditions, excludedConditions,
+//   costLabel, whatToBring, accessibilityLabel, cancellationLabel,
+//   providerName, providerUrl, sourceCheckedAt, status, createdAt, updatedAt.
+// activitySessions/{sessionId} (public schedule or staff register): id,
+//   activityId, activityTitle, startsAt, endsAt, venueName, address, suburb,
+//   postcode, capacity, bookedCount, waitlistCount, registrationType,
+//   registrationUrl, status, sourceCheckedAt, participantNotice, createdAt,
+//   updatedAt. No participant identity, contact detail, or access request is
+//   permitted. Capacity fields are all null when an external provider does not
+//   publish live availability; TurnAgain-managed sessions require integers.
+//
+// New activity/session documents are administrative migration inputs. This
+// client ruleset exposes bounded, status-scoped reads while trusted imports
+// and repositories validate schemas. Client writes remain denied.
+// ============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
     function isAuthenticated() {
@@ -35,6 +66,121 @@ service cloud.firestore {
         && value.size() <= 254
         && value == value.lower()
         && value.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$');
+    }
+
+    function isValidHttpsUrl(value) {
+      return value is string
+        && value.size() >= 9
+        && value.size() <= 2048
+        && value.matches('^https://[^ ]+$');
+    }
+
+    function isBoundedCollectionQuery() {
+      return request.query.limit != null
+        && request.query.limit > 0
+        && request.query.limit <= 100;
+    }
+
+    function hasKnownSessionCapacity(data) {
+      return data.capacity is int
+        && data.capacity >= 1
+        && data.capacity <= 10000
+        && data.bookedCount is int
+        && data.bookedCount >= 0
+        && data.bookedCount <= data.capacity
+        && data.waitlistCount is int
+        && data.waitlistCount >= 0
+        && data.waitlistCount <= 10000;
+    }
+
+    function hasUnknownExternalCapacity(data) {
+      return data.registrationType in ['provider', 'drop-in']
+        && data.capacity == null
+        && data.bookedCount == null
+        && data.waitlistCount == null;
+    }
+
+    function hasConsistentSessionStatus(data) {
+      return !hasKnownSessionCapacity(data)
+        || data.status in ['cancelled', 'completed']
+        || (data.status == 'scheduled' && data.bookedCount < data.capacity)
+        || (data.status == 'full' && data.bookedCount == data.capacity);
+    }
+
+    function isValidActivitySession(data, sessionId) {
+      return hasExactFields(
+          data,
+          [
+            'activityId',
+            'activityTitle',
+            'address',
+            'bookedCount',
+            'capacity',
+            'createdAt',
+            'endsAt',
+            'id',
+            'participantNotice',
+            'postcode',
+            'registrationType',
+            'registrationUrl',
+            'sourceCheckedAt',
+            'startsAt',
+            'status',
+            'suburb',
+            'updatedAt',
+            'venueName',
+            'waitlistCount'
+          ]
+        )
+        && isValidId(data.id)
+        && data.id == sessionId
+        && isValidId(data.activityId)
+        && data.activityTitle is string
+        && data.activityTitle.size() >= 1
+        && data.activityTitle.size() <= 150
+        && data.venueName is string
+        && data.venueName.size() >= 1
+        && data.venueName.size() <= 150
+        && data.address is string
+        && data.address.size() >= 1
+        && data.address.size() <= 200
+        && data.suburb is string
+        && data.suburb.size() >= 1
+        && data.suburb.size() <= 100
+        && data.postcode is string
+        && data.postcode.matches('^[0-9]{4}$')
+        && data.registrationType in ['turnagain', 'provider', 'drop-in']
+        && (
+          hasKnownSessionCapacity(data)
+          || hasUnknownExternalCapacity(data)
+        )
+        && (
+          (
+            data.registrationType == 'provider'
+            && isValidHttpsUrl(data.registrationUrl)
+          )
+          || (
+            data.registrationType in ['turnagain', 'drop-in']
+            && data.registrationUrl == null
+          )
+        )
+        && data.status in ['scheduled', 'full', 'cancelled', 'completed']
+        && hasConsistentSessionStatus(data)
+        && isValidDateString(data.sourceCheckedAt)
+        && (
+          data.participantNotice == null
+          || (
+            data.participantNotice is string
+            && data.participantNotice.size() >= 1
+            && data.participantNotice.size() <= 500
+          )
+        )
+        && data.startsAt is timestamp
+        && data.endsAt is timestamp
+        && data.startsAt < data.endsAt
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.createdAt <= data.updatedAt;
     }
 
     function isValidCatalogue(data) {
@@ -169,6 +315,12 @@ service cloud.firestore {
         && get(path).data.email == request.auth.token.email;
     }
 
+    function hasStaffRole() {
+      return isAuthenticated()
+        && isActiveProfile(request.auth.uid)
+        && get(profilePath(request.auth.uid)).data.role in ['staff', 'admin'];
+    }
+
     function scoreBucket(score, bucket) {
       return score == bucket ? 1 : 0;
     }
@@ -268,9 +420,7 @@ service cloud.firestore {
       // Rules are not filters. The query proves only status and its maximum
       // result count; the repository validates every returned document.
       allow list: if resource.data.status == 'published'
-        && request.query.limit != null
-        && request.query.limit > 0
-        && request.query.limit <= 100;
+        && isBoundedCollectionQuery();
 
       allow create, update, delete: if false;
 
@@ -341,6 +491,42 @@ service cloud.firestore {
       match /{nestedDocument=**} {
         allow read, write: if false;
       }
+    }
+
+    match /activities/{activityId} {
+      // A published document is already returned in full by the public list
+      // query, so direct reads use the same visibility boundary. Schema and
+      // relationship validation remain at the trusted import and repository
+      // projection boundaries.
+      allow get: if resource.data.status == 'published';
+
+      // Rules are not filters: the public repository supplies the published
+      // status constraint and a bounded limit on every collection query. Full
+      // document validation happens at the trusted import and client boundary.
+      allow list: if resource.data.status == 'published'
+        && isBoundedCollectionQuery();
+
+      allow create, update, delete: if false;
+    }
+
+    match /activitySessions/{sessionId} {
+      allow get: if isValidActivitySession(resource.data, sessionId)
+        && (
+          resource.data.status in ['scheduled', 'full', 'cancelled']
+          || hasStaffRole()
+        );
+
+      // Public callers prove a public status with `where status in (...)`.
+      // Active staff/admin profiles may list all valid statuses for operations.
+      // Exact schema and relationship checks remain at the trusted import and
+      // client projection boundaries because list rules must be query-provable.
+      allow list: if isBoundedCollectionQuery()
+        && (
+          resource.data.status in ['scheduled', 'full', 'cancelled']
+          || hasStaffRole()
+        );
+
+      allow create, update, delete: if false;
     }
 
     match /users/{uid} {
