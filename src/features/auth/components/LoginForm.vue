@@ -1,9 +1,17 @@
 <script setup>
 import { computed, nextTick, reactive, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 
 import { validateLoginInput } from '../domain/authValidation.js'
 import { useAuthStore } from '../stores/authStore.js'
 import AuthFormField from './AuthFormField.vue'
+
+defineProps({
+  recoveryTo: {
+    type: [String, Object],
+    default: '/forgot-password',
+  },
+})
 
 const emit = defineEmits(['success'])
 const authStore = useAuthStore()
@@ -108,6 +116,10 @@ const submit = async () => {
       :error="errors.password"
       @update:model-value="updateField('password', $event)"
     />
+
+    <div class="auth-form__recovery">
+      <RouterLink :to="recoveryTo">Forgot your password?</RouterLink>
+    </div>
 
     <button class="button button--primary auth-form__submit" type="submit" :disabled="pending">
       <span

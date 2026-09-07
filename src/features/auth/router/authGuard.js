@@ -1,4 +1,4 @@
-const AUTH_ROUTE_NAMES = new Set(['login', 'register'])
+const AUTH_ROUTE_NAMES = new Set(['forgot-password', 'login', 'register'])
 const AUTH_ROLES = new Set(['member', 'staff', 'admin'])
 const ENCODED_PATH_SEPARATOR_PATTERN = /%(?:2f|5c)/iu
 

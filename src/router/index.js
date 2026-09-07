@@ -20,10 +20,28 @@ const routes = [
     meta: { title: 'Search results - TurnAgain' },
   },
   {
+    path: '/activities',
+    name: 'activities',
+    component: () => import('../views/ActivitiesView.vue'),
+    meta: { title: 'Repair & reuse activities - TurnAgain' },
+  },
+  {
+    path: '/activities/:activityId',
+    name: 'activity-detail',
+    component: () => import('../views/ActivityDetailView.vue'),
+    meta: { title: 'Activity details - TurnAgain' },
+  },
+  {
     path: '/services/:serviceId',
     name: 'service-detail',
     component: () => import('../views/ServiceDetailView.vue'),
     meta: { title: 'Service details - TurnAgain' },
+  },
+  {
+    path: '/guides',
+    name: 'guides',
+    component: () => import('../views/GuidesView.vue'),
+    meta: { title: 'Practical guides - TurnAgain' },
   },
   {
     path: '/about',
@@ -36,6 +54,12 @@ const routes = [
     name: 'login',
     component: () => import('../views/LoginView.vue'),
     meta: { title: 'Sign in - TurnAgain', guestOnly: true },
+  },
+  {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: () => import('../views/ForgotPasswordView.vue'),
+    meta: { title: 'Reset your password - TurnAgain', guestOnly: true },
   },
   {
     path: '/register',
@@ -98,7 +122,19 @@ export function createAppRouter({
         return savedPosition
       }
 
-      if (to.fullPath !== from.fullPath) {
+      if (to.hash) {
+        try {
+          const target = document.getElementById(decodeURIComponent(to.hash.slice(1)))
+          if (target) {
+            return { el: target }
+          }
+        } catch {
+          // A malformed hash must not interrupt otherwise valid navigation.
+        }
+      }
+
+      // Filters live in the query string: refining a page is not a page change.
+      if (to.path !== from.path) {
         return { top: 0 }
       }
 
@@ -111,7 +147,11 @@ export function createAppRouter({
 
   // Focus follows a completed client-side page change so keyboard and screen-reader
   // users receive the same navigation cue as sighted users.
-  router.afterEach((to, from) => {
+  router.afterEach((to, from, failure) => {
+    if (failure || to.path === from.path) {
+      return
+    }
+
     document.title = to.meta.title ?? 'TurnAgain'
 
     if (!from.name) {
@@ -119,7 +159,9 @@ export function createAppRouter({
     }
 
     void nextTick(() => {
-      document.querySelector('#main-content')?.focus({ preventScroll: true })
+      if (router.currentRoute.value.fullPath === to.fullPath) {
+        document.querySelector('#main-content')?.focus({ preventScroll: true })
+      }
     })
   })
 

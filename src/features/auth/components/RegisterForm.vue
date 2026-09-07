@@ -43,6 +43,15 @@ const submit = async () => {
   }
 
   summary.value = ''
+  // Password managers may fill native controls without an input event.
+  // Snapshot the form before disabling it and retain password bytes exactly.
+  const submitted = form.value ? new FormData(form.value) : null
+  for (const field of Object.keys(fields)) {
+    const value = submitted?.get(field)
+    if (typeof value === 'string') {
+      fields[field] = value
+    }
+  }
   const validation = validateRegistrationInput(fields)
   Object.assign(errors, validation.errors)
 
@@ -86,7 +95,7 @@ const submit = async () => {
       :model-value="fields.displayName"
       name="displayName"
       type="text"
-      label="Display name"
+      label="Name"
       autocomplete="name"
       required
       :disabled="pending"

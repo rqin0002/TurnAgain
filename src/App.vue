@@ -10,34 +10,55 @@ const route = useRoute()
 const authStore = useAuthStore()
 const { isAuthenticated, operationStatus } = storeToRefs(authStore)
 const canAccessStaff = computed(() => authStore.hasAnyRole(['staff', 'admin']))
-const logoutAlert = ref('')
+const canRenderRoute = computed(
+  () =>
+    !route.meta.requiresAuth ||
+    (isAuthenticated.value && authStore.hasAnyRole(route.meta.allowedRoles)),
+)
 const lastSearchPath = ref('/')
+const lastActivitiesPath = ref('/activities')
+const lastStaffPath = ref('/staff')
 
-// Remember the complete submitted results URL only while this app shell is
-// mounted, preserving search refinements without persisting location data.
+// Remember URL-backed working state only while this app shell is mounted.
+// This preserves public search privacy while allowing staff to return to the
+// same operational filters after visiting another page.
 watch(
   () => route.fullPath,
   (fullPath) => {
     if (route.name === 'find-nearby') {
       lastSearchPath.value = fullPath
     }
+    if (route.name === 'activities') {
+      lastActivitiesPath.value = fullPath
+    }
+    if (route.name === 'staff') {
+      lastStaffPath.value = fullPath
+    }
   },
   { immediate: true },
 )
 
-const logOut = async () => {
-  if (operationStatus.value === 'logging-out') {
-    return
-  }
+// Route guards run on navigation, not when Firebase changes the session in a
+// different tab. Hide protected content immediately and recheck settled sessions.
+watch(
+  () => [authStore.user, authStore.status, operationStatus.value],
+  () => {
+    if (
+      authStore.status === 'restoring' ||
+      operationStatus.value !== 'idle' ||
+      canRenderRoute.value
+    ) {
+      return
+    }
 
-  logoutAlert.value = ''
-  await authStore.logout()
-  if (authStore.errorMessage) {
-    logoutAlert.value =
-      'You are signed out on this page, but the saved session may not have been cleared. Close this tab before using a shared device.'
-  }
-  await router.push('/')
-}
+    void router.replace(
+      isAuthenticated.value
+        ? { name: 'forbidden' }
+        : { name: 'login', query: { redirect: route.fullPath } },
+    )
+  },
+  { flush: 'post' },
+)
 </script>
 
 <template>
@@ -52,18 +73,12 @@ const logOut = async () => {
 
       <nav class="primary-nav" aria-label="Primary navigation">
         <RouterLink :to="lastSearchPath">Find nearby</RouterLink>
+        <RouterLink :to="lastActivitiesPath">Activities</RouterLink>
+        <RouterLink to="/guides">Guides</RouterLink>
         <RouterLink to="/about">About &amp; help</RouterLink>
         <template v-if="isAuthenticated">
-          <RouterLink v-if="canAccessStaff" to="/staff">Staff</RouterLink>
+          <RouterLink v-if="canAccessStaff" :to="lastStaffPath">Staff</RouterLink>
           <RouterLink to="/account">Account</RouterLink>
-          <button
-            class="primary-nav__button"
-            type="button"
-            :disabled="operationStatus === 'logging-out'"
-            @click="logOut"
-          >
-            {{ operationStatus === 'logging-out' ? 'Logging out…' : 'Log out' }}
-          </button>
         </template>
         <template v-else>
           <RouterLink to="/login">Login</RouterLink>
@@ -72,12 +87,9 @@ const logOut = async () => {
     </div>
   </header>
 
-  <div v-if="logoutAlert" class="shell session-alert" role="alert" aria-live="assertive">
-    {{ logoutAlert }}
-  </div>
-
   <main id="main-content" tabindex="-1">
-    <RouterView />
+    <RouterView v-if="canRenderRoute" />
+    <p v-else class="shell page-section" role="status">Checking your session…</p>
   </main>
 
   <footer class="app-footer">
@@ -140,8 +152,7 @@ const logOut = async () => {
   margin-inline-start: auto;
 }
 
-.primary-nav a,
-.primary-nav__button {
+.primary-nav a {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
@@ -157,24 +168,9 @@ const logOut = async () => {
 }
 
 .primary-nav a:hover,
-.primary-nav a.router-link-exact-active,
-.primary-nav__button:hover {
+.primary-nav a.router-link-exact-active {
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
-}
-
-.primary-nav__button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.session-alert {
-  margin-top: 1rem;
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-small);
-  background: var(--color-danger-soft);
-  padding: 0.75rem 1rem;
-  color: var(--color-danger);
 }
 
 @media (max-width: 420px) {
@@ -191,10 +187,13 @@ const logOut = async () => {
     gap: 0;
   }
 
-  .primary-nav a,
-  .primary-nav__button {
+  .primary-nav a {
     padding-inline: 0.45rem;
     font-size: 0.8rem;
+  }
+
+  .primary-nav > :last-child {
+    margin-inline-start: auto;
   }
 }
 
@@ -221,8 +220,7 @@ const logOut = async () => {
     gap: 0.5rem;
   }
 
-  .primary-nav a,
-  .primary-nav__button {
+  .primary-nav a {
     padding-inline: 0.85rem;
     font-size: 0.95rem;
   }
