@@ -1,4 +1,4 @@
-import { computed, inject, onBeforeUnmount, ref, toValue, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, toValue, watch } from 'vue'
 
 import { useAuthStore } from '../../auth/stores/authStore.js'
 import {
@@ -8,9 +8,7 @@ import {
 
 const GENERIC_RATING_ERROR = 'Ratings are temporarily unavailable.'
 const runtimeRatingRepository = createFirestoreRatingRepository()
-
-/** Injection key for replacing the runtime rating repository in component tests or future adapters. */
-export const RATING_REPOSITORY_KEY = Symbol('turnagain-rating-repository')
+const pendingWritesByRepository = new WeakMap()
 
 const getSafeErrorMessage = (error) =>
   error instanceof RatingRepositoryError ? error.message : GENERIC_RATING_ERROR
@@ -48,8 +46,12 @@ const isValidRepositoryResult = (result) =>
  */
 export function useServiceRatings({ serviceId, authStore, repository } = {}) {
   const resolvedAuthStore = authStore ?? useAuthStore()
-  const resolvedRepository =
-    repository ?? inject(RATING_REPOSITORY_KEY, null) ?? runtimeRatingRepository
+  const resolvedRepository = repository ?? runtimeRatingRepository
+  let pendingWrites = pendingWritesByRepository.get(resolvedRepository)
+  if (!pendingWrites) {
+    pendingWrites = new Map()
+    pendingWritesByRepository.set(resolvedRepository, pendingWrites)
+  }
   const currentServiceId = computed(() => {
     const value = toValue(serviceId)
     return typeof value === 'string' ? value : ''
@@ -102,6 +104,18 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     privateStatus.value = nextStatus
   }
 
+  const waitForPendingWrites = async (requestedServiceId, isCurrent) => {
+    // Remounted views must read after every queued write to this service settles.
+    while (pendingWrites.has(requestedServiceId)) {
+      // The originating save owns its error; failed writes still unlock reads.
+      await pendingWrites.get(requestedServiceId).catch(() => undefined)
+      if (!isCurrent()) {
+        return false
+      }
+    }
+    return isCurrent()
+  }
+
   const loadSummary = async () => {
     const requestedServiceId = currentServiceId.value
     const generation = ++publicGeneration
@@ -115,6 +129,13 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
 
     summaryStatus.value = 'loading'
     try {
+      if (
+        !(await waitForPendingWrites(requestedServiceId, () =>
+          isPublicCurrent(generation, requestedServiceId),
+        ))
+      ) {
+        return
+      }
       const result = await resolvedRepository.getSummary(requestedServiceId)
       if (!isPublicCurrent(generation, requestedServiceId)) {
         return
@@ -148,6 +169,13 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     }
 
     try {
+      if (
+        !(await waitForPendingWrites(requestedServiceId, () =>
+          isPrivateCurrent(generation, requestedServiceId, requestedUserId),
+        ))
+      ) {
+        return
+      }
       const result = await resolvedRepository.getMyRating(requestedServiceId, requestedUserId)
       if (!isPrivateCurrent(generation, requestedServiceId, requestedUserId)) {
         return
@@ -187,11 +215,27 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     successMessage.value = ''
 
     try {
-      const result = await resolvedRepository.saveMyRating(
-        requestedServiceId,
-        requestedUserId,
-        input,
-      )
+      const previousWrite = pendingWrites.get(requestedServiceId)
+      const write = () =>
+        resolvedRepository.saveMyRating(requestedServiceId, requestedUserId, input)
+      const operation = previousWrite
+        ? previousWrite
+            .catch(() => undefined)
+            .then(() => {
+              // A queued intent may outlive its service, identity, or mounted form.
+              return isPrivateCurrent(generation, requestedServiceId, requestedUserId)
+                ? write()
+                : null
+            })
+        : write()
+      const pendingWrite = Promise.resolve(operation).finally(() => {
+        if (pendingWrites.get(requestedServiceId) === pendingWrite) {
+          pendingWrites.delete(requestedServiceId)
+        }
+      })
+      pendingWrites.set(requestedServiceId, pendingWrite)
+
+      const result = await pendingWrite
       if (!isPrivateCurrent(generation, requestedServiceId, requestedUserId)) {
         return null
       }

@@ -1,7 +1,6 @@
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
-  deleteUser,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
@@ -28,7 +27,6 @@ const NON_DISCLOSING_RESET_CODES = new Set([
 const DEFAULT_AUTH_API = Object.freeze({
   browserLocalPersistence,
   createUserWithEmailAndPassword,
-  deleteUser,
   onAuthStateChanged,
   sendPasswordResetEmail,
   setPersistence,
@@ -58,7 +56,7 @@ const loadDefaultFirestoreContext = () => {
             doc: firestoreApi.doc,
             getDoc: firestoreApi.getDoc,
             serverTimestamp: firestoreApi.serverTimestamp,
-            setDoc: firestoreApi.setDoc,
+            runTransaction: firestoreApi.runTransaction,
           }),
         }),
       )
@@ -189,11 +187,41 @@ export function createFirebaseAuthRepository(dependencies = {}) {
     return firestoreContextPromise
   }
 
-  const loadProfile = async (firebaseUser, invalidProfileCode) => {
+  const loadProfile = async (firebaseUser, invalidProfileCode, completeRegistration = false) => {
     let snapshot
     try {
       const { db, firestoreApi } = await getFirestoreContext()
-      snapshot = await firestoreApi.getDoc(firestoreApi.doc(db, 'users', firebaseUser.uid))
+      const profileRef = firestoreApi.doc(db, 'users', firebaseUser.uid)
+      snapshot = await firestoreApi.getDoc(profileRef)
+
+      if (!snapshot.exists() && completeRegistration) {
+        // Only an explicit sign-in/sign-up may finish an interrupted registration.
+        // Create-if-absent also lets concurrent tabs reuse the winning profile;
+        // existing disabled, malformed or privileged profiles are never replaced.
+        await firestoreApi.runTransaction(db, async (transaction) => {
+          const current = await transaction.get(profileRef)
+          if (auth.currentUser?.uid !== firebaseUser.uid) {
+            throw new AuthError('session-expired')
+          }
+          if (current.exists()) {
+            return
+          }
+
+          const name =
+            typeof firebaseUser.displayName === 'string' ? firebaseUser.displayName.trim() : ''
+          const timestamp = firestoreApi.serverTimestamp()
+          transaction.set(profileRef, {
+            uid: firebaseUser.uid,
+            email: normalizeEmail(firebaseUser.email),
+            displayName: name && Array.from(name).length <= 50 ? name : 'Member',
+            role: 'member',
+            status: 'active',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          })
+        })
+        snapshot = await firestoreApi.getDoc(profileRef)
+      }
     } catch (error) {
       throw mapFirebaseAuthError(error)
     }
@@ -292,7 +320,7 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       throw mapFirebaseAuthError(error)
     }
 
-    return loadProfile(firebaseUser, 'invalid-credentials')
+    return loadProfile(firebaseUser, 'invalid-credentials', true)
   }
 
   const register = async (input) => {
@@ -315,39 +343,22 @@ export function createFirebaseAuthRepository(dependencies = {}) {
         displayName: validation.values.displayName,
       })
 
-      const { db, firestoreApi } = await getFirestoreContext()
-      const timestamp = firestoreApi.serverTimestamp()
-      await firestoreApi.setDoc(firestoreApi.doc(db, 'users', firebaseUser.uid), {
-        uid: firebaseUser.uid,
-        email: normalizeEmail(firebaseUser.email),
-        displayName: validation.values.displayName,
-        role: 'member',
-        status: 'active',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
+      return await loadProfile(firebaseUser, 'invalid-credentials', true)
     } catch (error) {
       if (firebaseUser !== undefined) {
-        try {
-          await authApi.deleteUser(firebaseUser)
-        } catch {
-          // The original failure remains authoritative. A future sign-in also
-          // fails closed because the incomplete identity has no valid profile.
+        // A failed response may follow a successful profile commit. Keep the
+        // identity so sign-in can safely finish setup instead of deleting it.
+        if (auth.currentUser?.uid === firebaseUser.uid) {
+          try {
+            await authApi.signOut(auth)
+          } catch {
+            // A later sign-in retries completion; restoration never creates data.
+          }
         }
+        throw new AuthError('registration-incomplete')
       }
       throw mapFirebaseAuthError(error)
     }
-
-    if (auth.currentUser?.uid !== firebaseUser.uid) {
-      throw new AuthError('session-expired')
-    }
-
-    return Object.freeze({
-      uid: firebaseUser.uid,
-      email: normalizeEmail(firebaseUser.email),
-      displayName: validation.values.displayName,
-      role: 'member',
-    })
   }
 
   const requestPasswordReset = async (input) => {

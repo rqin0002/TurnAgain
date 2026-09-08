@@ -72,12 +72,6 @@ legend {
   font-weight: 750;
 }
 
-.filter-panel__hint {
-  margin: 0.35rem 0 0.85rem;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
 .filter-option {
   display: flex;
   min-height: 2.75rem;

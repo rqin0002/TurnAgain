@@ -12,7 +12,7 @@ import ServiceRatings from '../features/ratings/components/ServiceRatings.vue'
 
 const route = useRoute()
 const { goBack } = useBackNavigation({ name: 'find-nearby' })
-const { status, services, metadata, errorMessage, retry } = useServiceCatalogue()
+const { status, services, errorMessage, retry } = useServiceCatalogue()
 
 const requestedId = computed(() => {
   const value = Array.isArray(route.params.serviceId)
@@ -87,7 +87,6 @@ watch(
 
           <aside class="source-panel" aria-labelledby="source-heading">
             <h2 id="source-heading">Check the source</h2>
-            <p v-if="metadata.notice">{{ metadata.notice }}</p>
             <p>
               Source:
               <a :href="service.source.url" target="_blank" rel="noopener noreferrer">

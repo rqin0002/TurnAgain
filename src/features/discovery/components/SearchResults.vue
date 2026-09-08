@@ -14,10 +14,6 @@ const props = defineProps({
     type: Array,
     required: true,
   },
-  metadata: {
-    type: Object,
-    default: () => ({}),
-  },
   errorMessage: {
     type: String,
     default: '',
@@ -122,11 +118,6 @@ const resultAnnouncement = computed(() => {
         </p>
       </header>
 
-      <p v-if="metadata.notice" class="catalogue-notice">
-        <span aria-hidden="true">ⓘ</span>
-        {{ metadata.notice }}
-      </p>
-
       <div class="mobile-controls">
         <details class="mobile-filters">
           <summary>Filters</summary>
@@ -206,18 +197,6 @@ p {
   margin: 0;
   color: var(--color-text-muted);
   font-weight: 750;
-}
-
-.catalogue-notice {
-  display: flex;
-  gap: 0.65rem;
-  margin: 0 0 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-small);
-  background: var(--color-surface-muted);
-  padding: 0.8rem 1rem;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
 }
 
 .mobile-controls {

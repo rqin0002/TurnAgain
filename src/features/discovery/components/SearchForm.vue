@@ -12,10 +12,6 @@ const props = defineProps({
     type: String,
     default: '',
   },
-  compact: {
-    type: Boolean,
-    default: false,
-  },
 })
 
 const emit = defineEmits({
@@ -75,12 +71,7 @@ const submitSearch = async () => {
 </script>
 
 <template>
-  <form
-    class="search-form"
-    :class="{ 'search-form--compact': compact }"
-    novalidate
-    @submit.prevent="submitSearch"
-  >
+  <form class="search-form" novalidate @submit.prevent="submitSearch">
     <p v-if="errorSummary" class="form-alert" role="alert" tabindex="-1">
       {{ errorSummary }}
     </p>

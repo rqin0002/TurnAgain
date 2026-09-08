@@ -244,36 +244,9 @@ const GUIDANCE_TOPICS = [
   text-wrap: balance;
 }
 
-.guides-heading > p {
-  max-width: 42rem;
-  margin-bottom: 0;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-}
-
 .guides-grid {
   display: grid;
   gap: 1rem;
-}
-
-.guides-safety-note {
-  max-width: 52rem;
-  margin-top: 1.25rem;
-  border-left: 4px solid var(--color-danger);
-  background: var(--color-surface);
-  padding: 1rem 1.15rem;
-}
-
-.guides-safety-note h2 {
-  margin-bottom: 0.4rem;
-  color: var(--color-heading);
-  font-size: 1.05rem;
-}
-
-.guides-safety-note p {
-  margin-bottom: 0;
-  color: var(--color-text-muted);
-  line-height: 1.6;
 }
 
 @media (min-width: 768px) {

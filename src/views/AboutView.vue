@@ -148,7 +148,6 @@ const pageContent = {
       {
         key: 'available',
         titleId: 'available-title',
-        className: 'boundary-card',
         title: 'In this prototype',
         items: [
           'Search by item name, suburb or Victorian postcode—or browse without entering either.',
@@ -160,7 +159,6 @@ const pageContent = {
       {
         key: 'limits',
         titleId: 'limits-title',
-        className: 'boundary-card',
         title: 'Current limits',
         items: ['This tab can add some new features in future updates.'],
       },
@@ -303,7 +301,6 @@ const pageContent = {
             <p class="eyebrow">{{ pageContent.howItWorks.eyebrow }}</p>
             <h2 :id="pageContent.howItWorks.titleId">{{ pageContent.howItWorks.title }}</h2>
           </div>
-          <p v-if="pageContent.howItWorks.intro">{{ pageContent.howItWorks.intro }}</p>
         </div>
 
         <ol class="pathway-list">
@@ -387,7 +384,6 @@ const pageContent = {
             <p class="eyebrow">{{ pageContent.prototype.eyebrow }}</p>
             <h2 :id="pageContent.prototype.titleId">{{ pageContent.prototype.title }}</h2>
           </div>
-          <p v-if="pageContent.prototype.intro">{{ pageContent.prototype.intro }}</p>
         </div>
 
         <div class="boundary-grid">
@@ -395,10 +391,8 @@ const pageContent = {
             v-for="group in pageContent.prototype.groups"
             :key="group.key"
             class="boundary-card"
-            :class="group.className"
             :aria-labelledby="group.titleId"
           >
-            <p v-if="group.status" class="boundary-card__status">{{ group.status }}</p>
             <h3 :id="group.titleId">{{ group.title }}</h3>
             <ul>
               <li v-for="item in group.items" :key="item">{{ item }}</li>
@@ -439,17 +433,6 @@ const pageContent = {
       <div class="shell about-cta__inner">
         <div>
           <h2 :id="pageContent.callToAction.titleId">{{ pageContent.callToAction.title }}</h2>
-        </div>
-        <div v-if="pageContent.callToAction.actions?.length" class="about-cta__actions">
-          <RouterLink
-            v-for="action in pageContent.callToAction.actions"
-            :key="action.key"
-            class="button"
-            :class="action.className"
-            :to="action.to"
-          >
-            {{ action.label }}
-          </RouterLink>
         </div>
       </div>
     </section>
@@ -539,14 +522,6 @@ const pageContent = {
   line-height: 1.55;
 }
 
-.about-hero__actions,
-.about-cta__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1.75rem;
-}
-
 .about-hero__promises {
   display: flex;
   flex-wrap: wrap;
@@ -573,31 +548,6 @@ const pageContent = {
   content: '';
 }
 
-.decision-card {
-  align-self: end;
-  border: 1px solid color-mix(in srgb, var(--color-brand) 40%, var(--color-border));
-  border-radius: 1rem;
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  padding: clamp(1.25rem, 4vw, 2rem);
-  box-shadow: var(--shadow-low);
-}
-
-.decision-card__label,
-.boundary-card__status {
-  margin-bottom: 0.6rem;
-  color: var(--color-brand-strong);
-  font-size: 0.76rem;
-  font-weight: 850;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.decision-card h2 {
-  font-size: clamp(1.55rem, 4vw, 2.15rem);
-}
-
-.decision-card > p:last-child,
-.section-heading > p,
 .section-intro > p:last-child {
   margin-bottom: 0;
   color: var(--color-text-muted);
@@ -660,21 +610,6 @@ const pageContent = {
   font-weight: 650;
 }
 
-.scope-note {
-  margin-top: 1.75rem;
-  border-left: 4px solid var(--about-accent);
-  background: var(--about-accent-soft);
-  padding: 1rem 1.15rem;
-}
-
-.scope-note p {
-  margin-bottom: 0.35rem;
-}
-
-.scope-note p:last-child {
-  margin-bottom: 0;
-}
-
 .pathway-section {
   border-block: 1px solid var(--color-border);
   background: var(--color-surface-muted);
@@ -684,10 +619,6 @@ const pageContent = {
   display: grid;
   gap: 1rem;
   margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
-}
-
-.section-heading > p {
-  max-width: 42rem;
 }
 
 .pathway-list,
@@ -990,15 +921,6 @@ const pageContent = {
 
 .about-cta h2 {
   font-size: clamp(2rem, 5vw, 3.4rem);
-}
-
-.about-cta p:last-child {
-  margin: 0.75rem 0 0;
-  color: var(--color-text-muted);
-}
-
-.about-cta__actions {
-  margin-top: 0;
 }
 
 @media (min-width: 576px) {

@@ -7,12 +7,10 @@ import ActivitySessionRegister from '../features/staff/components/ActivitySessio
 import ServiceRegister from '../features/staff/components/ServiceRegister.vue'
 import {
   normalizeActivitySessionCriteria,
-  toActivitySessionQuery,
-} from '../features/staff/domain/activitySessionRegister.js'
-import {
   normalizeServiceRegisterCriteria,
+  toActivitySessionQuery,
   toServiceRegisterQuery,
-} from '../features/staff/domain/serviceRegister.js'
+} from '../features/staff/domain/staffRegisters.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -98,15 +96,6 @@ const updateSessionCriteria = (nextCriteria) =>
 <style scoped>
 .staff-page__intro {
   max-width: 48rem;
-}
-
-.staff-page__boundary {
-  max-width: 58rem;
-  margin: 1.5rem 0 0;
-  border-left: 4px solid var(--color-brand);
-  background: var(--color-brand-soft);
-  padding: 0.9rem 1rem;
-  color: var(--color-text);
 }
 
 .staff-page__register-nav {

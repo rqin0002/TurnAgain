@@ -10,7 +10,7 @@ import {
   formatSessionTime,
   getRemainingCapacity,
 } from '../../activities/domain/activityCatalogue.js'
-import { buildActivitySessionPage } from '../domain/activitySessionRegister.js'
+import { buildActivitySessionPage } from '../domain/staffRegisters.js'
 
 const props = defineProps({
   criteria: {
@@ -368,12 +368,6 @@ const sortIndicator = (column) => {
 .session-register__header {
   display: grid;
   gap: 1rem;
-}
-
-.session-register__intro {
-  max-width: 50rem;
-  margin: 0.65rem 0 0;
-  color: var(--color-text-muted);
 }
 
 .session-register__summary {

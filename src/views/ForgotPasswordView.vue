@@ -1,27 +1,87 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
-import PasswordResetForm from '../features/auth/components/PasswordResetForm.vue'
+import AuthFormField from '../features/auth/components/AuthFormField.vue'
+import { validatePasswordResetInput } from '../features/auth/domain/authValidation.js'
 import { resolveSafeRedirect } from '../features/auth/router/authGuard.js'
+import { useAuthStore } from '../features/auth/stores/authStore.js'
 
 const route = useRoute()
 const router = useRouter()
 const requested = ref(false)
 const successPanel = ref(null)
+const authStore = useAuthStore()
+const form = ref(null)
+const isSubmitting = ref(false)
+const summary = ref('')
+const fields = reactive({ email: '' })
+const errors = reactive({ email: '' })
+const pending = computed(
+  () => isSubmitting.value || authStore.operationStatus === 'requesting-password-reset',
+)
 
 const loginDestination = computed(() => {
   const redirect = resolveSafeRedirect(route.query.redirect, router)
   return redirect ? { name: 'login', query: { redirect } } : { name: 'login' }
 })
 
-const completeRequest = async () => {
-  requested.value = true
-  await nextTick()
-  successPanel.value?.focus()
+const updateEmail = (value) => {
+  fields.email = value
+  errors.email = ''
+}
+
+const readSubmittedEmail = () => {
+  const submitted = form.value ? new FormData(form.value).get('email') : null
+  return typeof submitted === 'string' ? submitted : fields.email
+}
+
+const submit = async () => {
+  if (pending.value) {
+    return
+  }
+
+  summary.value = ''
+  const submittedEmail = readSubmittedEmail()
+  fields.email = submittedEmail
+  const validation = validatePasswordResetInput({ email: submittedEmail })
+  Object.assign(errors, validation.errors)
+
+  if (!validation.isValid) {
+    summary.value = 'Check the highlighted field and try again.'
+    await nextTick()
+    form.value?.querySelector('[name="email"]')?.focus()
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    const sent = await authStore.requestPasswordReset({
+      email: validation.values.email,
+    })
+
+    if (sent) {
+      requested.value = true
+      await nextTick()
+      successPanel.value?.focus()
+      return
+    }
+
+    summary.value =
+      authStore.errorMessage || 'Password recovery is temporarily unavailable. Try again later.'
+  } catch {
+    summary.value = 'Password recovery is temporarily unavailable. Try again later.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 const resetForm = () => {
+  // The former child component reset on remount; keep that fresh-form behavior here.
+  fields.email = ''
+  errors.email = ''
+  summary.value = ''
+  isSubmitting.value = false
   requested.value = false
 }
 </script>
@@ -36,7 +96,40 @@ const resetForm = () => {
 
       <div class="surface surface--padded surface--raised auth-card">
         <template v-if="!requested">
-          <PasswordResetForm @success="completeRequest" />
+          <form
+            ref="form"
+            class="auth-form"
+            novalidate
+            :aria-busy="pending"
+            @submit.prevent="submit"
+          >
+            <div v-if="summary" class="auth-form__summary" role="alert" aria-live="assertive">
+              {{ summary }}
+            </div>
+
+            <AuthFormField
+              id="password-reset-email"
+              :model-value="fields.email"
+              name="email"
+              type="email"
+              label="Email address"
+              autocomplete="email"
+              :spellcheck="false"
+              required
+              :disabled="pending"
+              :error="errors.email"
+              @update:model-value="updateEmail"
+            />
+
+            <button
+              class="button button--primary auth-form__submit"
+              type="submit"
+              :disabled="pending"
+            >
+              <span v-if="pending" class="auth-form__spinner" aria-hidden="true"></span>
+              {{ pending ? 'Sending reset link…' : 'Send reset link' }}
+            </button>
+          </form>
           <div class="auth-card__alternate">
             <p>Remembered your password?</p>
             <RouterLink

@@ -166,7 +166,6 @@ main {
 
 .auth-page__intro p,
 .account-page__lead,
-.staff-page__lead,
 .forbidden-page > p {
   margin: 1rem 0 0;
   color: var(--color-text-muted);
@@ -307,13 +306,6 @@ main {
 .profile-list > div + div {
   border-top: 1px solid var(--color-border);
   padding-top: 1rem;
-}
-
-.auth-boundary-note {
-  margin: 1rem 0 0;
-  border-left: 4px solid var(--color-brand);
-  background: var(--color-brand-soft);
-  padding: 0.9rem 1rem;
 }
 
 .staff-page .state-panel {

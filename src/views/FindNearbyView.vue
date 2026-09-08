@@ -45,7 +45,7 @@ const sort = computed(() => {
   return SORT_OPTIONS.has(value) ? value : 'name-asc'
 })
 
-const { status, services, metadata, errorMessage, retry } = useServiceCatalogue({
+const { status, services, errorMessage, retry } = useServiceCatalogue({
   autoLoad: queryState.value.isValid,
 })
 
@@ -106,7 +106,6 @@ const updatePreferences = ({ actions = selectedActions.value, sortValue = sort.v
 
         <div class="surface surface--padded">
           <SearchForm
-            compact
             :initial-item="queryState.values.item"
             :initial-location="queryState.values.location"
             @submit="updateSearch"
@@ -120,7 +119,6 @@ const updatePreferences = ({ actions = selectedActions.value, sortValue = sort.v
         <SearchResults
           :status="status"
           :services="services"
-          :metadata="metadata"
           :error-message="errorMessage"
           :item="queryState.values.item"
           :location="queryState.values.location"

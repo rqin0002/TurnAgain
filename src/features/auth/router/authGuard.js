@@ -67,6 +67,12 @@ export function resolveSafeRedirect(value, router) {
  */
 export function createAuthGuard({ authStore, router }) {
   return async (to) => {
+    // Public pages do not need a settled session. Let users leave a pending
+    // sign-in or password-reset request; bootstrap still restores auth once.
+    if (!to.meta.requiresAuth && !to.meta.guestOnly) {
+      return true
+    }
+
     await authStore.initialize()
 
     const authenticated = authStore.isAuthenticated === true && authStore.user !== null

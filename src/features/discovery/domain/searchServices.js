@@ -135,14 +135,14 @@ export function searchServices(services, criteria = {}) {
  * to each action count, even when its source data repeats that action.
  *
  * @param {Array<Record<string, unknown>>} services Services to summarize.
- * @returns {Record<string, number>} Counts keyed by `all` and normalized actions.
+ * @returns {Record<string, number>} Counts keyed by normalized actions.
  */
 export function countServicesByAction(services) {
   if (!Array.isArray(services)) {
-    return { all: 0 }
+    return {}
   }
 
-  const counts = { all: services.length }
+  const counts = {}
 
   services.forEach((service) => {
     const uniqueActions = new Set(getActions(service).map(normalizeForSearch).filter(Boolean))

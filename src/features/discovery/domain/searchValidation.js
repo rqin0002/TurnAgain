@@ -16,7 +16,7 @@ function normalizeField(value) {
  * @param {{ item?: unknown, location?: unknown }} [input={}] Raw form values.
  * @returns {{ item: string, location: string }} Normalized string values.
  */
-export function normalizeSearchInput(input = {}) {
+function normalizeSearchInput(input = {}) {
   return {
     item: normalizeField(input.item),
     location: normalizeField(input.location),

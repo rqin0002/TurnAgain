@@ -1,7 +1,6 @@
 {
   "recommendations": [
     "Vue.volar",
-    "vitest.explorer",
     "ms-playwright.playwright",
     "dbaeumer.vscode-eslint",
     "EditorConfig.EditorConfig",

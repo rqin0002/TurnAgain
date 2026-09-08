@@ -39,7 +39,9 @@ watch(
     fields.score = rating?.score ?? null
     fields.reviewText = rating?.reviewText ?? ''
     errors.score = ''
-    errors.reviewText = ''
+    errors.reviewText = rating?.reviewError
+      ? 'Your saved review contains unsupported characters. Replace or clear the review text before saving.'
+      : ''
     summaryError.value = ''
   },
   { immediate: true },

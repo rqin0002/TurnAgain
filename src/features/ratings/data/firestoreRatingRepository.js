@@ -71,7 +71,6 @@ const projectRating = (candidate, serviceId, userId) => {
   const updatedAt = timestampMillis(candidate?.updatedAt)
   const validation = validateRatingInput({
     score: candidate?.score,
-    reviewText: candidate?.reviewText,
   })
   if (
     !hasExactFields(candidate, ['score', 'reviewText', 'status', 'createdAt', 'updatedAt']) ||
@@ -93,6 +92,12 @@ const projectRating = (candidate, serviceId, userId) => {
     userId,
     score: candidate.score,
     reviewText: candidate.reviewText,
+    // Preserve bounded legacy text for the owner to correct explicitly. New
+    // writes still use full validation; never silently strip stored content.
+    reviewError: validateRatingInput({
+      score: candidate.score,
+      reviewText: candidate.reviewText,
+    }).errors.reviewText,
     status: candidate.status,
     createdAt: candidate.createdAt,
     updatedAt: candidate.updatedAt,

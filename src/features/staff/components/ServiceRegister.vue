@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 
 import { useSearchDraft } from '../../../composables/useSearchDraft.js'
 import { formatActionType, formatCheckedDate } from '../../discovery/domain/servicePresentation.js'
-import { buildServiceRegisterPage } from '../domain/serviceRegister.js'
+import { buildServiceRegisterPage } from '../domain/staffRegisters.js'
 
 const props = defineProps({
   status: {
@@ -368,12 +368,6 @@ const sortIndicator = (column) => {
 .service-register__header {
   display: grid;
   gap: 1rem;
-}
-
-.service-register__intro {
-  max-width: 48rem;
-  margin: 0.65rem 0 0;
-  color: var(--color-text-muted);
 }
 
 .service-register__summary {

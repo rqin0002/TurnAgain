@@ -2,10 +2,8 @@
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
-import { useAuthStore } from '../../auth/stores/authStore.js'
 import { useServiceRatings } from '../composables/useServiceRatings.js'
 import RatingForm from './RatingForm.vue'
-import RatingSummary from './RatingSummary.vue'
 
 const props = defineProps({
   serviceId: {
@@ -14,7 +12,6 @@ const props = defineProps({
   },
 })
 
-const authStore = useAuthStore()
 const router = useRouter()
 const {
   formKey,
@@ -29,7 +26,22 @@ const {
   summary,
   summaryErrorMessage,
   summaryStatus,
-} = useServiceRatings({ serviceId: () => props.serviceId, authStore })
+} = useServiceRatings({ serviceId: () => props.serviceId })
+
+const hasRatings = computed(() => (summary.value?.ratingCount ?? 0) > 0)
+const formattedAverage = computed(() => summary.value?.averageRating?.toFixed(1) ?? '')
+const ratingCountCopy = computed(() =>
+  summary.value?.ratingCount === 1
+    ? 'Based on 1 rating'
+    : `Based on ${summary.value?.ratingCount ?? 0} ratings`,
+)
+const myRatingCopy = computed(() => {
+  if (!myRating.value) {
+    return ''
+  }
+  const unit = myRating.value.score === 1 ? 'star' : 'stars'
+  return `Your rating: ${myRating.value.score} ${unit}`
+})
 
 const headingId = computed(() => `service-ratings-${props.serviceId}`)
 const signInTarget = computed(() => {
@@ -64,7 +76,26 @@ const signInTarget = computed(() => {
     <p v-else-if="summaryErrorMessage" class="service-ratings__error" role="alert">
       {{ summaryErrorMessage }}
     </p>
-    <RatingSummary v-else-if="summary" :summary="summary" :my-rating="myRating" />
+    <div v-else-if="summary" class="rating-summary">
+      <div class="rating-summary__overall">
+        <p v-if="hasRatings" data-testid="overall-rating">
+          Overall rating: <strong>{{ formattedAverage }}</strong> out of 5 stars
+        </p>
+        <p v-else data-testid="overall-rating"><strong>No ratings yet</strong></p>
+        <p data-testid="rating-count">
+          {{ hasRatings ? ratingCountCopy : 'Be the first to rate this service' }}
+        </p>
+      </div>
+
+      <div v-if="myRating" class="rating-summary__private">
+        <p data-testid="your-rating">
+          <strong>{{ myRatingCopy }}</strong>
+        </p>
+        <p v-if="myRating.reviewText" data-testid="your-review">
+          Your review: {{ myRating.reviewText }}
+        </p>
+      </div>
+    </div>
 
     <div class="service-ratings__editor">
       <h3>Rate this service</h3>
@@ -193,5 +224,43 @@ const signInTarget = computed(() => {
   display: grid;
   justify-items: start;
   gap: 0.4rem;
+}
+
+.rating-summary {
+  display: grid;
+  gap: 1rem;
+}
+
+.rating-summary__overall,
+.rating-summary__private {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  padding: 1rem;
+}
+
+.rating-summary__overall {
+  background: var(--color-brand-soft);
+}
+
+.rating-summary p {
+  margin: 0;
+}
+
+.rating-summary p + p {
+  margin-top: 0.35rem;
+}
+
+.rating-summary__private p:last-child {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 576px) {
+  .rating-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rating-summary__overall:only-child {
+    grid-column: 1 / -1;
+  }
 }
 </style>
