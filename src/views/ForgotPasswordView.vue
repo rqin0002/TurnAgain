@@ -152,7 +152,7 @@ const resetForm = () => {
           <div>
             <h2>Check your inbox</h2>
             <p>
-              If an eligible account matches that address, Firebase will send password reset
+              If an eligible account matches that address, We will send password reset
               instructions. Check your spam folder if the message does not arrive shortly.
             </p>
           </div>
