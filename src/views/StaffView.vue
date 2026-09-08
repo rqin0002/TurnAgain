@@ -55,7 +55,9 @@ const updateSessionCriteria = (nextCriteria) =>
   <section class="page-section">
     <div class="shell staff-page">
       <header class="staff-page__intro">
+        <p class="eyebrow">TurnAgain / Staff</p>
         <h1 class="page-title">Staff workspace</h1>
+        <p class="staff-page__description">Browse the service catalogue and activity schedule.</p>
       </header>
 
       <nav class="staff-page__register-nav" aria-label="Staff registers">
@@ -98,32 +100,55 @@ const updateSessionCriteria = (nextCriteria) =>
   max-width: 48rem;
 }
 
+.staff-page__intro .page-title {
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+
+.staff-page__intro .eyebrow {
+  color: var(--color-text-muted);
+}
+
+.staff-page__description {
+  margin: 1rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 1.0625rem;
+}
+
 .staff-page__register-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
+  gap: 0.5rem 2rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
   border-bottom: 1px solid var(--color-border);
-  padding-bottom: 0.75rem;
 }
 
 .staff-page__register-nav a {
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: 3.25rem;
   align-items: center;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-small);
-  background: var(--color-surface);
-  padding: 0.55rem 0.9rem;
-  color: var(--color-text);
-  font-weight: 750;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 0.75rem 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 600;
   text-decoration: none;
 }
 
 .staff-page__register-nav a:hover,
 .staff-page__register-nav a[aria-current='page'] {
-  border-color: var(--color-brand);
-  background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
+  border-bottom-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+@media (max-width: 420px) {
+  .staff-page__register-nav {
+    gap: 0.25rem 1.25rem;
+  }
+
+  .staff-page__register-nav a {
+    font-size: 0.875rem;
+  }
 }
 </style>

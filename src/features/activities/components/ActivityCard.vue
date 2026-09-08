@@ -29,11 +29,14 @@ const availabilityLabel = computed(() => formatSessionAvailability(props.nextSes
 </script>
 
 <template>
-  <article class="activity-card surface surface--raised">
+  <article class="activity-card">
     <div class="activity-card__body">
-      <p class="eyebrow">{{ formatActivityType(activity.activityType) }}</p>
+      <p class="activity-card__type">{{ formatActivityType(activity.activityType) }}</p>
       <h2>
-        <RouterLink :to="{ name: 'activity-detail', params: { activityId: activity.id } }">
+        <RouterLink
+          class="title-link"
+          :to="{ name: 'activity-detail', params: { activityId: activity.id } }"
+        >
           {{ activity.title }}
         </RouterLink>
       </h2>
@@ -67,10 +70,10 @@ const availabilityLabel = computed(() => formatSessionAvailability(props.nextSes
       </template>
 
       <RouterLink
-        class="button button--secondary activity-card__action"
+        class="inline-action activity-card__action"
         :to="{ name: 'activity-detail', params: { activityId: activity.id } }"
       >
-        View activity details
+        View activity details <span aria-hidden="true">→</span>
       </RouterLink>
     </div>
   </article>
@@ -80,60 +83,85 @@ const availabilityLabel = computed(() => formatSessionAvailability(props.nextSes
 .activity-card {
   display: grid;
   min-width: 0;
-  overflow: hidden;
+  gap: 1.5rem;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface);
+  padding: clamp(1.25rem, 3vw, 2rem);
 }
 
 .activity-card__body,
 .activity-card__session {
   min-width: 0;
-  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.activity-card__type {
+  margin: 0 0 0.75rem;
+  color: var(--color-brand);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .activity-card h2 {
+  max-width: 32ch;
   margin: 0;
   color: var(--color-heading);
-  font-size: clamp(1.25rem, 3vw, 1.55rem);
-  line-height: 1.2;
+  font-size: clamp(1.375rem, 2.5vw, 1.875rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
 }
 
 .activity-card__summary {
-  margin: 0.75rem 0 1rem;
+  max-width: 64ch;
+  margin: 0.875rem 0 1.25rem;
   color: var(--color-text-muted);
+  line-height: 1.65;
 }
 
 .activity-card__session {
   border-top: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
+  padding-top: 1.25rem;
 }
 
 .activity-card__session p {
   margin: 0.3rem 0 0;
 }
 
-.activity-card__session-label,
+.activity-card__session-label {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .activity-card__date {
   color: var(--color-heading);
-  font-weight: 800;
+  font-size: 1.1875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.4;
 }
 
 .activity-card__capacity,
 .activity-card__more {
   color: var(--color-text-muted);
+  font-size: 0.9375rem;
 }
 
 .activity-card__action {
-  width: 100%;
-  margin-top: 1rem;
+  margin-top: 0.75rem;
 }
 
 @media (min-width: 768px) {
   .activity-card {
-    grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.42fr);
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
+    gap: clamp(2rem, 4vw, 3.5rem);
   }
 
   .activity-card__session {
     border-top: 0;
     border-left: 1px solid var(--color-border);
+    padding-top: 0;
+    padding-left: clamp(1.5rem, 3vw, 2rem);
   }
 }
 </style>

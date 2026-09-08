@@ -121,21 +121,21 @@ const GUIDANCE_TOPICS = [
     <header class="guides-hero page-section">
       <div class="shell guides-hero__layout">
         <div class="guides-hero__content">
+          <p class="eyebrow">The practical guide</p>
           <h1>Find a safer next step for your item.</h1>
           <p class="guides-hero__lead">
             Start with guidance for items that are easy to place in the wrong bin or need special
             handling.
           </p>
           <RouterLink class="button button--primary guides-hero__action" :to="{ name: 'home' }">
-            Search for an Item
+            Find an option for your item
           </RouterLink>
         </div>
 
-        <aside class="guides-source-note" aria-labelledby="guides-source-title">
-          <p class="eyebrow">Information boundary</p>
+        <section class="guides-source-note" aria-labelledby="guides-source-title">
           <h2 id="guides-source-title">Guidance helps you decide.</h2>
-          <p>Each guide links to the government source and shows when TurnAgain last checked it.</p>
-        </aside>
+          <p>Each guide links to its government source and shows when TurnAgain last checked it.</p>
+        </section>
       </div>
     </header>
 
@@ -143,10 +143,15 @@ const GUIDANCE_TOPICS = [
       <div class="shell">
         <div class="guides-heading">
           <div>
-            <p class="eyebrow">Common decision points</p>
             <h2 id="guidance-topics-title">Choose the guide that matches your item.</h2>
           </div>
         </div>
+
+        <nav class="guides-index" aria-label="Guide topics">
+          <a v-for="topic in GUIDANCE_TOPICS" :key="topic.id" :href="`#${topic.id}`">
+            {{ topic.title }}
+          </a>
+        </nav>
 
         <div class="guides-grid">
           <GuidanceTopicCard v-for="topic in GUIDANCE_TOPICS" :key="topic.id" :topic="topic" />
@@ -167,103 +172,127 @@ const GUIDANCE_TOPICS = [
   margin-top: 0;
 }
 
+.guides-page h1,
+.guides-page h2 {
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.guides-page .eyebrow {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .guides-hero {
-  border-bottom: 1px solid var(--color-border);
-  background:
-    linear-gradient(120deg, var(--color-brand-soft), transparent 66%), var(--color-background);
+  padding-block: clamp(3.5rem, 8vw, 7rem) 0;
 }
 
 .guides-hero__layout {
   display: grid;
-  gap: clamp(1.5rem, 5vw, 3rem);
+  justify-items: center;
+  gap: clamp(2.5rem, 5vw, 4rem);
 }
 
 .guides-hero__content {
-  max-width: 48rem;
+  max-width: 58rem;
+  text-align: center;
 }
 
 .guides-hero h1 {
-  max-width: 17ch;
-  margin-bottom: 1.1rem;
+  max-width: 20ch;
+  margin: 0 auto 1.5rem;
   color: var(--color-heading);
-  font-size: clamp(2.45rem, 8vw, 5rem);
-  font-weight: 850;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
-  text-wrap: balance;
+  font-size: clamp(2.5rem, 5.8vw, 4.75rem);
+  letter-spacing: -0.045em;
+  line-height: 1.06;
 }
 
 .guides-hero__lead {
-  max-width: 43rem;
-  margin-bottom: 0;
+  max-width: 40rem;
+  margin: 0 auto;
   color: var(--color-text-muted);
-  font-size: clamp(1.05rem, 2.6vw, 1.3rem);
-  line-height: 1.6;
+  font-size: clamp(1.0625rem, 2vw, 1.25rem);
+  line-height: 1.65;
 }
 
 .guides-hero__action {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
 .guides-source-note {
-  align-self: end;
-  border: 1px solid color-mix(in srgb, var(--color-brand) 35%, var(--color-border));
+  width: 100%;
+  max-width: 60rem;
   border-radius: var(--radius-medium);
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  padding: clamp(1.1rem, 3vw, 1.5rem);
-  box-shadow: var(--shadow-low);
+  background: var(--color-surface-muted);
+  padding: clamp(1.5rem, 3vw, 2rem);
+  text-align: center;
+}
+
+.guides-source-note .eyebrow {
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
 }
 
 .guides-source-note h2 {
   margin-bottom: 0;
   color: var(--color-heading);
-  font-size: 1.3rem;
+  font-size: 1.375rem;
+  letter-spacing: -0.02em;
   line-height: 1.3;
-  text-wrap: balance;
 }
 
 .guides-source-note > p:last-child {
-  margin: 0.75rem 0 0;
+  max-width: 47rem;
+  margin: 0.75rem auto 0;
   color: var(--color-text-muted);
-  line-height: 1.6;
+  line-height: 1.75;
 }
 
 .guides-heading {
-  display: grid;
-  gap: 1rem;
-  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+  max-width: 43rem;
+  margin: 0 auto 1.75rem;
+  text-align: center;
 }
 
 .guides-heading h2 {
-  max-width: 20ch;
   margin-bottom: 0;
   color: var(--color-heading);
-  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-size: clamp(1.875rem, 3.7vw, 2.875rem);
   letter-spacing: -0.035em;
-  line-height: 1.08;
-  text-wrap: balance;
+  line-height: 1.14;
+}
+
+.guides-index {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: clamp(2rem, 5vw, 3rem);
+}
+
+.guides-index a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+  padding: 0.625rem 1rem;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.guides-index a:hover {
+  background: var(--color-surface-muted);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .guides-grid {
   display: grid;
-  gap: 1rem;
-}
-
-@media (min-width: 768px) {
-  .guides-hero__layout,
-  .guides-heading {
-    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
-    align-items: start;
-  }
-
-  .guides-hero__layout {
-    align-items: end;
-  }
-}
-
-@media (min-width: 1100px) {
-  .guides-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+  max-width: 60rem;
+  gap: 1.5rem;
+  margin-inline: auto;
 }
 </style>

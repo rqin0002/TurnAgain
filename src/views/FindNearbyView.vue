@@ -99,12 +99,11 @@ const updatePreferences = ({ actions = selectedActions.value, sortValue = sort.v
   <div v-if="queryState.isValid">
     <section class="search-band page-section--compact" aria-labelledby="search-heading">
       <div class="shell">
-        <div>
-          <p class="eyebrow">Refine your search</p>
-          <h1 id="search-heading" class="section-title">Find another option</h1>
+        <div class="search-band__intro">
+          <h1 id="search-heading" class="page-title">Find a place for your item.</h1>
         </div>
 
-        <div class="surface surface--padded">
+        <div class="search-band__form">
           <SearchForm
             :initial-item="queryState.values.item"
             :initial-location="queryState.values.location"
@@ -135,23 +134,31 @@ const updatePreferences = ({ actions = selectedActions.value, sortValue = sort.v
 
 <style scoped>
 .search-band {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
+  padding-block: clamp(2rem, 4vw, 3.5rem) 2rem;
 }
 
 .search-band .shell {
   display: grid;
-  gap: 1.25rem;
+  gap: 2rem;
+}
+
+.search-band__intro .page-title {
+  max-width: 21ch;
+  margin: 0;
+  font-size: clamp(2.25rem, 4.5vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.search-band__form {
+  min-width: 0;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-muted);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
 }
 
 .results-band {
-  background: var(--color-background);
-}
-
-@media (min-width: 1200px) {
-  .search-band .shell {
-    grid-template-columns: minmax(12rem, 0.25fr) minmax(0, 1fr);
-    align-items: start;
-  }
+  padding-block: 1rem clamp(3rem, 6vw, 5rem);
 }
 </style>

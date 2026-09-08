@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import { useSearchDraft } from '../../../composables/useSearchDraft.js'
 import { formatActionType, formatCheckedDate } from '../../discovery/domain/servicePresentation.js'
 import { buildServiceRegisterPage } from '../domain/staffRegisters.js'
+import '../styles/register.css'
 
 const props = defineProps({
   status: {
@@ -103,15 +104,15 @@ const sortIndicator = (column) => {
 </script>
 
 <template>
-  <section class="service-register" aria-labelledby="service-register-heading">
-    <header class="service-register__header">
+  <section class="register service-register" aria-labelledby="service-register-heading">
+    <header class="register__header">
       <div>
         <p class="eyebrow">Published catalogue</p>
         <h2 id="service-register-heading" class="section-title">Service Register</h2>
       </div>
 
-      <div v-if="status === 'ready'" class="service-register__summary">
-        <output aria-live="polite">{{ resultLabel }}</output>
+      <div v-if="status === 'ready'" class="register__summary">
+        <output class="register__count" aria-live="polite">{{ resultLabel }}</output>
         <span v-if="metadata.checkedAt">
           Catalogue checked {{ formatCheckedDate(metadata.checkedAt) }}
         </span>
@@ -126,7 +127,7 @@ const sortIndicator = (column) => {
       </div>
     </div>
 
-    <div v-else-if="status === 'error'" class="state-panel service-register__error" role="alert">
+    <div v-else-if="status === 'error'" class="state-panel register__error" role="alert">
       <div>
         <h3>Service Register unavailable</h3>
         <p>{{ errorMessage }}</p>
@@ -137,9 +138,9 @@ const sortIndicator = (column) => {
     </div>
 
     <template v-else>
-      <fieldset class="surface surface--padded service-register__controls">
-        <legend class="service-register__visually-hidden">Filter services</legend>
-        <div class="service-register__field service-register__field--wide">
+      <fieldset class="register__controls">
+        <legend class="visually-hidden">Filter services</legend>
+        <div class="register__field register__field--wide">
           <label for="staff-service-search">Search all columns</label>
           <input
             id="staff-service-search"
@@ -156,7 +157,7 @@ const sortIndicator = (column) => {
           />
         </div>
 
-        <div class="service-register__field">
+        <div class="register__field">
           <label for="staff-action-filter">Action</label>
           <select
             id="staff-action-filter"
@@ -173,7 +174,7 @@ const sortIndicator = (column) => {
           </select>
         </div>
 
-        <div class="service-register__field">
+        <div class="register__field">
           <label for="staff-location-filter">Location column</label>
           <input
             id="staff-location-filter"
@@ -190,7 +191,7 @@ const sortIndicator = (column) => {
           />
         </div>
 
-        <div class="service-register__field service-register__mobile-sort">
+        <div class="register__field">
           <label for="staff-sort">Sort</label>
           <select
             id="staff-sort"
@@ -211,7 +212,7 @@ const sortIndicator = (column) => {
 
         <button
           v-if="hasFilters"
-          class="button button--secondary service-register__clear"
+          class="button button--secondary register__clear"
           type="button"
           @click="clearFilters"
         >
@@ -219,15 +220,16 @@ const sortIndicator = (column) => {
         </button>
       </fieldset>
 
-      <div v-if="registerPage.rows.length" class="service-register__content">
-        <ul class="service-register__cards" aria-label="Service Register results">
-          <li v-for="service in registerPage.rows" :key="service.id" class="surface">
-            <div class="service-register__card-heading">
+      <div v-if="registerPage.rows.length" class="register__content">
+        <ul class="register__cards" aria-label="Service Register results">
+          <li v-for="service in registerPage.rows" :key="service.id">
+            <div class="register__card-heading">
               <div>
                 <p class="eyebrow">Published</p>
                 <h3>{{ service.name }}</h3>
               </div>
               <RouterLink
+                class="service-register__detail-link"
                 :to="{ name: 'service-detail', params: { serviceId: service.id } }"
                 :aria-label="`View public details for ${service.name}`"
               >
@@ -256,9 +258,14 @@ const sortIndicator = (column) => {
           </li>
         </ul>
 
-        <div class="service-register__table-wrap surface">
+        <div
+          class="register__table-wrap"
+          role="region"
+          aria-label="Service Register table"
+          tabindex="0"
+        >
           <table>
-            <caption>
+            <caption class="visually-hidden">
               Current published TurnAgain service listings
             </caption>
             <thead>
@@ -281,8 +288,10 @@ const sortIndicator = (column) => {
                     <span aria-hidden="true">{{ sortIndicator('checked') }}</span>
                   </button>
                 </th>
-                <th scope="col">Status</th>
-                <th scope="col"><span class="service-register__visually-hidden">Action</span></th>
+                <th class="register__compact-cell" scope="col">Status</th>
+                <th class="register__compact-cell service-register__actions" scope="col">
+                  Details
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -291,16 +300,19 @@ const sortIndicator = (column) => {
                 <td>{{ service.actionTypes.map(formatActionType).join(', ') }}</td>
                 <td>{{ service.suburb }} {{ service.postcode }}</td>
                 <td>{{ service.source.organisation }}</td>
-                <td class="service-register__date">
+                <td class="register__number">
                   {{ formatCheckedDate(service.source.checkedAt) }}
                 </td>
-                <td><span class="service-register__status">Published</span></td>
-                <td>
+                <td class="register__compact-cell">
+                  <span class="register__status">Published</span>
+                </td>
+                <td class="register__compact-cell service-register__actions">
                   <RouterLink
+                    class="service-register__detail-link"
                     :to="{ name: 'service-detail', params: { serviceId: service.id } }"
                     :aria-label="`View public details for ${service.name}`"
                   >
-                    View
+                    View details
                   </RouterLink>
                 </td>
               </tr>
@@ -309,7 +321,7 @@ const sortIndicator = (column) => {
         </div>
       </div>
 
-      <div v-else class="state-panel service-register__empty">
+      <div v-else class="state-panel">
         <div>
           <h3>
             {{ hasFilters ? 'No listings match these filters' : 'No listings published yet' }}
@@ -329,7 +341,7 @@ const sortIndicator = (column) => {
         </div>
       </div>
 
-      <nav class="service-register__pagination" aria-label="Service Register pages">
+      <nav class="register__pagination" aria-label="Service Register pages">
         <button
           class="button button--secondary"
           type="button"
@@ -359,233 +371,24 @@ const sortIndicator = (column) => {
 </template>
 
 <style scoped>
-.service-register {
-  display: grid;
-  gap: 1.25rem;
-  margin-top: 2rem;
+.service-register__actions a {
+  font-weight: 500;
 }
 
-.service-register__header {
-  display: grid;
-  gap: 1rem;
-}
-
-.service-register__summary {
-  display: grid;
-  align-content: start;
-  gap: 0.2rem;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
-.service-register__summary output {
-  color: var(--color-heading);
-  font-size: 1.1rem;
-  font-weight: 800;
-}
-
-.service-register__controls {
-  display: grid;
-  min-width: 0;
-  gap: 1rem;
-  margin: 0;
-}
-
-.service-register__field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.service-register__field label {
-  color: var(--color-heading);
-  font-weight: 750;
-}
-
-.service-register__clear {
-  align-self: end;
+.service-register__detail-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
 }
 
 .service-register__loader {
   width: 1.5rem;
   height: 1.5rem;
   flex: 0 0 auto;
-  border: 3px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-brand);
   border-radius: 50%;
   animation: register-spin 0.8s linear infinite;
-}
-
-.service-register__error {
-  border-left: 4px solid var(--color-danger);
-}
-
-.service-register__content {
-  min-width: 0;
-}
-
-.service-register__cards {
-  display: grid;
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.service-register__cards > li {
-  padding: 1rem;
-}
-
-.service-register__card-heading {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.service-register__card-heading h3 {
-  margin: 0;
-  color: var(--color-heading);
-  font-size: 1.1rem;
-}
-
-.service-register__cards dl {
-  display: grid;
-  gap: 0.75rem;
-  margin: 1rem 0 0;
-}
-
-.service-register__cards dl > div {
-  display: grid;
-  grid-template-columns: minmax(6.5rem, 0.38fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  border-top: 1px solid var(--color-border);
-  padding-top: 0.65rem;
-}
-
-.service-register__cards dt {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  font-weight: 750;
-}
-
-.service-register__cards dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.service-register__table-wrap {
-  display: none;
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--color-surface);
-}
-
-caption {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-th,
-td {
-  border-bottom: 1px solid var(--color-border);
-  padding: 0.8rem;
-  text-align: left;
-  vertical-align: middle;
-}
-
-thead th {
-  background: var(--color-surface-muted);
-  color: var(--color-heading);
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
-
-tbody th {
-  max-width: 17rem;
-  color: var(--color-heading);
-  font-weight: 750;
-}
-
-tbody tr:last-child th,
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-thead button {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  gap: 0.35rem;
-  border: 0;
-  border-radius: var(--radius-small);
-  background: transparent;
-  color: inherit;
-  padding: 0.35rem;
-  font-weight: inherit;
-}
-
-thead button:hover {
-  background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
-}
-
-.service-register__date,
-.service-register__pagination {
-  font-variant-numeric: tabular-nums;
-}
-
-.service-register__status {
-  display: inline-flex;
-  border: 1px solid var(--color-brand);
-  border-radius: 999px;
-  background: var(--color-brand-soft);
-  padding: 0.2rem 0.55rem;
-  color: var(--color-brand-strong);
-  font-size: 0.8rem;
-  font-weight: 750;
-  white-space: nowrap;
-}
-
-.service-register__pagination {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.service-register__pagination p {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-row: 1;
-  gap: 0.1rem;
-  margin: 0;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-
-.service-register__pagination button:last-child {
-  grid-column: 2;
-}
-
-.service-register__pagination button:disabled {
-  cursor: not-allowed;
-}
-
-.service-register__visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 @keyframes register-spin {
@@ -594,92 +397,9 @@ thead button:hover {
   }
 }
 
-@media (min-width: 576px) {
-  .service-register__header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-  }
-
-  .service-register__summary {
-    text-align: right;
-  }
-
-  .service-register__controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .service-register__field--wide {
-    grid-column: 1 / -1;
-  }
-
-  .service-register__cards dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .service-register__pagination {
-    display: flex;
-    justify-content: space-between;
-  }
-
-  .service-register__pagination p {
-    display: flex;
-    flex-direction: column;
-    grid-column: auto;
-    grid-row: auto;
-  }
-}
-
-@media (min-width: 768px) {
-  .service-register__controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: end;
-  }
-
-  .service-register__field--wide {
-    grid-column: 1 / -1;
-  }
-
-  .service-register__mobile-sort {
-    grid-column: auto;
-  }
-
-  .service-register__clear {
-    grid-column: auto;
-    grid-row: auto;
-  }
-
-  .service-register__cards {
-    display: none;
-  }
-
-  .service-register__table-wrap {
-    display: block;
-  }
-}
-
-@media (min-width: 1200px) {
-  .service-register__controls {
-    grid-template-columns: minmax(17rem, 1.35fr) repeat(3, minmax(10rem, 0.65fr)) auto;
-  }
-
-  .service-register__field--wide {
-    grid-column: auto;
-  }
-
-  .service-register__mobile-sort {
-    grid-column: auto;
-  }
-
-  .service-register__clear {
-    grid-column: auto;
-    grid-row: auto;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .service-register__loader {
     animation: none;
-    border-top-color: var(--color-border);
   }
 }
 </style>

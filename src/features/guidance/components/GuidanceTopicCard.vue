@@ -27,14 +27,16 @@ const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${val
 
 <template>
   <article :id="topic.id" class="guidance-card">
-    <div>
-      <p class="guidance-card__scope">{{ topic.scope }}</p>
-      <h3>{{ topic.title }}</h3>
-      <p class="guidance-card__summary">{{ topic.summary }}</p>
+    <div class="guidance-card__body">
+      <div>
+        <p class="guidance-card__scope">{{ topic.scope }}</p>
+        <h3>{{ topic.title }}</h3>
+        <p class="guidance-card__summary">{{ topic.summary }}</p>
 
-      <ul class="guidance-card__steps">
-        <li v-for="step in topic.steps" :key="step">{{ step }}</li>
-      </ul>
+        <ul class="guidance-card__steps">
+          <li v-for="step in topic.steps" :key="step">{{ step }}</li>
+        </ul>
+      </div>
     </div>
 
     <footer class="guidance-card__footer">
@@ -62,75 +64,74 @@ const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${val
 .guidance-card {
   display: grid;
   min-width: 0;
-  gap: 1.25rem;
-  scroll-margin-top: 1rem;
-  border: 1px solid var(--color-border);
+  gap: 2rem;
+  scroll-margin-top: 2rem;
   border-radius: var(--radius-medium);
-  background: var(--color-surface);
-  padding: clamp(1.1rem, 3vw, 1.5rem);
-  box-shadow: var(--shadow-low);
+  background: var(--color-surface-muted);
+  padding: clamp(1.5rem, 4vw, 3rem);
 }
 
 .guidance-card__scope {
-  margin: 0 0 0.45rem;
-  color: var(--color-brand-strong);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .guidance-card h3 {
   margin: 0;
   color: var(--color-heading);
-  font-size: 1.25rem;
-  line-height: 1.25;
+  font-size: clamp(1.625rem, 3vw, 2.25rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
   text-wrap: balance;
 }
 
 .guidance-card__summary {
-  margin: 0.7rem 0 0;
-  color: var(--color-text-muted);
-  line-height: 1.65;
+  max-width: 48rem;
+  margin: 1.25rem 0 0;
+  line-height: 1.8;
 }
 
 .guidance-card__steps {
   display: grid;
-  gap: 0.65rem;
-  margin: 1rem 0 0;
-  padding-left: 1.25rem;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+  padding-left: 1.15rem;
 }
 
 .guidance-card__steps li {
-  padding-left: 0.2rem;
-  line-height: 1.55;
+  padding-left: 0.25rem;
+  color: var(--color-text-muted);
+  line-height: 1.75;
 }
 
 .guidance-card__footer {
   display: grid;
-  align-content: end;
-  gap: 1rem;
+  gap: 1.25rem;
   border-top: 1px solid var(--color-border);
-  padding-top: 1rem;
+  padding-top: 1.5rem;
 }
 
 .guidance-card__sources {
   display: grid;
   min-width: 0;
-  gap: 0.45rem;
+  gap: 0.75rem;
   color: var(--color-text-muted);
-  font-size: 0.86rem;
+  font-size: 0.9375rem;
 }
 
 .guidance-card__sources > p {
   margin: 0;
   color: var(--color-heading);
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .guidance-card__sources ul {
   display: grid;
-  gap: 0.65rem;
+  gap: 1rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -138,7 +139,8 @@ const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${val
 
 .guidance-card__sources li {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.25rem;
+  line-height: 1.7;
 }
 
 .guidance-card__sources a {
@@ -147,13 +149,13 @@ const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${val
   max-width: 100%;
   min-height: 2.75rem;
   align-items: center;
+  color: var(--color-brand);
   overflow-wrap: anywhere;
-  font-weight: 700;
-  text-underline-offset: 0.18em;
+  text-underline-offset: 0.2em;
 }
 
 .guidance-card__sources span {
-  font-size: 0.8rem;
+  font-size: 0.8125rem;
 }
 
 .guidance-card__action {
@@ -161,7 +163,8 @@ const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${val
   width: fit-content;
   min-height: 2.75rem;
   align-items: center;
-  color: var(--color-brand-strong);
-  font-weight: 800;
+  color: var(--color-brand);
+  font-weight: 600;
+  text-underline-offset: 0.2em;
 }
 </style>

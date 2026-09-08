@@ -1,4 +1,4 @@
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore'
+import { doc, getDocFromServer, runTransaction, serverTimestamp } from 'firebase/firestore'
 
 import { firebaseAuth } from '../../../firebase/firebaseAuthClient.js'
 import { firestore } from '../../../firebase/firebaseFirestoreClient.js'
@@ -12,7 +12,12 @@ const ERROR_MESSAGES = Object.freeze({
   'user-ineligible': 'Sign in with an active account to rate this service.',
 })
 
-const DEFAULT_FIRESTORE_API = Object.freeze({ doc, getDoc, runTransaction, serverTimestamp })
+const DEFAULT_FIRESTORE_API = Object.freeze({
+  doc,
+  getDocFromServer,
+  runTransaction,
+  serverTimestamp,
+})
 
 const isPlainObject = (value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -140,7 +145,9 @@ export function createFirestoreRatingRepository(dependencies = {}) {
     }
 
     try {
-      const snapshot = await firestoreApi.getDoc(getPaths(serviceId, '_').summary)
+      // An offline cached score is not a current cloud result. Surface a retry
+      // state when the server cannot be reached instead of falling back locally.
+      const snapshot = await firestoreApi.getDocFromServer(getPaths(serviceId, '_').summary)
       const summary = snapshot.exists() ? projectSummary(snapshot.data()) : null
       if (summary === null) {
         throw new RatingRepositoryError('service-unavailable')
@@ -160,7 +167,7 @@ export function createFirestoreRatingRepository(dependencies = {}) {
     }
 
     try {
-      const snapshot = await firestoreApi.getDoc(getPaths(serviceId, userId).rating)
+      const snapshot = await firestoreApi.getDocFromServer(getPaths(serviceId, userId).rating)
       if (auth.currentUser?.uid !== userId) {
         throw new RatingRepositoryError('user-ineligible')
       }

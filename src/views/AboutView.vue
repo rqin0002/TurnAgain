@@ -29,7 +29,7 @@ const pageContent = {
     title: 'Turn an unwanted item into a local action.',
     paragraphs: [
       'An unwanted or broken item rarely comes with one obvious answer. Its condition, your council area, service eligibility, fees, booking rules and transport needs can all change the right next step.',
-      'TurnAgain is a Melbourne-focused service designed to make those conditions easier to find and compare. It is intended to reduce information friction for residents who may face language, digital confidence, transport or service access barriers.',
+      'TurnAgain is a Melbourne-focused community project designed to make waste reduction, repair and reuse easier to navigate. It is intended to reduce information friction for residents who may face language, digital confidence, transport or service access barriers.',
       'TurnAgain keeps three pathways: repair what can keep working, reuse what can serve someone else, and recycle what has reached the end of its useful life.',
     ],
   },
@@ -142,25 +142,31 @@ const pageContent = {
 
   prototype: {
     titleId: 'prototype-title',
-    eyebrow: 'Prototype boundaries',
-    title: 'Clear about what works today.',
+    eyebrow: 'Using TurnAgain',
+    title: 'What you can do here.',
     groups: [
       {
         key: 'available',
         titleId: 'available-title',
-        title: 'In this prototype',
+        title: 'Available now',
         items: [
           'Search by item name, suburb or Victorian postcode—or browse without entering either.',
           'Filter selected services by repair, reuse or recycling and sort results by name.',
           'Open a service record to see listed items, its linked source and catalogue check date.',
-          'View community rating summaries and, after signing in, add or update a local-demo rating.',
+          'View community rating summaries and, after signing in, add or update your own rating.',
+          'Browse repair and reuse activities, session information and linked provider sources.',
         ],
       },
       {
         key: 'limits',
         titleId: 'limits-title',
         title: 'Current limits',
-        items: ['This tab can add some new features in future updates.'],
+        items: [
+          'The catalogue covers selected services and activities, so a search may not include every local option.',
+          'Bookings and any fees are handled through the provider’s own process.',
+          'Capacity is shown only when published; provider-managed availability must be checked with the provider.',
+          'TurnAgain does not arrange collections or confirm that an item will be accepted.',
+        ],
       },
     ],
   },
@@ -203,36 +209,6 @@ const pageContent = {
         answer:
           'No. Acceptance can depend on the exact item, condition, size, quantity, residency, available capacity and provider judgement. The provider’s current rules and final decision apply.',
       },
-      {
-        question: 'What if the item is heavy or I do not have transport?',
-        answer:
-          'TurnAgain does not currently arrange pickup or transport. Check the provider or council source for hard-waste collection, pickup, mail-in or other accessible alternatives before moving the item.',
-      },
-      {
-        question: 'What if information looks incorrect or out of date?',
-        answer:
-          'Treat the linked provider source as the authority and confirm the details directly with the provider. This prototype does not yet include a correction form or live provider synchronisation, so do not rely on a conflicting catalogue record for a time-sensitive trip.',
-      },
-      {
-        question: 'Where does the catalogue information come from?',
-        answer:
-          'The prototype catalogue was compiled with AI assistance from the linked official council and provider sources. Each service record keeps its source and check date. Inclusion does not mean that a provider has endorsed TurnAgain.',
-      },
-      {
-        question: 'How does location search affect my privacy?',
-        answer:
-          'TurnAgain does not request a precise address or your device location. A suburb or postcode is optional. Submitted search terms appear in the results-page address so the search can be refreshed or shared; avoid entering personal address details.',
-      },
-      {
-        question: 'Are accounts and ratings live production data?',
-        answer:
-          'No. Authentication, profiles and rating changes in this version are local-demo data stored on this device. They should not be treated as a production account, provider endorsement or public moderation system.',
-      },
-      {
-        question: 'What language and access support is available?',
-        answer:
-          'The current prototype is in English. It uses structured headings, keyboard-aware navigation and a list-based discovery path that does not require a map. TurnAgain does not yet claim multilingual support or independent accessibility certification.',
-      },
     ],
   },
 
@@ -256,23 +232,24 @@ const pageContent = {
             <li v-for="promise in pageContent.hero.promises" :key="promise">{{ promise }}</li>
           </ul>
         </div>
+
+        <nav class="about-nav" :aria-label="pageContent.navigation.ariaLabel">
+          <p class="eyebrow">On this page</p>
+          <ul>
+            <li v-for="item in pageContent.navigation.items" :key="item.href">
+              <a :href="item.href">{{ item.label }}</a>
+            </li>
+          </ul>
+        </nav>
       </div>
     </header>
-
-    <nav class="about-nav" :aria-label="pageContent.navigation.ariaLabel">
-      <div class="shell about-nav__inner">
-        <a v-for="item in pageContent.navigation.items" :key="item.href" :href="item.href">
-          {{ item.label }}
-        </a>
-      </div>
-    </nav>
 
     <section
       :id="pageContent.about.id"
       class="page-section"
       :aria-labelledby="pageContent.about.titleId"
     >
-      <div class="shell editorial-grid">
+      <div class="shell content-layout">
         <div class="section-intro">
           <p class="eyebrow">{{ pageContent.about.eyebrow }}</p>
           <h2 :id="pageContent.about.titleId">{{ pageContent.about.title }}</h2>
@@ -309,27 +286,25 @@ const pageContent = {
             :key="pathway.number"
             class="pathway-card"
           >
-            <span class="pathway-card__number" aria-hidden="true">{{ pathway.number }}</span>
             <h3>{{ pathway.title }}</h3>
             <p>{{ pathway.copy }}</p>
             <p class="pathway-card__note">{{ pathway.note }}</p>
           </li>
         </ol>
 
-        <div class="search-steps" :aria-labelledby="pageContent.howItWorks.steps.titleId">
+        <section class="search-steps" :aria-labelledby="pageContent.howItWorks.steps.titleId">
           <h3 :id="pageContent.howItWorks.steps.titleId">
             {{ pageContent.howItWorks.steps.title }}
           </h3>
           <ol>
             <li v-for="step in pageContent.howItWorks.steps.items" :key="step.number">
-              <span>{{ step.number }}</span>
               <div>
                 <strong>{{ step.title }}</strong>
                 <p>{{ step.body }}</p>
               </div>
             </li>
           </ol>
-        </div>
+        </section>
       </div>
     </section>
 
@@ -338,7 +313,7 @@ const pageContent = {
       class="page-section"
       :aria-labelledby="pageContent.information.titleId"
     >
-      <div class="shell editorial-grid">
+      <div class="shell content-layout">
         <div class="section-intro">
           <p class="eyebrow">{{ pageContent.information.eyebrow }}</p>
           <h2 :id="pageContent.information.titleId">{{ pageContent.information.title }}</h2>
@@ -367,7 +342,6 @@ const pageContent = {
         </div>
         <ol class="travel-checks">
           <li v-for="check in pageContent.beforeTravel.checks" :key="check.number">
-            <span>{{ check.number }}</span>
             <p>{{ check.body }}</p>
           </li>
         </ol>
@@ -432,8 +406,12 @@ const pageContent = {
     <section class="about-cta" :aria-labelledby="pageContent.callToAction.titleId">
       <div class="shell about-cta__inner">
         <div>
+          <p class="eyebrow">Start with what you have</p>
           <h2 :id="pageContent.callToAction.titleId">{{ pageContent.callToAction.title }}</h2>
         </div>
+        <RouterLink class="button button--primary" :to="{ name: 'home' }">
+          Find an option for your item
+        </RouterLink>
       </div>
     </section>
   </article>
@@ -441,10 +419,6 @@ const pageContent = {
 
 <style scoped>
 .about-page {
-  --about-accent: #c8dd72;
-  --about-accent-soft: #f0f5d7;
-  --about-dark: #123c31;
-  overflow: clip;
   background: var(--color-background);
 }
 
@@ -455,276 +429,215 @@ const pageContent = {
   margin-top: 0;
 }
 
-.about-page h2 {
-  margin-bottom: 0;
-  color: var(--color-heading);
-  font-size: clamp(1.8rem, 5vw, 3rem);
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+.about-page h1,
+.about-page h2,
+.about-page h3 {
+  font-weight: 650;
   text-wrap: balance;
 }
 
-#about-turnagain,
-#how-it-works,
-#information,
-#before-you-go,
-#help {
-  scroll-margin-top: 1rem;
+.about-page h2 {
+  margin-bottom: 0;
+  color: var(--color-heading);
+  font-size: clamp(1.875rem, 3.7vw, 2.875rem);
+  letter-spacing: -0.035em;
+  line-height: 1.14;
+}
+
+.about-page .eyebrow {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.about-page section[id] {
+  scroll-margin-top: 2rem;
 }
 
 .about-hero {
-  position: relative;
-  isolation: isolate;
-  border-bottom: 1px solid var(--color-border);
-  background:
-    linear-gradient(115deg, rgba(229, 243, 238, 0.78), rgba(247, 247, 243, 0.2) 58%),
-    var(--color-background);
-}
-
-.about-hero::after {
-  position: absolute;
-  z-index: -1;
-  top: -12rem;
-  right: -10rem;
-  width: 34rem;
-  height: 34rem;
-  border: 5rem solid color-mix(in srgb, var(--about-accent) 32%, transparent);
-  border-radius: 50%;
-  content: '';
-  opacity: 0.62;
+  padding-block: clamp(3.5rem, 8vw, 7rem) 2rem;
 }
 
 .about-hero__layout {
   display: grid;
-  gap: clamp(2rem, 6vw, 4.5rem);
+  gap: clamp(2.5rem, 5vw, 4rem);
 }
 
 .about-hero__content {
-  max-width: 49rem;
+  max-width: 58rem;
+  margin-inline: auto;
+  text-align: center;
 }
 
 .about-hero h1 {
-  max-width: 15ch;
-  margin-bottom: 1.25rem;
+  max-width: 21ch;
+  margin: 0 auto 1.5rem;
   color: var(--color-heading);
-  font-size: clamp(2.6rem, 8vw, 5.25rem);
-  font-weight: 850;
-  letter-spacing: -0.055em;
-  line-height: 0.96;
-  text-wrap: balance;
+  font-size: clamp(2.5rem, 5.8vw, 4.75rem);
+  letter-spacing: -0.045em;
+  line-height: 1.06;
 }
 
 .about-hero__lead {
-  max-width: 42rem;
-  margin-bottom: 0;
+  max-width: 43rem;
+  margin: 0 auto;
   color: var(--color-text-muted);
-  font-size: clamp(1.1rem, 2.7vw, 1.35rem);
-  line-height: 1.55;
+  font-size: clamp(1.0625rem, 2vw, 1.25rem);
+  line-height: 1.65;
 }
 
 .about-hero__promises {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  justify-content: center;
+  gap: 0.75rem 1.5rem;
   margin: 1.5rem 0 0;
   padding: 0;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.875rem;
   list-style: none;
 }
 
-.about-hero__promises li {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.about-hero__promises li::before {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 50%;
-  background: var(--about-accent);
-  content: '';
-}
-
-.section-intro > p:last-child {
-  margin-bottom: 0;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-}
-
 .about-nav {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  text-align: center;
 }
 
-.about-nav__inner {
+.about-nav > p {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.about-nav ul {
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  overflow-x: auto;
-  padding-block: 0.65rem;
-  scrollbar-width: thin;
-  white-space: nowrap;
-}
-
-.about-nav__inner a {
-  display: inline-flex;
-  min-height: 2.5rem;
-  align-items: center;
-  padding: 0.55rem 0.75rem;
-  border-radius: var(--radius-small);
-  color: var(--color-heading);
-  font-size: 0.9rem;
-  font-weight: 750;
-  text-decoration: none;
-}
-
-.about-nav__inner a:hover {
-  background: var(--color-brand-soft);
-}
-
-.editorial-grid {
-  display: grid;
-  gap: clamp(1.5rem, 5vw, 4rem);
-}
-
-.section-intro > p:last-child {
-  max-width: 34rem;
-  margin-top: 1rem;
-}
-
-.prose-column {
-  max-width: 48rem;
-}
-
-.prose-column p {
-  margin-bottom: 1.15rem;
-  line-height: 1.75;
-}
-
-.prose-column__lead {
-  color: var(--color-heading);
-  font-size: clamp(1.1rem, 2.3vw, 1.3rem);
-  font-weight: 650;
-}
-
-.pathway-section {
-  border-block: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
-}
-
-.section-heading {
-  display: grid;
-  gap: 1rem;
-  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
-}
-
-.pathway-list,
-.search-steps ol,
-.travel-checks,
-.boundary-card ul {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem 1.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.about-nav a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+.about-nav a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.content-layout,
+.before-panel__layout {
+  display: grid;
+  gap: 2rem;
+  max-width: 64rem;
+}
+
+.section-intro > p:last-child,
+.before-panel__layout > div > p:last-child {
+  margin: 1.25rem 0 0;
+  color: var(--color-text-muted);
+  line-height: 1.75;
+}
+
+.prose-column p {
+  margin-bottom: 1.25rem;
+  color: var(--color-text-muted);
+  line-height: 1.8;
+}
+
+.prose-column p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-column .prose-column__lead {
+  color: var(--color-heading);
+  font-size: 1.125rem;
+}
+
+.pathway-section {
+  background: var(--color-surface-muted);
+}
+
+.section-heading {
+  max-width: 46rem;
+  margin: 0 auto clamp(2rem, 4vw, 3rem);
+  text-align: center;
+}
+
 .pathway-list {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .pathway-card {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
   background: var(--color-surface);
-  padding: 1.25rem;
-}
-
-.pathway-card::after {
-  position: absolute;
-  right: -2.5rem;
-  bottom: -3.5rem;
-  width: 8rem;
-  height: 8rem;
-  border: 1.4rem solid var(--color-brand-soft);
-  border-radius: 50%;
-  content: '';
-}
-
-.pathway-card__number {
-  color: var(--color-brand-strong);
-  font-size: 0.78rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
+  padding: clamp(1.5rem, 3vw, 2rem);
 }
 
 .pathway-card h3 {
-  margin: 0.55rem 0 0.6rem;
-  font-size: 1.35rem;
+  margin: 0 0 1rem;
+  font-size: 1.625rem;
+  letter-spacing: -0.025em;
 }
 
 .pathway-card p {
-  position: relative;
-  z-index: 1;
   margin-bottom: 0;
-  line-height: 1.65;
+  line-height: 1.75;
 }
 
 .pathway-card__note {
-  margin-top: 0.75rem;
+  margin-top: 1rem;
   color: var(--color-text-muted);
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
 }
 
 .search-steps {
-  margin-top: clamp(1.5rem, 4vw, 2.5rem);
-  border-radius: var(--radius-medium);
-  background: var(--about-dark);
-  padding: clamp(1.25rem, 4vw, 2rem);
-  color: #e9f2ee;
+  margin-top: clamp(2.5rem, 5vw, 4rem);
 }
 
 .search-steps h3 {
-  margin: 0 0 1.25rem;
-  color: #fff;
-  font-size: 1.35rem;
+  margin: 0 0 1.75rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+  text-align: center;
 }
 
 .search-steps ol {
   display: grid;
-  gap: 1.15rem;
+  gap: 1.5rem 2.5rem;
+  margin: 0;
+  padding-left: 1.25rem;
 }
 
 .search-steps li {
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 0.75rem;
+  padding-left: 0.35rem;
 }
 
-.search-steps li > span {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 50%;
-  color: var(--about-accent);
-  font-weight: 850;
+.search-steps li::marker {
+  color: var(--color-text-muted);
+  font-weight: 600;
 }
 
 .search-steps strong {
-  color: #fff;
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
 .search-steps p {
-  margin: 0.25rem 0 0;
-  color: #c7d7d1;
-  font-size: 0.9rem;
-  line-height: 1.55;
+  margin: 0.5rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
 }
 
 .information-list {
@@ -734,134 +647,108 @@ const pageContent = {
 
 .information-list > div {
   display: grid;
-  gap: 0.45rem;
-  border-top: 1px solid var(--color-border);
-  padding-block: 1.15rem;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-block: 1.25rem;
 }
 
 .information-list > div:first-child {
-  border-top: 0;
   padding-top: 0;
+}
+
+.information-list > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .information-list dt {
   color: var(--color-heading);
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .information-list dd {
   margin: 0;
   color: var(--color-text-muted);
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 .before-panel {
-  background: var(--about-dark);
-  padding-block: clamp(2.5rem, 7vw, 5rem);
-  color: #e9f2ee;
+  background: var(--color-surface-muted);
+  padding-block: clamp(3rem, 6vw, 5rem);
 }
 
-.before-panel__layout {
+.travel-checks {
   display: grid;
-  gap: clamp(2rem, 6vw, 4rem);
-}
-
-.before-panel .eyebrow {
-  color: var(--about-accent);
-}
-
-.before-panel h2,
-.travel-checks p {
-  color: #fff;
-}
-
-.before-panel__layout > div > p:last-child {
-  max-width: 36rem;
-  margin: 1rem 0 0;
-  color: #c7d7d1;
-  line-height: 1.7;
+  gap: 1.1rem;
+  margin: 0;
+  padding-left: 1.5rem;
 }
 
 .travel-checks li {
-  display: grid;
-  grid-template-columns: 2.25rem minmax(0, 1fr);
-  gap: 0.85rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  padding-block: 0.9rem;
+  padding-left: 0.5rem;
 }
 
-.travel-checks li:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.travel-checks span {
-  color: var(--about-accent);
-  font-size: 0.85rem;
-  font-weight: 850;
+.travel-checks li::marker {
+  color: var(--color-text-muted);
+  font-weight: 600;
 }
 
 .travel-checks p {
   margin-bottom: 0;
-  line-height: 1.55;
-}
-
-.prototype-section {
-  background: var(--about-accent-soft);
+  line-height: 1.75;
 }
 
 .boundary-grid {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .boundary-card {
-  border: 1px solid color-mix(in srgb, var(--color-brand) 24%, var(--color-border));
   border-radius: var(--radius-medium);
-  background: rgba(255, 255, 255, 0.72);
-  padding: clamp(1.15rem, 3vw, 1.65rem);
+  background: var(--color-surface-muted);
+  padding: clamp(1.5rem, 3.5vw, 2.5rem);
 }
 
 .boundary-card h3 {
-  margin: 0 0 1rem;
-  font-size: 1.35rem;
+  margin: 0 0 1.25rem;
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
 }
 
 .boundary-card ul {
   display: grid;
-  gap: 0.7rem;
-  padding-left: 1.2rem;
-  list-style: disc;
+  gap: 0.85rem;
+  margin: 0;
+  padding-left: 1.15rem;
 }
 
 .boundary-card li {
   padding-left: 0.25rem;
-  line-height: 1.55;
+  color: var(--color-text-muted);
+  line-height: 1.75;
+}
+
+.help-section {
+  border-top: 1px solid var(--color-border);
 }
 
 .faq-grid {
-  display: grid;
-  gap: 0.75rem;
+  max-width: 56rem;
+  margin-inline: auto;
 }
 
 .faq-grid details {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
-  background: var(--color-surface);
-}
-
-.faq-grid details[open] {
-  border-color: var(--color-border-strong);
-  box-shadow: var(--shadow-low);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .faq-grid summary {
   position: relative;
-  min-height: 3.5rem;
-  padding: 1rem 3.25rem 1rem 1rem;
+  min-height: 4.5rem;
+  padding: 1.5rem 3rem 1.5rem 0;
   color: var(--color-heading);
-  font-weight: 800;
-  line-height: 1.4;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.5;
   cursor: pointer;
   list-style: none;
 }
@@ -873,98 +760,70 @@ const pageContent = {
 .faq-grid summary::after {
   position: absolute;
   top: 50%;
-  right: 1rem;
-  display: grid;
-  width: 1.75rem;
-  height: 1.75rem;
-  transform: translateY(-50%);
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
-  content: '+';
-  font-size: 1.2rem;
+  right: 0.5rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  transform: translateY(-70%) rotate(45deg);
+  border-right: 2px solid var(--color-text-muted);
+  border-bottom: 2px solid var(--color-text-muted);
+  content: '';
 }
 
 .faq-grid details[open] summary::after {
-  content: '−';
+  transform: translateY(-20%) rotate(225deg);
 }
 
 .faq-grid details > div {
-  border-top: 1px solid var(--color-border);
-  padding: 1rem;
+  padding: 0 2rem 1.75rem 0;
   color: var(--color-text-muted);
 }
 
 .faq-grid details > div p {
   margin-bottom: 0;
-  line-height: 1.7;
+  line-height: 1.8;
 }
 
 .faq-grid details > div a {
-  display: inline-block;
-  margin-top: 0.8rem;
-  font-weight: 750;
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-weight: 600;
 }
 
 .about-cta {
-  padding-block: clamp(2rem, 6vw, 4rem);
-  border-top: 1px solid var(--color-border);
-  background:
-    linear-gradient(105deg, var(--color-brand-soft), transparent 72%), var(--color-surface);
+  background: var(--color-surface-muted);
+  padding-block: clamp(3rem, 6vw, 5rem);
 }
 
 .about-cta__inner {
   display: grid;
-  gap: 1rem;
+  justify-items: center;
+  gap: 1.75rem;
+  text-align: center;
 }
 
-.about-cta h2 {
-  font-size: clamp(2rem, 5vw, 3.4rem);
-}
-
-@media (min-width: 576px) {
+@media (min-width: 700px) {
   .boundary-grid,
-  .faq-grid {
+  .search-steps ol {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-}
-
-@media (min-width: 768px) {
-  .about-hero__layout {
-    grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.65fr);
-    align-items: end;
-  }
-
-  .editorial-grid,
-  .before-panel__layout {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-  }
-
-  .information-list > div {
-    grid-template-columns: minmax(9rem, 0.35fr) minmax(0, 1fr);
-    gap: 1.25rem;
-  }
-
-  .about-cta__inner {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
   }
 }
 
 @media (min-width: 900px) {
-  .section-heading {
-    grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.65fr);
-    align-items: end;
+  .content-layout,
+  .before-panel__layout {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    align-items: start;
+    gap: clamp(2rem, 6vw, 5rem);
   }
 
-  .pathway-list,
-  .search-steps ol {
+  .pathway-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
 
+@media (min-width: 1100px) {
   .search-steps ol {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

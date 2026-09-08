@@ -94,7 +94,7 @@ const resetForm = () => {
         <p>Enter the email address you use for TurnAgain.</p>
       </header>
 
-      <div class="surface surface--padded surface--raised auth-card">
+      <div class="surface surface--padded auth-card">
         <template v-if="!requested">
           <form
             ref="form"

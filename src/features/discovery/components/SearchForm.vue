@@ -146,7 +146,8 @@ label {
   display: block;
   margin-bottom: 0.4rem;
   color: var(--color-heading);
-  font-weight: 700;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .field-error {
@@ -171,12 +172,12 @@ label {
 }
 
 .search-form__action .button {
-  min-height: 3rem;
+  min-height: 3.125rem;
   width: 100%;
   padding: 0.7rem 1.25rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 576px) {
   .search-form__fields {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -193,13 +194,13 @@ label {
 
 @media (min-width: 1100px) {
   .search-form__fields {
-    grid-template-columns: minmax(14rem, 1.1fr) minmax(13rem, 1fr) auto;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto;
     align-items: start;
   }
 
   .search-form__action {
     grid-column: auto;
-    padding-top: 1.85rem;
+    padding-top: 1.8rem;
   }
 }
 </style>

@@ -21,7 +21,10 @@ defineProps({
       </ul>
 
       <h3>
-        <RouterLink :to="{ name: 'service-detail', params: { serviceId: service.id } }">
+        <RouterLink
+          class="title-link"
+          :to="{ name: 'service-detail', params: { serviceId: service.id } }"
+        >
           {{ service.name }}
         </RouterLink>
       </h3>
@@ -47,10 +50,10 @@ defineProps({
       </p>
       <p>Checked {{ formatCheckedDate(service.source.checkedAt) }}</p>
       <RouterLink
-        class="button button--secondary"
+        class="inline-action service-card__action"
         :to="{ name: 'service-detail', params: { serviceId: service.id } }"
       >
-        View details
+        View details <span aria-hidden="true">→</span>
       </RouterLink>
     </div>
   </article>
@@ -59,57 +62,73 @@ defineProps({
 <style scoped>
 .service-card {
   display: grid;
-  gap: 1rem;
+  min-width: 0;
+  gap: 1.25rem;
   border-top: 1px solid var(--color-border);
-  padding: 1.25rem 0;
+  padding-block: 1.75rem;
 }
 
 .service-card:first-child {
+  padding-top: 0;
   border-top: 0;
 }
 
 h3 {
-  margin: 0.55rem 0 0;
-  font-size: clamp(1.15rem, 2vw, 1.35rem);
-  line-height: 1.25;
-}
-
-h3 a {
+  margin: 0.75rem 0 0;
   color: var(--color-heading);
-  text-decoration-thickness: 0.08em;
-  text-underline-offset: 0.18em;
+  font-size: clamp(1.25rem, 2.2vw, 1.625rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
-.service-card__location,
-.service-card__summary,
-.service-card__items,
-.service-card__source p {
-  margin: 0.5rem 0 0;
-}
-
-.service-card__location,
-.service-card__source {
+.service-card__location {
+  margin: 0.625rem 0 0;
   color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.service-card__summary {
+  max-width: 64ch;
+  margin: 0.875rem 0 0;
+  line-height: 1.65;
 }
 
 .service-card__items {
-  font-size: 0.925rem;
+  margin: 0.75rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.service-card__items strong {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .service-card__source {
+  min-width: 0;
+  color: var(--color-text-muted);
   font-size: 0.875rem;
+  overflow-wrap: anywhere;
 }
 
-.service-card__source .button {
-  margin-top: 0.85rem;
+.service-card__source p {
+  margin: 0 0 0.35rem;
 }
 
-@media (min-width: 768px) {
+.service-card__action {
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 1200px) {
   .service-card {
-    grid-template-columns: minmax(0, 1fr) minmax(11rem, 0.3fr);
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.28fr);
+    gap: 2rem;
+    padding-block: 2rem;
   }
 
   .service-card__source {
+    padding-top: 0.2rem;
     text-align: right;
   }
 }

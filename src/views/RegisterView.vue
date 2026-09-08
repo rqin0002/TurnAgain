@@ -105,13 +105,9 @@ const submit = async () => {
     <div class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Create an account</h1>
-        <p>
-          Registration creates a Firebase Authentication identity and an active Firestore member
-          profile. Privileged roles cannot be selected during self-registration.
-        </p>
       </header>
 
-      <div class="surface surface--padded surface--raised auth-card">
+      <div class="surface surface--padded auth-card">
         <form ref="form" class="auth-form" novalidate :aria-busy="pending" @submit.prevent="submit">
           <div v-if="summary" class="auth-form__summary" role="alert" aria-live="assertive">
             {{ summary }}

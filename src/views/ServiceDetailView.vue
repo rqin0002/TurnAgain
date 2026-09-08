@@ -41,7 +41,7 @@ watch(
 <template>
   <section class="page-section">
     <div class="shell detail-page">
-      <button class="text-button detail-page__back" type="button" @click="goBack">← Back</button>
+      <button class="text-button back-link" type="button" @click="goBack">← Back</button>
 
       <div v-if="status === 'loading'" class="state-panel" role="status" aria-live="polite">
         <div>
@@ -58,7 +58,7 @@ watch(
         </div>
       </div>
 
-      <article v-else-if="service" class="detail-card surface surface--raised">
+      <article v-else-if="service" class="detail-card">
         <header class="detail-card__header">
           <ul class="tag-list" aria-label="Available actions">
             <li v-for="action in service.actionTypes" :key="action" class="tag">
@@ -97,7 +97,7 @@ watch(
           </aside>
         </div>
 
-        <ServiceRatings :service-id="service.id" />
+        <ServiceRatings :service-id="service.id" :source-url="service.source.url" />
       </article>
 
       <div v-else class="state-panel" data-testid="service-not-found">
@@ -113,81 +113,82 @@ watch(
 
 <style scoped>
 .detail-page {
-  max-width: 68rem;
-}
-
-.detail-page__back {
-  margin-bottom: 1rem;
+  max-width: 72rem;
 }
 
 .state-panel h1,
 .detail-card h1 {
+  max-width: 22ch;
   margin: 0;
   color: var(--color-heading);
-  font-size: clamp(1.8rem, 5vw, 3rem);
-  line-height: 1.08;
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
 }
 
 .detail-card {
-  overflow: hidden;
-}
-
-.detail-card__header,
-.detail-card__body {
-  padding: clamp(1.1rem, 4vw, 2rem);
+  min-width: 0;
 }
 
 .detail-card__header {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
+  padding-bottom: clamp(1.75rem, 4vw, 3rem);
 }
 
 .detail-card__header h1 {
-  margin-top: 0.75rem;
+  margin-top: 1.25rem;
 }
 
 .detail-card__address {
-  margin: 0.75rem 0 0;
+  margin: 1.25rem 0 0;
   color: var(--color-text-muted);
+  font-size: 1.125rem;
 }
 
 .detail-card__body {
   display: grid;
-  gap: 1.5rem;
+  gap: 2rem;
+  padding-block: 1rem clamp(2rem, 4vw, 3rem);
 }
 
 .detail-card h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.875rem;
   color: var(--color-heading);
-  font-size: 1.2rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .detail-card h2:not(:first-child) {
-  margin-top: 1.75rem;
+  margin-top: 2rem;
+}
+
+.detail-card__body > div > p {
+  max-width: 62ch;
+  margin: 0;
+  line-height: 1.7;
 }
 
 .accepted-items {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.625rem;
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1.1rem;
 }
 
-.source-panel {
-  align-self: start;
-  border-left: 4px solid var(--color-brand);
-  background: var(--color-brand-soft);
-  padding: 1rem;
+.accepted-items li::marker {
+  color: var(--color-text-muted);
 }
 
-.source-panel p:last-child {
-  margin-bottom: 0;
+.source-panel h2 {
+  font-size: 1.25rem;
 }
 
 @media (min-width: 768px) {
   .detail-card__body {
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.42fr);
-    gap: 2rem;
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.4fr);
+    gap: clamp(3rem, 6vw, 5rem);
   }
 }
 </style>

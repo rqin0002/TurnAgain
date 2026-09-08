@@ -18,6 +18,18 @@ const canRenderRoute = computed(
 const lastSearchPath = ref('/')
 const lastActivitiesPath = ref('/activities')
 const lastStaffPath = ref('/staff')
+const menuOpen = ref(false)
+const menuButton = ref(null)
+const isDiscoveryRoute = computed(() =>
+  ['home', 'find-nearby', 'service-detail'].includes(route.name),
+)
+
+const closeMenu = () => {
+  if (menuOpen.value) {
+    menuOpen.value = false
+    menuButton.value?.focus()
+  }
+}
 
 // Remember URL-backed working state only while this app shell is mounted.
 // This preserves public search privacy while allowing staff to return to the
@@ -25,6 +37,7 @@ const lastStaffPath = ref('/staff')
 watch(
   () => route.fullPath,
   (fullPath) => {
+    menuOpen.value = false
     if (route.name === 'find-nearby') {
       lastSearchPath.value = fullPath
     }
@@ -64,16 +77,37 @@ watch(
 <template>
   <a class="skip-link" href="#main-content">Skip to main content</a>
 
-  <header class="app-header">
+  <header class="app-header" @keydown.esc="closeMenu">
     <div class="shell app-header__inner">
       <RouterLink class="brand" to="/" aria-label="TurnAgain home">
-        <span class="brand__mark" aria-hidden="true">↻</span>
         <span>TurnAgain</span>
       </RouterLink>
 
-      <nav class="primary-nav" aria-label="Primary navigation">
-        <RouterLink :to="lastSearchPath">Find nearby</RouterLink>
-        <RouterLink :to="lastActivitiesPath">Activities</RouterLink>
+      <button
+        ref="menuButton"
+        class="menu-toggle"
+        type="button"
+        :aria-expanded="menuOpen"
+        aria-controls="primary-navigation"
+        @click="menuOpen = !menuOpen"
+      >
+        {{ menuOpen ? 'Close menu' : 'Menu' }}
+      </button>
+
+      <nav
+        id="primary-navigation"
+        class="primary-nav"
+        :class="{ 'primary-nav--open': menuOpen }"
+        aria-label="Primary navigation"
+      >
+        <RouterLink :to="lastSearchPath" :class="{ 'is-current': isDiscoveryRoute }"
+          >Find nearby</RouterLink
+        >
+        <RouterLink
+          :to="lastActivitiesPath"
+          :class="{ 'is-current': ['activities', 'activity-detail'].includes(route.name) }"
+          >Activities</RouterLink
+        >
         <RouterLink to="/guides">Guides</RouterLink>
         <RouterLink to="/about">About &amp; help</RouterLink>
         <template v-if="isAuthenticated">
@@ -94,8 +128,10 @@ watch(
 
   <footer class="app-footer">
     <div class="shell app-footer__inner">
-      <p><strong>TurnAgain</strong> — Keeping useful things in circulation.</p>
-      <p>Copyright © TurnAgain. All Rights Reserved.</p>
+      <div class="app-footer__mission">
+        <RouterLink class="footer-brand" to="/">TurnAgain</RouterLink>
+      </div>
+      <p class="app-footer__note"><br />Copyright © TurnAgain. All rights reserved.</p>
     </div>
   </footer>
 </template>
@@ -105,40 +141,40 @@ watch(
   position: relative;
   z-index: 10;
   border-bottom: 1px solid var(--color-border);
-  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  background: var(--color-background);
 }
 
 .app-header__inner {
   display: flex;
-  min-height: 4.25rem;
+  min-height: 4.5rem;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 1rem;
-  padding-block: 0.6rem;
+  padding-block: 0.65rem;
 }
 
 .brand {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
   color: var(--color-heading);
-  font-size: 1.25rem;
-  font-weight: 850;
-  letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.05em;
   text-decoration: none;
 }
 
-.brand__mark {
-  display: inline-grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-strong);
-  font-size: 1.35rem;
+.menu-toggle {
+  display: none;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  background: transparent;
+  padding: 0.5rem 0.85rem;
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
 .primary-nav {
@@ -147,7 +183,7 @@ watch(
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 1.75rem;
   /* A wrapped desktop navigation line stays anchored to the shell's inline end. */
   margin-inline-start: auto;
 }
@@ -156,44 +192,61 @@ watch(
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
-  border: 0;
-  border-radius: var(--radius-small);
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
   background: transparent;
-  padding: 0.45rem 0.6rem;
+  padding: 0.45rem 0;
   color: var(--color-text);
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 500;
   text-decoration: none;
   cursor: pointer;
 }
 
 .primary-nav a:hover,
-.primary-nav a.router-link-exact-active {
-  background: var(--color-brand-soft);
+.primary-nav a.router-link-exact-active,
+.primary-nav a.is-current {
+  border-bottom-color: currentColor;
   color: var(--color-brand-strong);
 }
 
-@media (max-width: 420px) {
+@media (max-width: 899px) {
   .app-header__inner {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.5rem;
+    min-height: 4.25rem;
+    gap: 0;
+    padding-block: 0.75rem;
+  }
+
+  .brand {
+    font-size: 1.375rem;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
   }
 
   .primary-nav {
+    display: none;
     width: 100%;
     margin-inline-start: 0;
-    justify-content: flex-start;
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--color-border);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
   }
 
-  .primary-nav a {
-    padding-inline: 0.45rem;
-    font-size: 0.8rem;
+  .primary-nav--open {
+    display: grid;
   }
 
-  .primary-nav > :last-child {
-    margin-inline-start: auto;
+  .primary-nav a {
+    min-height: 3rem;
+    width: fit-content;
+    max-width: 100%;
+    padding-inline: 0;
+    font-size: 1rem;
   }
 }
 
@@ -205,32 +258,41 @@ watch(
 
 .app-footer__inner {
   display: grid;
-  gap: 0.35rem;
-  padding-block: 1.5rem;
+  gap: 1.5rem;
+  padding-block: 2rem;
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .app-footer p {
   margin: 0;
 }
 
+.app-footer__mission {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+}
+
+.footer-brand {
+  color: var(--color-heading);
+  font-size: 1.125rem;
+  letter-spacing: -0.045em;
+  text-decoration: none;
+}
+
+.app-footer__note {
+  font-size: 0.75rem;
+}
+
 @media (min-width: 576px) {
-  .primary-nav {
-    gap: 0.5rem;
-  }
-
-  .primary-nav a {
-    padding-inline: 0.85rem;
-    font-size: 0.95rem;
-  }
-
   .app-footer__inner {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
+    grid-template-columns: 1fr auto;
+    align-items: center;
   }
 
-  .app-footer__inner p:last-child {
+  .app-footer__note {
     text-align: right;
   }
 }

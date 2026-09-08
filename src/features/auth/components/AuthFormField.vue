@@ -1,4 +1,6 @@
 <script setup>
+import '../styles/auth.css'
+
 defineProps({
   autocomplete: {
     type: String,

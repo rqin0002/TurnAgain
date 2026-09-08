@@ -1,0 +1,301 @@
+/* Shared staff-register structure; imported only by staff components. */
+.register {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+.register__header {
+  display: grid;
+  gap: 1rem;
+}
+
+.register__header .section-title {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+}
+
+.register__summary {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.register__controls {
+  display: grid;
+  min-width: 0;
+  gap: 1rem 1.25rem;
+  margin: 0;
+  border: 0;
+  border-block: 1px solid var(--color-border);
+  padding: 1.5rem 0;
+}
+
+.register__field {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.register__field label {
+  color: var(--color-heading);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.register__field .form-control {
+  min-width: 0;
+}
+
+.register__clear {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.register__error {
+  border-left: 3px solid var(--color-danger);
+}
+
+.register__content {
+  min-width: 0;
+}
+
+.register__cards {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.register__cards > li {
+  min-width: 0;
+  border-bottom: 1px solid var(--color-border);
+  padding: 1.5rem 0;
+}
+
+.register__cards > li:first-child {
+  padding-top: 0;
+}
+
+.register__card-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.register__card-heading > div {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.register__card-heading h3 {
+  margin: 0;
+  color: var(--color-heading);
+  font-size: 1.25rem;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.register__cards dl {
+  display: grid;
+  gap: 0.75rem 1.5rem;
+  margin: 1.25rem 0 0;
+}
+
+.register__cards dl > div {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  align-content: start;
+  gap: 0.75rem;
+}
+
+.register__cards dt {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.register__cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.register__table-wrap {
+  display: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  overflow-x: auto;
+}
+
+.register table {
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.register th,
+.register td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 1rem 0.875rem;
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.register tr > :first-child {
+  padding-left: 1.25rem;
+}
+
+.register tr > :last-child {
+  padding-right: 1.25rem;
+}
+
+.register thead th {
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  padding-block: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.register tbody tr:focus-within {
+  background: var(--color-surface-muted);
+}
+
+@media (hover: hover) {
+  .register tbody tr:hover {
+    background: var(--color-surface-muted);
+  }
+}
+
+.register tbody th {
+  max-width: 17rem;
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.register tbody tr:last-child th,
+.register tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.register thead button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+}
+
+.register thead button:hover {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.register__status {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.register__compact-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.register__pagination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.register__pagination p {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  gap: 0.15rem;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.register__pagination button:last-child {
+  grid-column: 2;
+}
+
+.register__count {
+  color: var(--color-heading);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.register__number {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 576px) {
+  .register__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
+  .register__summary {
+    text-align: right;
+  }
+
+  .register__controls,
+  .register__cards dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .register__field--wide {
+    grid-column: 1 / -1;
+  }
+
+  .register__pagination {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+@media (min-width: 1024px) {
+  .register__controls {
+    grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .register__field--wide {
+    grid-column: auto;
+  }
+
+  .register__cards {
+    display: none;
+  }
+
+  .register__table-wrap {
+    display: block;
+  }
+}

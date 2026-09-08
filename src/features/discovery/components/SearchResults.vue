@@ -99,7 +99,6 @@ const resultAnnouncement = computed(() => {
     <template v-else>
       <header class="results-header">
         <div>
-          <p class="eyebrow">Search results</p>
           <h2 id="results-heading" class="section-title">
             <template v-if="isBrowseAll">All current options</template>
             <template v-else-if="!item">Options near {{ location }}</template>
@@ -111,6 +110,7 @@ const resultAnnouncement = computed(() => {
         <p
           class="result-count"
           data-testid="result-count"
+          role="status"
           aria-live="polite"
           :aria-label="resultAnnouncement"
         >
@@ -146,7 +146,7 @@ const resultAnnouncement = computed(() => {
       </div>
 
       <div class="results-layout">
-        <aside class="desktop-filters surface surface--padded" aria-label="Filter search results">
+        <aside class="desktop-filters" aria-label="Filter search results">
           <FilterPanel
             id-prefix="desktop-action"
             :counts="counts"
@@ -183,8 +183,8 @@ const resultAnnouncement = computed(() => {
 .results-header {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding-bottom: 1rem;
+  gap: 0.75rem;
+  padding-bottom: 1.5rem;
 }
 
 h2,
@@ -193,47 +193,56 @@ p {
   margin-top: 0;
 }
 
+.results-header h2 {
+  max-width: 38ch;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+
 .result-count {
+  flex-shrink: 0;
   margin: 0;
   color: var(--color-text-muted);
-  font-weight: 750;
+  font-size: 0.9375rem;
 }
 
 .mobile-controls {
   display: grid;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .mobile-filters {
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-small);
-  background: var(--color-surface);
+  background: var(--color-surface-muted);
 }
 
 .mobile-filters summary {
   min-height: 2.75rem;
   padding: 0.65rem 0.85rem;
   color: var(--color-heading);
-  font-weight: 750;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .mobile-filters__content {
   border-top: 1px solid var(--color-border);
-  padding: 0.85rem;
+  padding: 1rem;
 }
 
 .sort-control {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .sort-control label {
   color: var(--color-heading);
-  font-weight: 750;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .sort-control select {
@@ -242,7 +251,7 @@ p {
 
 .results-layout {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
 .desktop-filters {
@@ -254,14 +263,14 @@ p {
 }
 
 .state-panel--error {
-  border-left: 4px solid var(--color-danger);
+  border-left: 3px solid var(--color-danger);
 }
 
 .loading-indicator {
   width: 1.5rem;
   height: 1.5rem;
   flex: 0 0 auto;
-  border: 3px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -288,20 +297,24 @@ p {
   .mobile-controls {
     display: flex;
     justify-content: flex-end;
+    margin-bottom: 2rem;
   }
 
   .sort-control {
-    width: min(18rem, 100%);
+    width: min(17rem, 100%);
   }
 
   .results-layout {
-    grid-template-columns: minmax(13rem, 0.28fr) minmax(0, 1fr);
-    gap: 2rem;
+    grid-template-columns: minmax(14rem, 0.27fr) minmax(0, 1fr);
+    gap: clamp(2rem, 4vw, 3rem);
   }
 
   .desktop-filters {
     display: block;
     align-self: start;
+    border-radius: var(--radius-medium);
+    background: var(--color-surface-muted);
+    padding: 1.5rem;
   }
 }
 
@@ -314,7 +327,6 @@ p {
 @media (prefers-reduced-motion: reduce) {
   .loading-indicator {
     animation: none;
-    border-top-color: var(--color-border);
   }
 }
 </style>

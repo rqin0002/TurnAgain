@@ -67,27 +67,36 @@ const updateAction = (action, checked) => {
 }
 
 legend {
+  margin-bottom: 0.75rem;
   color: var(--color-heading);
-  font-size: 1rem;
-  font-weight: 750;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }
 
 .filter-option {
   display: flex;
-  min-height: 2.75rem;
+  min-height: 2.875rem;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   color: var(--color-text);
+  font-size: 0.9375rem;
   cursor: pointer;
 }
 
 .filter-option input {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+  margin: 0;
   accent-color: var(--color-brand);
 }
 
+.filter-option span {
+  flex: 1;
+}
+
 .text-button {
-  margin-top: 0.6rem;
+  margin-top: 0.75rem;
 }
 </style>

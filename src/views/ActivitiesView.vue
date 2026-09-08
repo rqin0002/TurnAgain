@@ -42,7 +42,7 @@ const searchInput = useSearchDraft({
   <section class="page-section">
     <div class="shell activities-page">
       <header class="activities-page__intro reading-width">
-        <p class="eyebrow">Repair &amp; reuse activities</p>
+        <p class="activities-page__context">Repair &amp; reuse activities</p>
         <h1 class="page-title">Learn, repair, and keep useful things moving.</h1>
         <p>
           Compare published community activities before you sign in. Check suitability, session
@@ -66,7 +66,7 @@ const searchInput = useSearchDraft({
       </div>
 
       <template v-else>
-        <fieldset class="surface surface--padded activities-page__controls">
+        <fieldset class="activities-page__controls">
           <legend class="visually-hidden">Filter activities</legend>
 
           <div class="activities-page__field activities-page__field--wide">
@@ -174,17 +174,39 @@ const searchInput = useSearchDraft({
 <style scoped>
 .activities-page {
   display: grid;
-  gap: 1.5rem;
+  gap: 2rem;
+}
+
+.activities-page__intro {
+  max-width: 54rem;
+  padding-block: 0.5rem 1rem;
+}
+
+.activities-page__intro .page-title {
+  max-width: 20ch;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
+}
+
+.activities-page__context {
+  margin: 0 0 0.875rem;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .activities-page__intro p:last-child {
-  margin: 1rem 0 0;
+  max-width: 64ch;
+  margin: 1.25rem 0 0;
   color: var(--color-text-muted);
-  font-size: 1.05rem;
+  font-size: 1.125rem;
+  line-height: 1.65;
 }
 
 .activities-page__error {
-  border-left: 4px solid var(--color-danger);
+  border-left: 3px solid var(--color-danger);
 }
 
 .activities-page__controls {
@@ -192,36 +214,47 @@ const searchInput = useSearchDraft({
   min-width: 0;
   gap: 1rem;
   margin: 0;
+  border: 0;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-muted);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
 }
 
 .activities-page__field {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .activities-page__field label {
   color: var(--color-heading);
-  font-weight: 750;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .activities-page__results-heading {
   display: flex;
-  align-items: end;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.5rem;
 }
 
 .activities-page__results-heading output {
   color: var(--color-text-muted);
-  font-weight: 750;
+  font-size: 0.9375rem;
 }
 
 .activities-page__list {
   display: grid;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 @media (min-width: 768px) {
+  .activities-page {
+    gap: 2.5rem;
+  }
+
   .activities-page__controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: end;
@@ -230,12 +263,16 @@ const searchInput = useSearchDraft({
   .activities-page__field--wide {
     grid-column: 1 / -1;
   }
+
+  .activities-page__clear {
+    justify-self: start;
+  }
 }
 
 @media (min-width: 1200px) {
   .activities-page__controls {
     grid-template-columns: minmax(18rem, 1.5fr) repeat(2, minmax(11rem, 0.65fr)) auto;
-    align-items: end;
+    gap: 1.25rem;
   }
 
   .activities-page__field--wide {

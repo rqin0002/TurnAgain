@@ -41,9 +41,7 @@ watch(entry, (value) => {
 <template>
   <section class="page-section">
     <div class="shell activity-detail">
-      <button class="text-button activity-detail__back" type="button" @click="goBack">
-        ← Back
-      </button>
+      <button class="text-button back-link" type="button" @click="goBack">← Back</button>
 
       <div v-if="status === 'loading' || status === 'idle'" class="state-panel" role="status">
         <div>
@@ -60,9 +58,9 @@ watch(entry, (value) => {
         </div>
       </div>
 
-      <article v-else-if="entry" class="activity-detail__card surface surface--raised">
+      <article v-else-if="entry" class="activity-detail__card">
         <header class="activity-detail__header">
-          <p class="eyebrow">{{ formatActivityType(entry.activity.activityType) }}</p>
+          <p class="activity-detail__type">{{ formatActivityType(entry.activity.activityType) }}</p>
           <h1>{{ entry.activity.title }}</h1>
           <p>{{ entry.activity.summary }}</p>
         </header>
@@ -118,7 +116,10 @@ watch(entry, (value) => {
             </section>
           </div>
 
-          <aside class="activity-detail__source" aria-labelledby="activity-source-heading">
+          <aside
+            class="source-panel activity-detail__source"
+            aria-labelledby="activity-source-heading"
+          >
             <h2 id="activity-source-heading">Check the provider source</h2>
             <p>
               Activity conditions and availability can change. Confirm details before travelling.
@@ -135,12 +136,11 @@ watch(entry, (value) => {
 
         <section class="activity-detail__sessions" aria-labelledby="sessions-heading">
           <header>
-            <p class="eyebrow">Upcoming schedule</p>
             <h2 id="sessions-heading">Sessions</h2>
           </header>
 
           <ul v-if="entry.sessions.length" class="activity-detail__session-list">
-            <li v-for="session in entry.sessions" :key="session.id" class="surface">
+            <li v-for="session in entry.sessions" :key="session.id">
               <div>
                 <p class="activity-detail__session-date">
                   {{ formatSessionDate(session.startsAt) }}
@@ -230,46 +230,48 @@ watch(entry, (value) => {
   max-width: 72rem;
 }
 
-.activity-detail__back {
-  margin-bottom: 1rem;
-}
-
 .activity-detail h1 {
+  max-width: 23ch;
   margin: 0;
   color: var(--color-heading);
-  font-size: clamp(1.8rem, 5vw, 3rem);
-  line-height: 1.08;
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.06;
 }
 
 .activity-detail__card {
-  overflow: hidden;
+  min-width: 0;
 }
 
-.activity-detail__header,
-.activity-detail__body,
-.activity-detail__sessions {
-  padding: clamp(1.1rem, 4vw, 2rem);
+.activity-detail__type {
+  margin: 0 0 1rem;
+  color: var(--color-brand);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .activity-detail__header {
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface-muted);
+  padding-bottom: clamp(1.75rem, 4vw, 3rem);
 }
 
 .activity-detail__header > p:last-child {
-  max-width: 50rem;
-  margin: 0.8rem 0 0;
+  max-width: 65ch;
+  margin: 1.25rem 0 0;
   color: var(--color-text-muted);
+  font-size: 1.125rem;
+  line-height: 1.65;
 }
 
 .activity-detail__body {
   display: grid;
-  gap: 1.5rem;
+  gap: 2rem;
+  padding-block: 1rem clamp(2rem, 4vw, 3rem);
 }
 
 .activity-detail__content {
   display: grid;
-  gap: 2rem;
+  gap: 2.5rem;
 }
 
 .activity-detail h2,
@@ -278,102 +280,118 @@ watch(entry, (value) => {
 }
 
 .activity-detail h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.35rem;
+  margin: 0 0 1rem;
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .activity-detail h3 {
-  margin: 1.25rem 0 0.4rem;
+  margin: 1.5rem 0 0.5rem;
   font-size: 1rem;
+  font-weight: 600;
 }
 
 .activity-detail ul {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1.1rem;
 }
 
-.activity-detail__source {
-  align-self: start;
-  border-left: 4px solid var(--color-brand);
-  background: var(--color-brand-soft);
-  padding: 1rem;
+.activity-detail__content li + li {
+  margin-top: 0.35rem;
 }
 
-.activity-detail__source p:last-child {
-  margin-bottom: 0;
+.activity-detail__content li::marker {
+  color: var(--color-text-muted);
+}
+
+.activity-detail__source h2 {
+  font-size: 1.25rem;
 }
 
 .activity-detail__facts {
   display: grid;
-  gap: 1rem;
   margin: 0;
 }
 
 .activity-detail__facts > div {
   border-top: 1px solid var(--color-border);
-  padding-top: 0.75rem;
+  padding-block: 1rem;
 }
 
 .activity-detail__facts dt {
   color: var(--color-heading);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .activity-detail__facts dd {
-  margin: 0.25rem 0 0;
+  margin: 0.5rem 0 0;
+  line-height: 1.65;
 }
 
 .activity-detail__sessions {
   border-top: 1px solid var(--color-border);
+  padding-top: clamp(2rem, 4vw, 3rem);
 }
 
-.activity-detail__session-list {
+.activity-detail .activity-detail__session-list {
   display: grid;
   gap: 1rem;
-  margin-top: 1.25rem;
+  margin-top: 1.5rem;
   padding: 0;
   list-style: none;
 }
 
 .activity-detail__session-list > li {
   display: grid;
-  gap: 1rem;
-  padding: 1rem;
+  min-width: 0;
+  gap: 1.5rem;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-muted);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
 }
 
 .activity-detail__session-list p {
-  margin: 0.3rem 0 0;
+  margin: 0.4rem 0 0;
 }
 
 .activity-detail__session-date {
   color: var(--color-heading);
-  font-weight: 800;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
 }
 
 .activity-detail__notice {
-  border-left: 3px solid var(--color-border-strong);
-  padding-left: 0.75rem;
+  padding-top: 0.5rem;
   color: var(--color-text-muted);
 }
 
 .activity-detail__availability {
   align-self: start;
+  font-size: 0.9375rem;
+}
+
+.activity-detail__availability strong {
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
 .activity-detail__availability .button {
-  width: 100%;
-  margin-top: 0.9rem;
+  margin-top: 1rem;
 }
 
 @media (min-width: 768px) {
   .activity-detail__body {
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
-    gap: 2rem;
+    gap: clamp(3rem, 6vw, 5rem);
   }
 
   .activity-detail__session-list > li {
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.36fr);
-    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
+    gap: 2rem;
   }
 }
 </style>
