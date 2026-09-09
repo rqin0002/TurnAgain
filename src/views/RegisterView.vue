@@ -77,16 +77,18 @@ const submit = async () => {
 
   isSubmitting.value = true
   try {
-    const user = await authStore.register({
+    const registered = await authStore.register({
       displayName: validation.values.displayName,
       email: validation.values.email,
       password: fields.password,
       passwordConfirmation: fields.passwordConfirmation,
     })
 
-    if (user) {
+    if (registered) {
       if (isPageActive) {
-        await router.push(resolveSafeRedirect(route.query.redirect, router) ?? { name: 'account' })
+        await router.replace(loginDestination.value)
+      } else {
+        authStore.consumeRegistrationNotice()
       }
       return
     }

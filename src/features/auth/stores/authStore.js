@@ -36,7 +36,7 @@ const getPublicErrorMessage = (error) =>
  *
  * @param {{
  *   initialize: () => Promise<object | null>,
- *   register: (input: unknown) => Promise<object>,
+ *   register: (input: unknown) => Promise<null>,
  *   login: (input: unknown) => Promise<object>,
  *   requestPasswordReset: (input: unknown) => Promise<null>,
  *   logout: () => Promise<null>,
@@ -54,6 +54,9 @@ export function createAuthStore(repository) {
     const isAuthenticated = computed(() => user.value !== null)
 
     let initialized = false
+    // A one-use acknowledgement of a successful send, never persisted or read
+    // from a URL. A full page reload creates a fresh store without this notice.
+    let registrationNoticePending = false
     let initializationPromise = null
     let latestOperation = 0
     let repositoryOperationQueue = Promise.resolve()
@@ -181,6 +184,7 @@ export function createAuthStore(repository) {
       operationStatus.value = pendingStatus
       if (!isSessionRefresh) {
         errorMessage.value = ''
+        registrationNoticePending = false
       }
       const reportError = (error) => {
         // Background reconciliation must not erase the failed command's
@@ -213,7 +217,10 @@ export function createAuthStore(repository) {
           initialized = true
           observeSession()
           commitUser(outcome.user)
-          return copyCurrentUser()
+          if (method === 'register') {
+            registrationNoticePending = true
+          }
+          return method === 'register' ? true : copyCurrentUser()
         }
 
         if (outcome.kind === 'operation-failed') {
@@ -242,6 +249,12 @@ export function createAuthStore(repository) {
 
     const register = (input) => runUserOperation('register', 'registering', input)
     const login = (input) => runUserOperation('login', 'logging-in', input)
+
+    const consumeRegistrationNotice = () => {
+      const pending = registrationNoticePending
+      registrationNoticePending = false
+      return pending
+    }
 
     const requestPasswordReset = async (input) => {
       const operation = ++latestOperation
@@ -306,6 +319,7 @@ export function createAuthStore(repository) {
       roles.some((role) => ALLOWED_ROLES.has(role) && role === user.value.role)
 
     return {
+      consumeRegistrationNotice,
       errorMessage,
       hasAnyRole,
       initialize,

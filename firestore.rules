@@ -33,12 +33,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAuthenticated() {
-      return request.auth != null;
+    // Firebase Auth can issue a token before email verification. Protected
+    // application data requires verification independently of the browser UI.
+    function hasVerifiedIdentity() {
+      return request.auth != null
+        && (
+          request.auth.token.get('email_verified', false) == true
+          || isDemoMember()
+        );
+    }
+
+    function isDemoMember() {
+      let path = profilePath('user-member-demo');
+      // Administratively provisioned identity, never an email-only allowlist.
+      return request.auth.uid == 'user-member-demo'
+        && request.auth.token.get('email', '') == 'member@turnagain.test'
+        && exists(path)
+        && get(path).data.uid == request.auth.uid
+        && get(path).data.email == 'member@turnagain.test'
+        && get(path).data.role == 'member'
+        && get(path).data.status == 'active';
     }
 
     function isOwner(uid) {
-      return isAuthenticated() && request.auth.uid == uid;
+      return hasVerifiedIdentity() && request.auth.uid == uid;
     }
 
     function hasExactFields(data, fields) {
@@ -308,7 +326,7 @@ service cloud.firestore {
 
     function isActiveProfile(uid) {
       let path = profilePath(uid);
-      return isAuthenticated()
+      return hasVerifiedIdentity()
         && exists(path)
         && get(path).data.uid == uid
         && get(path).data.status == 'active'
@@ -319,7 +337,7 @@ service cloud.firestore {
     }
 
     function hasStaffRole() {
-      return isAuthenticated()
+      return hasVerifiedIdentity()
         && isActiveProfile(request.auth.uid)
         && get(profilePath(request.auth.uid)).data.role in ['staff', 'admin'];
     }
@@ -432,7 +450,7 @@ service cloud.firestore {
           && isValidRatingSummary(resource.data);
         allow list: if false;
 
-        allow update: if isAuthenticated()
+        allow update: if hasVerifiedIdentity()
           && isValidRatingSummary(resource.data)
           && isValidRatingSummary(request.resource.data)
           && request.resource.data.updatedAt == request.time
@@ -538,7 +556,7 @@ service cloud.firestore {
       allow get: if isOwner(uid);
       allow list: if false;
 
-      // Self-registration can create only the caller's active member profile.
+      // First verified sign-in can create only the caller's active member profile.
       // Privileged staff/admin profiles are provisioned administratively.
       allow create: if isOwner(uid)
         && isValidProfile(request.resource.data, uid)

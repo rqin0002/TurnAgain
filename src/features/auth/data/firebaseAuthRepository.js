@@ -2,6 +2,7 @@ import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
@@ -28,6 +29,7 @@ const DEFAULT_AUTH_API = Object.freeze({
   browserLocalPersistence,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   setPersistence,
   signInWithEmailAndPassword,
@@ -78,6 +80,13 @@ const getExactPassword = (input) =>
 const normalizeEmail = (value) =>
   typeof value === 'string' ? value.trim().toLocaleLowerCase('en-AU') : ''
 
+// Keep this provisioned identity aligned with firestore.rules. Profile role
+// and active status are still validated before granting any application access.
+const isDemoMemberIdentity = (user) =>
+  user.uid === 'user-member-demo' && normalizeEmail(user.email) === 'member@turnagain.test'
+
+const hasVerifiedIdentity = (user) => user.emailVerified === true || isDemoMemberIdentity(user)
+
 const mapFirebaseAuthError = (error) => {
   if (error instanceof AuthError) {
     return error
@@ -125,7 +134,9 @@ const projectPublicProfile = (snapshot, firebaseUser) => {
     typeof profile.displayName !== 'string' ||
     profile.displayName.length === 0 ||
     !ALLOWED_ROLES.has(profile.role) ||
-    profile.status !== 'active'
+    profile.status !== 'active' ||
+    (firebaseUser.emailVerified !== true &&
+      (!isDemoMemberIdentity(firebaseUser) || profile.role !== 'member'))
   ) {
     return null
   }
@@ -146,7 +157,7 @@ const projectPublicProfile = (snapshot, firebaseUser) => {
  * @param {object} [dependencies]
  * @returns {{
  *   initialize: () => Promise<object | null>,
- *   register: (input: unknown) => Promise<object>,
+ *   register: (input: unknown) => Promise<null>,
  *   login: (input: unknown) => Promise<object>,
  *   requestPasswordReset: (input: unknown) => Promise<null>,
  *   logout: () => Promise<null>,
@@ -195,7 +206,7 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       snapshot = await firestoreApi.getDoc(profileRef)
 
       if (!snapshot.exists() && completeRegistration) {
-        // Only an explicit sign-in/sign-up may finish an interrupted registration.
+        // Only an explicit verified sign-in may finish registration.
         // Create-if-absent also lets concurrent tabs reuse the winning profile;
         // existing disabled, malformed or privileged profiles are never replaced.
         await firestoreApi.runTransaction(db, async (transaction) => {
@@ -282,6 +293,14 @@ export function createFirebaseAuthRepository(dependencies = {}) {
 
   const restoreSession = async () => {
     const firebaseUser = auth.currentUser
+    if (firebaseUser && !hasVerifiedIdentity(firebaseUser)) {
+      try {
+        await authApi.signOut(auth)
+      } catch {
+        // Never restore an unverified identity, even when sign-out fails.
+      }
+      return null
+    }
     return firebaseUser === null || firebaseUser === undefined
       ? null
       : loadProfile(firebaseUser, 'session-expired')
@@ -320,7 +339,20 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       throw mapFirebaseAuthError(error)
     }
 
-    return loadProfile(firebaseUser, 'invalid-credentials', true)
+    if (!hasVerifiedIdentity(firebaseUser)) {
+      try {
+        await authApi.sendEmailVerification(firebaseUser)
+      } catch {
+        throw new AuthError('verification-unavailable')
+      } finally {
+        if (auth.currentUser?.uid === firebaseUser.uid) {
+          await authApi.signOut(auth)
+        }
+      }
+      throw new AuthError('email-unverified')
+    }
+
+    return loadProfile(firebaseUser, 'invalid-credentials', firebaseUser.emailVerified === true)
   }
 
   const register = async (input) => {
@@ -343,11 +375,18 @@ export function createFirebaseAuthRepository(dependencies = {}) {
         displayName: validation.values.displayName,
       })
 
-      return await loadProfile(firebaseUser, 'invalid-credentials', true)
+      // Firestore profile creation is deferred until the first verified login.
+      // Registration needs no pre-verification database permissions.
+      await authApi.sendEmailVerification(firebaseUser)
+      if (auth.currentUser?.uid !== firebaseUser.uid) {
+        throw new AuthError('session-expired')
+      }
+      await authApi.signOut(auth)
+      return null
     } catch (error) {
       if (firebaseUser !== undefined) {
-        // A failed response may follow a successful profile commit. Keep the
-        // identity so sign-in can safely finish setup instead of deleting it.
+        // Keep the created identity so sign-in can retry email verification
+        // and complete its profile after verification.
         if (auth.currentUser?.uid === firebaseUser.uid) {
           try {
             await authApi.signOut(auth)

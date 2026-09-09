@@ -3,6 +3,7 @@ import { computed, nextTick, onScopeDispose, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import AuthFormField from '../features/auth/components/AuthFormField.vue'
+import { AuthError } from '../features/auth/data/AuthError.js'
 import { validateLoginInput } from '../features/auth/domain/authValidation.js'
 import { resolveSafeRedirect } from '../features/auth/router/authGuard.js'
 import { useAuthStore } from '../features/auth/stores/authStore.js'
@@ -43,6 +44,11 @@ const authStore = useAuthStore()
 const form = ref(null)
 const isSubmitting = ref(false)
 const summary = ref('')
+const verificationNotice = ref(
+  authStore.consumeRegistrationNotice()
+    ? 'Account created. Please verify your email address using the link in your email, then sign in. Check your spam folder if you cannot find it.'
+    : '',
+)
 const fields = reactive({ email: '', password: '' })
 const errors = reactive({ email: '', password: '' })
 const pending = computed(() => isSubmitting.value || authStore.operationStatus === 'logging-in')
@@ -91,6 +97,7 @@ const submit = async () => {
   }
 
   summary.value = ''
+  verificationNotice.value = ''
   // Read native controls at submit time because password managers can autofill
   // without dispatching the input event that normally updates Vue state.
   const submittedFields = readSubmittedFields()
@@ -118,7 +125,11 @@ const submit = async () => {
       return
     }
 
-    summary.value = authStore.errorMessage || 'Email or password is incorrect.'
+    if (authStore.errorMessage === new AuthError('email-unverified').message) {
+      verificationNotice.value = authStore.errorMessage
+    } else {
+      summary.value = authStore.errorMessage || 'Email or password is incorrect.'
+    }
   } catch {
     summary.value = 'Authentication is temporarily unavailable.'
   } finally {
@@ -134,11 +145,19 @@ const roleLabel = (role) => role.charAt(0).toUpperCase() + role.slice(1)
     <div class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Sign in</h1>
-        <p>Welcome back. Sign in to share your experience and manage your service ratings.</p>
+        <p>Welcome back. Sign in to share your experience.</p>
       </header>
 
       <div class="surface surface--padded auth-card">
         <form ref="form" class="auth-form" novalidate :aria-busy="pending" @submit.prevent="submit">
+          <div
+            v-if="verificationNotice"
+            class="auth-form__summary auth-form__summary--info"
+            role="status"
+            aria-live="polite"
+          >
+            {{ verificationNotice }}
+          </div>
           <div v-if="summary" class="auth-form__summary" role="alert" aria-live="assertive">
             {{ summary }}
           </div>
@@ -204,10 +223,6 @@ const roleLabel = (role) => role.charAt(0).toUpperCase() + role.slice(1)
         aria-labelledby="demo-accounts-heading"
       >
         <h2 id="demo-accounts-heading">Demo accounts</h2>
-        <p>
-          Development demo accounts only. Do not use them for private information; everyone with
-          these credentials shares the same account access.
-        </p>
         <dl>
           <div v-for="account in DEMO_ACCOUNTS" :key="account.uid">
             <dt>{{ roleLabel(account.role) }}</dt>
