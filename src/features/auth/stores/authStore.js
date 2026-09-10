@@ -28,8 +28,8 @@ const projectPublicUser = (candidate) => {
   })
 }
 
-const getPublicErrorMessage = (error) =>
-  error instanceof AuthError ? error.message : new AuthError('unexpected').message
+const getPublicError = (error) =>
+  error instanceof AuthError ? error : new AuthError('unexpected')
 
 /**
  * Creates a Pinia auth-store definition around an injectable repository contract.
@@ -50,8 +50,20 @@ export function createAuthStore(repository) {
     const user = ref(null)
     const status = ref('idle')
     const operationStatus = ref('idle')
+    const errorCode = ref('')
     const errorMessage = ref('')
     const isAuthenticated = computed(() => user.value !== null)
+
+    const clearError = () => {
+      errorCode.value = ''
+      errorMessage.value = ''
+    }
+
+    const setError = (error) => {
+      const publicError = getPublicError(error)
+      errorCode.value = publicError.code
+      errorMessage.value = publicError.message
+    }
 
     let initialized = false
     // A one-use acknowledgement of a successful send, never persisted or read
@@ -152,7 +164,7 @@ export function createAuthStore(repository) {
 
       const operation = ++latestOperation
       status.value = 'restoring'
-      errorMessage.value = ''
+      clearError()
       initializationPromise = (async () => {
         try {
           const restored = await enqueueRepositoryOperation(() => repository.initialize())
@@ -166,7 +178,7 @@ export function createAuthStore(repository) {
           if (operation === latestOperation) {
             user.value = null
             status.value = 'anonymous'
-            errorMessage.value = getPublicErrorMessage(error)
+            setError(error)
           }
         } finally {
           initializationPromise = null
@@ -183,14 +195,14 @@ export function createAuthStore(repository) {
       const isSessionRefresh = method === 'restoreSession'
       operationStatus.value = pendingStatus
       if (!isSessionRefresh) {
-        errorMessage.value = ''
+        clearError()
         registrationNoticePending = false
       }
       const reportError = (error) => {
         // Background reconciliation must not erase the failed command's
         // message before the originating form/account page can display it.
         if (!isSessionRefresh || !errorMessage.value) {
-          errorMessage.value = getPublicErrorMessage(error)
+          setError(error)
         }
       }
 
@@ -259,7 +271,7 @@ export function createAuthStore(repository) {
     const requestPasswordReset = async (input) => {
       const operation = ++latestOperation
       operationStatus.value = 'requesting-password-reset'
-      errorMessage.value = ''
+      clearError()
 
       try {
         // Password recovery does not create an application session, so it
@@ -268,7 +280,7 @@ export function createAuthStore(repository) {
         return operation === latestOperation
       } catch (error) {
         if (operation === latestOperation) {
-          errorMessage.value = getPublicErrorMessage(error)
+          setError(error)
         }
         return false
       } finally {
@@ -283,7 +295,7 @@ export function createAuthStore(repository) {
     const logout = async () => {
       const operation = ++latestOperation
       operationStatus.value = 'logging-out'
-      errorMessage.value = ''
+      clearError()
 
       try {
         await enqueueRepositoryOperation(() => repository.logout())
@@ -293,7 +305,7 @@ export function createAuthStore(repository) {
         }
       } catch (error) {
         if (operation === latestOperation) {
-          errorMessage.value = getPublicErrorMessage(error)
+          setError(error)
         }
       } finally {
         if (operation === latestOperation) {
@@ -320,6 +332,7 @@ export function createAuthStore(repository) {
 
     return {
       consumeRegistrationNotice,
+      errorCode,
       errorMessage,
       hasAnyRole,
       initialize,

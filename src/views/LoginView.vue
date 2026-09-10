@@ -3,7 +3,6 @@ import { computed, nextTick, onScopeDispose, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import AuthFormField from '../features/auth/components/AuthFormField.vue'
-import { AuthError } from '../features/auth/data/AuthError.js'
 import { validateLoginInput } from '../features/auth/domain/authValidation.js'
 import { resolveSafeRedirect } from '../features/auth/router/authGuard.js'
 import { useAuthStore } from '../features/auth/stores/authStore.js'
@@ -46,7 +45,7 @@ const isSubmitting = ref(false)
 const summary = ref('')
 const verificationNotice = ref(
   authStore.consumeRegistrationNotice()
-    ? 'Account created. Please verify your email address using the link in your email, then sign in. Check your spam folder if you cannot find it.'
+    ? 'Verification email sent. Please verify your email address using the link in your email, then sign in. Check your spam folder if you cannot find it.'
     : '',
 )
 const fields = reactive({ email: '', password: '' })
@@ -125,7 +124,7 @@ const submit = async () => {
       return
     }
 
-    if (authStore.errorMessage === new AuthError('email-unverified').message) {
+    if (['email-unverified', 'verification-unavailable'].includes(authStore.errorCode)) {
       verificationNotice.value = authStore.errorMessage
     } else {
       summary.value = authStore.errorMessage || 'Email or password is incorrect.'

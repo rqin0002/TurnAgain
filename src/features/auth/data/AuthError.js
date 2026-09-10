@@ -1,15 +1,15 @@
 const AUTH_ERROR_MESSAGES = Object.freeze({
   'email-in-use':
-    'An account already exists for this email address. Sign in or reset your password.',
+    'An account already exists for this email address. If you forgot your password, reset it from Sign in.',
   'invalid-credentials': 'Email or password is incorrect.',
   'email-unverified':
-    'Please verify your email address before signing in. We have sent a new verification email. Check your inbox and spam folder.',
+    'Please verify your email address before signing in. A new verification email has been sent. Open the link in your email. Check your spam folder if needed.',
   'verification-unavailable':
-    'Your email address is not verified. We could not send a verification email. Check your inbox for an earlier email, or try signing in again later.',
+    'Please verify your email address before signing in.',
   'invalid-input': 'The authentication input is invalid.',
   'recovery-unavailable': 'Password recovery is temporarily unavailable. Try again later.',
   'registration-incomplete':
-    'Your account was created, but setup could not finish. Sign in to complete setup.',
+    'Your account exists, but registration could not finish. Try registering again with your original password, or sign in to continue.',
   'session-expired': 'Your session has expired. Sign in again.',
   unexpected: 'Authentication is temporarily unavailable.',
 })

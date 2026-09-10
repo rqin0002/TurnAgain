@@ -340,16 +340,21 @@ export function createFirebaseAuthRepository(dependencies = {}) {
     }
 
     if (!hasVerifiedIdentity(firebaseUser)) {
+      let verificationError = new AuthError('email-unverified')
       try {
         await authApi.sendEmailVerification(firebaseUser)
       } catch {
-        throw new AuthError('verification-unavailable')
-      } finally {
+        verificationError = new AuthError('verification-unavailable')
+      }
+      try {
         if (auth.currentUser?.uid === firebaseUser.uid) {
           await authApi.signOut(auth)
         }
+      } catch {
+        // Session cleanup must not hide the verification result. Restoration
+        // also rejects this unverified identity if SDK sign-out cannot finish.
       }
-      throw new AuthError('email-unverified')
+      throw verificationError
     }
 
     return loadProfile(firebaseUser, 'invalid-credentials', firebaseUser.emailVerified === true)
@@ -363,17 +368,38 @@ export function createFirebaseAuthRepository(dependencies = {}) {
     }
 
     let firebaseUser
+    let isExistingAccount = false
     try {
-      const credential = await authApi.createUserWithEmailAndPassword(
-        auth,
-        validation.values.email,
-        password,
-      )
+      let credential
+      try {
+        credential = await authApi.createUserWithEmailAndPassword(
+          auth,
+          validation.values.email,
+          password,
+        )
+      } catch (error) {
+        if (error?.code !== 'auth/email-already-in-use') {
+          throw error
+        }
+        // An expired verification link leaves the Auth account in place.
+        // Require its password before continuing registration with the same UID.
+        isExistingAccount = true
+        credential = await authApi.signInWithEmailAndPassword(
+          auth,
+          validation.values.email,
+          password,
+        )
+      }
       firebaseUser = credential.user
 
-      await authApi.updateProfile(firebaseUser, {
-        displayName: validation.values.displayName,
-      })
+      if (isExistingAccount && hasVerifiedIdentity(firebaseUser)) {
+        throw new AuthError('email-in-use')
+      }
+      if (!isExistingAccount) {
+        await authApi.updateProfile(firebaseUser, {
+          displayName: validation.values.displayName,
+        })
+      }
 
       // Firestore profile creation is deferred until the first verified login.
       // Registration needs no pre-verification database permissions.
@@ -385,7 +411,7 @@ export function createFirebaseAuthRepository(dependencies = {}) {
       return null
     } catch (error) {
       if (firebaseUser !== undefined) {
-        // Keep the created identity so sign-in can retry email verification
+        // Keep the identity so registration or sign-in can retry verification
         // and complete its profile after verification.
         if (auth.currentUser?.uid === firebaseUser.uid) {
           try {
@@ -394,9 +420,12 @@ export function createFirebaseAuthRepository(dependencies = {}) {
             // A later sign-in retries completion; restoration never creates data.
           }
         }
-        throw new AuthError('registration-incomplete')
+        throw error instanceof AuthError ? error : new AuthError('registration-incomplete')
       }
-      throw mapFirebaseAuthError(error)
+      const mappedError = mapFirebaseAuthError(error)
+      throw isExistingAccount && mappedError.code === 'invalid-credentials'
+        ? new AuthError('email-in-use')
+        : mappedError
     }
   }
 
