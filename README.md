@@ -1,6 +1,7 @@
 # TurnAgain
 
 TurnAgain is a Vue 3 web application for finding source-linked reuse, repair, and recycling options in Melbourne and Victoria.
+
 The Home page initially shows only the search interface. Item and location criteria are both optional: submitting an empty search displays the complete published catalogue, while valid criteria narrow a URL-backed results page with filters, sorting, service details, and ratings.
 
 ## Recommended IDE Setup
