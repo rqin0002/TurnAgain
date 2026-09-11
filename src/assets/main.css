@@ -101,7 +101,8 @@ main {
   transition:
     background-color var(--duration-fast),
     border-color var(--duration-fast),
-    color var(--duration-fast);
+    color var(--duration-fast),
+    filter var(--duration-fast);
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
@@ -181,11 +182,21 @@ main {
   text-decoration: underline;
   text-underline-offset: 0.2em;
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast),
+    color var(--duration-fast),
+    filter var(--duration-fast);
 }
 
 .text-button:hover {
   background: var(--color-brand-soft);
   color: var(--color-brand-strong);
+}
+
+/* Press feedback changes the surface, not the hit target or its focus outline. */
+:is(.button, .text-button):not(:disabled, [aria-disabled='true']):active {
+  filter: brightness(0.94);
+  transition-duration: var(--duration-press);
 }
 
 /* Shared page introductions and feedback. Auth-specific styles load with auth routes. */

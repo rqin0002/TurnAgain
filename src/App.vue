@@ -119,7 +119,7 @@ watch(
         <template v-else>
           <RouterLink to="/login">Login</RouterLink>
         </template>
-        <span class="primary-nav__indicator" aria-hidden="true"></span>
+        <span class="primary-nav__indicator" data-navigation-indicator aria-hidden="true"></span>
       </nav>
     </div>
   </header>
@@ -178,6 +178,12 @@ watch(
   padding: 0.5rem 0.85rem;
   color: var(--color-heading);
   font-weight: 600;
+  transition: background-color var(--duration-fast);
+}
+
+.menu-toggle:active {
+  background: var(--color-brand-soft);
+  transition-duration: var(--duration-press);
 }
 
 .primary-nav {

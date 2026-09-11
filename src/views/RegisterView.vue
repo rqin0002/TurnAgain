@@ -104,7 +104,7 @@ const submit = async () => {
 
 <template>
   <section class="page-section">
-    <div class="shell auth-page__layout">
+    <div v-motion.fade class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Create an account</h1>
       </header>

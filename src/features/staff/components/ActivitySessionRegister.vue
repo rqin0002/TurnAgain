@@ -29,6 +29,13 @@ const { status, sessions, errorMessage, retry } = useActivityCatalogue({
 })
 
 const registerPage = computed(() => buildActivitySessionPage(sessions.value, props.criteria))
+const resultMotion = computed(() => ({
+  key: registerPage.value.rows.map((row) => row.id).join('|'),
+  quietKey:
+    props.criteria.search || props.criteria.location
+      ? JSON.stringify([props.criteria.search, props.criteria.location])
+      : '',
+}))
 const hasFilters = computed(() =>
   Boolean(props.criteria.search || props.criteria.status || props.criteria.location),
 )
@@ -107,7 +114,7 @@ const sortIndicator = (column) => {
 
 <template>
   <section class="register session-register" aria-labelledby="session-register-heading">
-    <header class="register__header">
+    <header v-motion.fade class="register__header">
       <div>
         <p class="eyebrow">Operational schedule</p>
         <h2 id="session-register-heading" class="section-title">Activity Sessions</h2>
@@ -222,7 +229,11 @@ const sortIndicator = (column) => {
       </fieldset>
 
       <div v-if="registerPage.rows.length" class="register__content">
-        <ul class="register__cards" aria-label="Activity Sessions results">
+        <ul
+          v-motion:results.fade="resultMotion"
+          class="register__cards"
+          aria-label="Activity Sessions results"
+        >
           <li v-for="session in registerPage.rows" :key="session.id">
             <div class="register__card-heading">
               <div>
@@ -292,7 +303,7 @@ const sortIndicator = (column) => {
                 <th class="register__compact-cell" scope="col">Status</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody v-motion:results.fade="resultMotion">
               <tr v-for="session in registerPage.rows" :key="session.id">
                 <th scope="row">{{ session.activityTitle }}</th>
                 <td class="register__number">
@@ -319,7 +330,7 @@ const sortIndicator = (column) => {
         </div>
       </div>
 
-      <div v-else class="state-panel">
+      <div v-else v-motion:results.fade="resultMotion" class="state-panel">
         <div>
           <h3>
             {{ hasFilters ? 'No sessions match these filters' : 'No sessions published yet' }}

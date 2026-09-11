@@ -36,6 +36,13 @@ const emit = defineEmits({
 })
 
 const registerPage = computed(() => buildServiceRegisterPage(props.services, props.criteria))
+const resultMotion = computed(() => ({
+  key: registerPage.value.rows.map((row) => row.id).join('|'),
+  quietKey:
+    props.criteria.search || props.criteria.location
+      ? JSON.stringify([props.criteria.search, props.criteria.location])
+      : '',
+}))
 const hasFilters = computed(() =>
   Boolean(props.criteria.search || props.criteria.action || props.criteria.location),
 )
@@ -105,7 +112,7 @@ const sortIndicator = (column) => {
 
 <template>
   <section class="register service-register" aria-labelledby="service-register-heading">
-    <header class="register__header">
+    <header v-motion.fade class="register__header">
       <div>
         <p class="eyebrow">Published catalogue</p>
         <h2 id="service-register-heading" class="section-title">Service Register</h2>
@@ -221,7 +228,11 @@ const sortIndicator = (column) => {
       </fieldset>
 
       <div v-if="registerPage.rows.length" class="register__content">
-        <ul class="register__cards" aria-label="Service Register results">
+        <ul
+          v-motion:results.fade="resultMotion"
+          class="register__cards"
+          aria-label="Service Register results"
+        >
           <li v-for="service in registerPage.rows" :key="service.id">
             <div class="register__card-heading">
               <div>
@@ -294,7 +305,7 @@ const sortIndicator = (column) => {
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody v-motion:results.fade="resultMotion">
               <tr v-for="service in registerPage.rows" :key="service.id">
                 <th scope="row">{{ service.name }}</th>
                 <td>{{ service.actionTypes.map(formatActionType).join(', ') }}</td>
@@ -321,7 +332,7 @@ const sortIndicator = (column) => {
         </div>
       </div>
 
-      <div v-else class="state-panel">
+      <div v-else v-motion:results.fade="resultMotion" class="state-panel">
         <div>
           <h3>
             {{ hasFilters ? 'No listings match these filters' : 'No listings published yet' }}

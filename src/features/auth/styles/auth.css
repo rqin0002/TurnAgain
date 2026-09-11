@@ -105,6 +105,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .auth-form__spinner {
+    animation: none;
+  }
+}
+
 .auth-card__alternate {
   display: grid;
   gap: 0.75rem;

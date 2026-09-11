@@ -88,7 +88,7 @@ const resetForm = () => {
 
 <template>
   <section class="page-section">
-    <div class="shell auth-page__layout">
+    <div v-motion.fade class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Reset your password</h1>
         <p>Enter the email address you use for TurnAgain.</p>
@@ -152,8 +152,8 @@ const resetForm = () => {
           <div>
             <h2>Check your inbox</h2>
             <p>
-              If an eligible account matches that address, We will send password reset
-              instructions. Check your spam folder if the message does not arrive shortly.
+              If an eligible account matches that address, We will send password reset instructions.
+              Check your spam folder if the message does not arrive shortly.
             </p>
           </div>
 

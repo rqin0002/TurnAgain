@@ -94,6 +94,11 @@ legend {
 
 .filter-option span {
   flex: 1;
+  transition: color var(--duration-fast);
+}
+
+.filter-option input:checked + span {
+  color: var(--color-brand-strong);
 }
 
 .text-button {

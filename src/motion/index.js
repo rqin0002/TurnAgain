@@ -4,7 +4,7 @@ import { animate } from 'animejs/animation'
 // One entry point for TurnAgain's Anime.js behaviours. Components still own
 // their state and markup; each behaviour below owns its animation cleanup.
 
-// Page introductions, menus, disclosures and result updates.
+// Page introductions, menus, disclosures, changed results and selection feedback.
 // One motion vocabulary; the existing colour, type and layout tokens stay in CSS.
 export const motionPresets = Object.freeze({
   page: { duration: 240, distance: 8 },
@@ -37,6 +37,11 @@ export function createMotionDirective(animateElement = animate) {
         stop()
         if (!target || preference.matches || document.hidden) return
 
+        // A result branch can remount as live search becomes empty/non-empty.
+        // Keep that boundary quiet too, including the last backspace to clear it.
+        if (binding.arg === 'results' && document.activeElement?.matches('input[type="search"]'))
+          return
+
         const rect = target.getBoundingClientRect()
         if (
           !rect.width ||
@@ -51,7 +56,8 @@ export function createMotionDirective(animateElement = animate) {
         const preset = motionPresets[presetName]
         const animation = animateElement(target, {
           opacity: [0.92, 1],
-          translateY: [preset.distance, 0],
+          // Dense tables and forms need continuity without moving their targets.
+          ...(binding.modifiers.fade ? {} : { translateY: [preset.distance, 0] }),
           duration: preset.duration,
           ease: 'outCubic',
           autoplay: false,
@@ -110,6 +116,8 @@ export function createMotionDirective(animateElement = animate) {
       } else if (binding.arg === 'results') {
         if (binding.value.quietKey !== binding.oldValue.quietKey) state.stop()
         else if (binding.value.key !== binding.oldValue.key) state.play(element, 'results')
+      } else if (binding.arg === 'change' && binding.value !== binding.oldValue) {
+        state.play(element, 'results')
       } else if (!binding.arg && binding.value !== binding.oldValue) {
         state.play(element, 'page')
       }
@@ -124,20 +132,27 @@ export function createMotionDirective(animateElement = animate) {
 
 export const motion = createMotionDirective()
 
-// Desktop navigation: move the shared underline between destinations.
+// Navigation: move one shared underline between destinations or local registers.
 const DURATION = 220
 
-/** A single underline follows the current desktop destination without moving links. */
+/** A single underline follows the current destination without moving links. */
 export function createNavigationIndicator(animatePosition = animate) {
   const states = new WeakMap()
 
   return {
-    mounted(element) {
-      const indicator = element.querySelector('.primary-nav__indicator')
+    mounted(element, binding) {
+      const indicator = element.querySelector('[data-navigation-indicator]')
+      if (!indicator) return
       const document = element.ownerDocument
       const view = document.defaultView
       const reduced = view.matchMedia('(prefers-reduced-motion: reduce)')
-      const compact = view.matchMedia('(max-width: 899px)')
+      // Local registers stay visible on mobile; their current state includes the
+      // query string, which RouterLink's exact-active class does not distinguish.
+      const local = binding.arg === 'local'
+      const compact = local ? null : view.matchMedia('(max-width: 899px)')
+      const activeSelector = local
+        ? 'a[aria-current="page"]'
+        : 'a.is-current, a.router-link-exact-active'
       const position = { x: 0, y: 0, width: 0 }
       let destination = null
       let animation = null
@@ -151,8 +166,8 @@ export function createNavigationIndicator(animatePosition = animate) {
         indicator.style.transform = `translate(${position.x}px, ${position.y}px) translateX(-50%)`
       }
       const update = (allowAnimation = false) => {
-        const active = element.querySelector('a.is-current, a.router-link-exact-active')
-        if (!active || compact.matches) {
+        const active = element.querySelector(activeSelector)
+        if (!active || compact?.matches) {
           cancel()
           destination = null
           delete element.dataset.indicatorReady
@@ -163,7 +178,10 @@ export function createNavigationIndicator(animatePosition = animate) {
         // scales its subpixel rounding error; a real width keeps the line centred.
         const next = {
           x: active.offsetLeft + active.offsetWidth / 2,
-          y: active.offsetTop + active.offsetHeight - 1,
+          y:
+            active.offsetTop +
+            active.offsetHeight -
+            (parseFloat(view.getComputedStyle(indicator).height) || 1),
           width: active.offsetWidth,
         }
         if (!next.width) return
@@ -199,7 +217,7 @@ export function createNavigationIndicator(animatePosition = animate) {
       const observer = new view.ResizeObserver(settle)
       observer.observe(element)
       reduced.addEventListener('change', settle)
-      compact.addEventListener('change', settle)
+      compact?.addEventListener('change', settle)
       document.addEventListener('visibilitychange', settle)
 
       states.set(element, {
@@ -208,7 +226,7 @@ export function createNavigationIndicator(animatePosition = animate) {
           cancel()
           observer.disconnect()
           reduced.removeEventListener('change', settle)
-          compact.removeEventListener('change', settle)
+          compact?.removeEventListener('change', settle)
           document.removeEventListener('visibilitychange', settle)
           delete element.dataset.indicatorReady
           indicator.style.removeProperty('transform')

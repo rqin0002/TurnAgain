@@ -54,13 +54,17 @@ const updateSessionCriteria = (nextCriteria) =>
 <template>
   <section class="page-section">
     <div class="shell staff-page">
-      <header class="staff-page__intro">
+      <header v-motion class="staff-page__intro">
         <p class="eyebrow">TurnAgain / Staff</p>
         <h1 class="page-title">Staff workspace</h1>
         <p class="staff-page__description">Browse the service catalogue and activity schedule.</p>
       </header>
 
-      <nav class="staff-page__register-nav" aria-label="Staff registers">
+      <nav
+        v-navigation-indicator:local
+        class="staff-page__register-nav"
+        aria-label="Staff registers"
+      >
         <RouterLink
           :to="{ name: 'staff', query: buildWorkspaceQuery({ panel: 'services' }) }"
           :aria-current="activeRegister === 'services' ? 'page' : undefined"
@@ -73,6 +77,7 @@ const updateSessionCriteria = (nextCriteria) =>
         >
           Activity Sessions
         </RouterLink>
+        <span class="staff-page__indicator" data-navigation-indicator aria-hidden="true"></span>
       </nav>
 
       <ServiceRegister
@@ -116,6 +121,7 @@ const updateSessionCriteria = (nextCriteria) =>
 }
 
 .staff-page__register-nav {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem 2rem;
@@ -140,6 +146,24 @@ const updateSessionCriteria = (nextCriteria) =>
 .staff-page__register-nav a[aria-current='page'] {
   border-bottom-color: var(--color-brand);
   color: var(--color-brand);
+}
+
+.staff-page__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-brand);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.staff-page__register-nav[data-indicator-ready] .staff-page__indicator {
+  opacity: 1;
+}
+
+.staff-page__register-nav[data-indicator-ready] a {
+  border-bottom-color: transparent;
 }
 
 @media (max-width: 420px) {

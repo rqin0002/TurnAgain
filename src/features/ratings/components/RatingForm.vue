@@ -128,7 +128,13 @@ const submit = async () => {
           <span aria-hidden="true">{{ option.score }}</span>
         </label>
       </div>
-      <div class="rating-form__meaning" role="status" aria-live="polite" aria-atomic="true">
+      <div
+        v-motion:change.fade="fields.score"
+        class="rating-form__meaning"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
         <template v-if="selectedOption">
           <strong>{{ selectedOption.label }}</strong>
           <span>{{ selectedOption.description }}</span>
@@ -273,7 +279,8 @@ const submit = async () => {
   cursor: pointer;
   transition:
     border-color var(--duration-fast),
-    background-color var(--duration-fast);
+    background-color var(--duration-fast),
+    filter var(--duration-fast);
 }
 
 .rating-form__choice input {
@@ -296,6 +303,12 @@ const submit = async () => {
   font-size: 1.375rem;
   font-weight: 600;
   pointer-events: none;
+  transition: color var(--duration-fast);
+}
+
+.rating-form__choice:has(input:not(:disabled)):active {
+  filter: brightness(0.94);
+  transition-duration: var(--duration-press);
 }
 
 .rating-form__choice:focus-within {

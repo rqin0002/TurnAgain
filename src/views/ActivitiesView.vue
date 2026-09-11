@@ -149,7 +149,7 @@ const searchInput = useSearchDraft({
           />
         </div>
 
-        <div v-else class="state-panel">
+        <div v-else v-motion:results="resultMotion" class="state-panel">
           <div>
             <h2>
               {{ hasFilters ? 'No activities match these filters' : 'No activities published yet' }}

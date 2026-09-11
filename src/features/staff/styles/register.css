@@ -199,6 +199,12 @@
   font-size: inherit;
   font-weight: inherit;
   cursor: pointer;
+  transition: color var(--duration-fast);
+}
+
+.register thead button:active {
+  color: var(--color-brand-strong);
+  transition-duration: var(--duration-press);
 }
 
 .register thead button:hover {

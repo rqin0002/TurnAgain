@@ -27,7 +27,7 @@ const logOut = async () => {
 
 <template>
   <section class="page-section">
-    <div class="shell account-page">
+    <div v-motion.fade class="shell account-page">
       <header class="account-page__header">
         <h1 class="account-page__title">Your account</h1>
         <p class="account-page__lead">Your profile and account access, in one place.</p>
