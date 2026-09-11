@@ -140,7 +140,12 @@ const submit = async () => {
       </p>
     </fieldset>
 
-    <details class="rating-form__note" :open="noteOpen" @toggle="noteOpen = $event.target.open">
+    <details
+      v-motion:disclosure
+      class="rating-form__note"
+      :open="noteOpen"
+      @toggle="noteOpen = $event.target.open"
+    >
       <summary>Private note <span>Optional</span></summary>
       <div class="rating-form__review">
         <label for="rating-review">What would you like to remember?</label>
@@ -174,11 +179,21 @@ const submit = async () => {
       </p>
       <div class="rating-form__actions">
         <button
-          class="button button--primary"
+          class="button button--primary rating-form__submit"
           type="submit"
           :disabled="isPending || (Boolean(rating) && !hasChanges)"
+          :aria-label="isPending ? 'Saving rating' : undefined"
         >
-          {{ isPending ? 'Saving…' : rating ? 'Save changes' : 'Share rating' }}
+          <span
+            class="rating-form__submit-label"
+            :class="{ 'rating-form__submit-label--pending': isPending }"
+            :aria-hidden="isPending"
+          >
+            {{ rating ? 'Save changes' : 'Share rating' }}
+          </span>
+          <span v-if="isPending" class="rating-form__pending" aria-hidden="true">
+            <span class="rating-form__spinner"></span>Saving…
+          </span>
         </button>
         <button
           v-if="rating"
@@ -190,10 +205,10 @@ const submit = async () => {
           Cancel changes
         </button>
       </div>
-      <p v-if="isPending" class="rating-form__hint" role="status">Saving your rating…</p>
-      <p v-else-if="rating && hasChanges" class="rating-form__hint">You have unsaved changes.</p>
+      <p v-if="rating && hasChanges" class="rating-form__hint">You have unsaved changes.</p>
     </div>
   </form>
+  <p class="visually-hidden" role="status">{{ isPending ? 'Saving your rating…' : '' }}</p>
 </template>
 
 <style scoped>
@@ -380,6 +395,44 @@ const submit = async () => {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1rem;
+}
+
+.rating-form__submit {
+  position: relative;
+}
+
+.rating-form__submit-label--pending {
+  visibility: hidden;
+}
+
+.rating-form__pending {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.rating-form__spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rating-saving-spin 650ms linear infinite;
+}
+
+@keyframes rating-saving-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-form__spinner {
+    animation: none;
+  }
 }
 
 @media (forced-colors: active) {

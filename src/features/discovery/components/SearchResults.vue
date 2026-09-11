@@ -64,6 +64,10 @@ const resultLabel = computed(() => {
   return `${count} ${count === 1 ? 'option' : 'options'}`
 })
 
+const resultMotion = computed(() => ({
+  key: visibleResults.value.map((service) => service.id).join('|'),
+}))
+
 const isBrowseAll = computed(() => !props.item && !props.location)
 const resultAnnouncement = computed(() => {
   if (isBrowseAll.value) {
@@ -119,7 +123,7 @@ const resultAnnouncement = computed(() => {
       </header>
 
       <div class="mobile-controls">
-        <details class="mobile-filters">
+        <details v-motion:disclosure class="mobile-filters">
           <summary>Filters</summary>
           <div class="mobile-filters__content">
             <FilterPanel
@@ -155,7 +159,7 @@ const resultAnnouncement = computed(() => {
           />
         </aside>
 
-        <div class="results-list-column">
+        <div v-motion:results="resultMotion" class="results-list-column">
           <div v-if="visibleResults.length" data-testid="result-list">
             <ServiceCard v-for="service in visibleResults" :key="service.id" :service="service" />
           </div>

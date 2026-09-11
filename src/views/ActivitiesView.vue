@@ -25,6 +25,11 @@ const resultLabel = computed(() => {
   return `${count} ${count === 1 ? 'activity' : 'activities'}`
 })
 
+const resultMotion = computed(() => ({
+  key: catalogue.value.map((entry) => entry.activity.id).join('|'),
+  quietKey: criteria.value.search,
+}))
+
 const updateCriteria = (patch) => {
   const nextCriteria = { ...criteria.value, ...patch }
   return router.replace({ name: 'activities', query: toActivityQuery(nextCriteria) })
@@ -41,7 +46,7 @@ const searchInput = useSearchDraft({
 <template>
   <section class="page-section">
     <div class="shell activities-page">
-      <header class="activities-page__intro reading-width">
+      <header v-motion class="activities-page__intro reading-width">
         <p class="activities-page__context">Repair &amp; reuse activities</p>
         <h1 class="page-title">Learn, repair, and keep useful things moving.</h1>
         <p>
@@ -134,7 +139,7 @@ const searchInput = useSearchDraft({
           <output aria-live="polite">{{ resultLabel }}</output>
         </div>
 
-        <div v-if="catalogue.length" class="activities-page__list">
+        <div v-if="catalogue.length" v-motion:results="resultMotion" class="activities-page__list">
           <ActivityCard
             v-for="entry in catalogue"
             :key="entry.activity.id"
@@ -174,6 +179,7 @@ const searchInput = useSearchDraft({
 <style scoped>
 .activities-page {
   display: grid;
+  container-type: inline-size;
   gap: 2rem;
 }
 
@@ -277,6 +283,18 @@ const searchInput = useSearchDraft({
 
   .activities-page__field--wide {
     grid-column: auto;
+  }
+
+  /* Text resizing can exhaust a wide screen's usable space. Keep the existing
+     two-column arrangement when the catalogue is narrow relative to its type. */
+  @container (max-width: 60rem) {
+    .activities-page__controls {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .activities-page__field--wide {
+      grid-column: 1 / -1;
+    }
   }
 }
 </style>

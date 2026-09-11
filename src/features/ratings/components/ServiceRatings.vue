@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
 import { useServiceRatings } from '../composables/useServiceRatings.js'
+import { useRatingPanelMotion } from '../../../motion/index.js'
 import { describeRatingSummary, RATING_SCALE } from '../domain/ratingPresentation.js'
 import RatingForm from './RatingForm.vue'
 
@@ -28,6 +29,9 @@ const {
 const isEditing = ref(false)
 const editButton = ref(null)
 const editor = ref(null)
+const editorContent = ref(null)
+const summaryPanel = ref(null)
+const summaryContent = ref(null)
 const ratingsHeading = ref(null)
 const insights = computed(() => describeRatingSummary(summary.value))
 const number = (value) => new Intl.NumberFormat('en-AU').format(value)
@@ -42,6 +46,18 @@ const myRatingCopy = computed(() =>
 )
 const headingId = computed(() => `service-ratings-${props.serviceId}`)
 const editorId = computed(() => `rating-editor-${props.serviceId}`)
+useRatingPanelMotion(
+  summaryPanel,
+  summaryContent,
+  () => summaryStatus.value,
+  () => props.serviceId,
+)
+useRatingPanelMotion(
+  editor,
+  editorContent,
+  () => `${privateStatus.value}:${isEditing.value}:${privateErrorMessage.value}`,
+  formKey,
+)
 // Service content arrives after the router's initial hash scroll. Complete an
 // explicit rating intent here, once the target actually exists.
 onMounted(() => {
@@ -84,12 +100,12 @@ const startEditing = async () => {
   successMessage.value = ''
   isEditing.value = true
   await nextTick()
-  editor.value?.querySelector('input[name="score"]:checked')?.focus()
+  editor.value?.querySelector('input[name="score"]:checked')?.focus({ preventScroll: true })
 }
 const finishEditing = async () => {
   isEditing.value = false
   await nextTick()
-  editButton.value?.focus()
+  editButton.value?.focus({ preventScroll: true })
 }
 const cancelEditing = () => {
   privateErrorMessage.value = ''
@@ -107,65 +123,108 @@ const cancelEditing = () => {
 
     <div class="service-ratings__layout">
       <div class="service-ratings__evidence">
-        <p v-if="summaryStatus === 'loading'" class="rating-summary__loading" role="status">
+        <p v-if="summaryStatus === 'loading'" class="visually-hidden" role="status">
           Loading community ratings…
         </p>
         <div
-          v-else-if="summaryErrorMessage || (summaryStatus === 'ready' && !insights)"
-          class="service-ratings__public-error"
+          ref="summaryPanel"
+          class="rating-summary-frame"
+          :aria-busy="summaryStatus === 'loading'"
         >
-          <p class="service-ratings__error" role="alert">
-            {{ summaryErrorMessage || 'The rating summary is unavailable. Please try again.' }}
-          </p>
-          <button class="text-button" type="button" @click="reloadSummary">Retry ratings</button>
-        </div>
-        <template v-else-if="insights">
-          <div v-if="hasRatings" class="rating-summary" data-testid="rating-summary">
-            <div class="rating-summary__overall">
-              <p class="rating-summary__score" data-testid="overall-rating">
-                <span class="visually-hidden">Overall rating: </span>
-                <strong>{{ insights.average }}</strong
-                ><span aria-hidden="true">/ 5</span>
-                <span class="visually-hidden">out of 5 stars</span>
-              </p>
-              <p class="rating-summary__count" data-testid="rating-count">
-                {{ number(insights.count) }} {{ insights.count === 1 ? 'rating' : 'ratings' }}
-              </p>
-            </div>
-            <ol class="rating-distribution" aria-label="Rating distribution">
-              <li
-                v-for="row in insights.rows"
-                :key="row.score"
-                :data-testid="`rating-bucket-${row.score}`"
+          <div ref="summaryContent">
+            <div v-if="summaryStatus === 'loading'" class="rating-summary__loading">
+              <div class="rating-summary rating-skeleton" aria-hidden="true">
+                <div class="rating-skeleton__overall">
+                  <span class="rating-skeleton__score"></span>
+                  <span class="rating-skeleton__count"></span>
+                </div>
+                <div class="rating-skeleton__bars">
+                  <span v-for="score in 5" :key="score"></span>
+                </div>
+              </div>
+              <div
+                class="rating-context rating-skeleton rating-skeleton__context"
+                aria-hidden="true"
               >
-                <span class="rating-distribution__label"
-                  >{{ row.score }} {{ row.score === 1 ? 'star' : 'stars' }}</span
-                >
-                <span class="rating-distribution__track" aria-hidden="true">
-                  <span :style="{ width: `${row.percentage}%` }"></span>
-                </span>
-                <span class="rating-distribution__value">
-                  <strong>{{ number(row.count) }}</strong>
-                  <span>({{ row.percentageLabel }})</span>
-                </span>
-              </li>
-            </ol>
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+            <div
+              v-else-if="summaryErrorMessage || (summaryStatus === 'ready' && !insights)"
+              class="service-ratings__public-error"
+            >
+              <p class="service-ratings__error" role="alert">
+                {{ summaryErrorMessage || 'The rating summary is unavailable. Please try again.' }}
+              </p>
+              <button class="text-button" type="button" @click="reloadSummary">
+                Retry ratings
+              </button>
+            </div>
+            <template v-else-if="insights">
+              <div v-if="hasRatings" class="rating-summary" data-testid="rating-summary">
+                <div class="rating-summary__overall">
+                  <p class="rating-summary__score" data-testid="overall-rating">
+                    <span class="visually-hidden">Overall rating: </span>
+                    <strong>{{ insights.average }}</strong
+                    ><span aria-hidden="true">/ 5</span>
+                    <span class="visually-hidden">out of 5 stars</span>
+                  </p>
+                  <p class="rating-summary__count" data-testid="rating-count">
+                    {{ number(insights.count) }} {{ insights.count === 1 ? 'rating' : 'ratings' }}
+                  </p>
+                </div>
+                <ol class="rating-distribution" aria-label="Rating distribution">
+                  <li
+                    v-for="row in insights.rows"
+                    :key="row.score"
+                    :data-testid="`rating-bucket-${row.score}`"
+                  >
+                    <span
+                      class="rating-distribution__label"
+                      role="img"
+                      :aria-label="`${row.score} ${row.score === 1 ? 'star' : 'stars'}`"
+                    >
+                      <svg
+                        v-for="star in 5"
+                        :key="star"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false"
+                        :class="{ 'rating-distribution__star--filled': star <= row.score }"
+                      >
+                        <path
+                          d="m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3L12 17.3l-5.6 3 1.1-6.3L3 9.6l6.2-.9Z"
+                        />
+                      </svg>
+                    </span>
+                    <span class="rating-distribution__track" aria-hidden="true">
+                      <span :style="{ width: `${row.percentage}%` }"></span>
+                    </span>
+                    <span class="rating-distribution__value">
+                      <strong>{{ number(row.count) }}</strong>
+                      <span>({{ row.percentageLabel }})</span>
+                    </span>
+                  </li>
+                </ol>
+              </div>
+              <div v-else class="rating-empty">
+                <h3 data-testid="overall-rating">No ratings yet</h3>
+                <p data-testid="rating-count">There is no community score for this service yet.</p>
+                <p>
+                  A missing rating does not mean a poor service. Start with the provider’s
+                  information.
+                </p>
+              </div>
+              <div v-if="hasRatings" class="rating-context">
+                <p class="rating-context__fact" data-testid="rating-high-count">
+                  {{ number(insights.highCount) }} of {{ number(insights.count) }}
+                  {{ insights.count === 1 ? 'rating is' : 'ratings are' }} 4 or 5 stars.
+                </p>
+                <p>{{ sampleCopy }}</p>
+              </div>
+            </template>
           </div>
-          <div v-else class="rating-empty">
-            <h3 data-testid="overall-rating">No ratings yet</h3>
-            <p data-testid="rating-count">There is no community score for this service yet.</p>
-            <p>
-              A missing rating does not mean a poor service. Start with the provider’s information.
-            </p>
-          </div>
-          <div v-if="hasRatings" class="rating-context">
-            <p class="rating-context__fact" data-testid="rating-high-count">
-              {{ number(insights.highCount) }} of {{ number(insights.count) }}
-              {{ insights.count === 1 ? 'rating is' : 'ratings are' }} 4 or 5 stars.
-            </p>
-            <p>{{ sampleCopy }}</p>
-          </div>
-        </template>
+        </div>
 
         <a
           v-if="sourceUrl"
@@ -177,7 +236,7 @@ const cancelEditing = () => {
           Check provider details<span class="visually-hidden"> (opens in a new tab)</span>
         </a>
 
-        <details class="rating-explainer">
+        <details v-motion:disclosure class="rating-explainer">
           <summary>What these ratings can tell you</summary>
           <ul>
             <li>
@@ -214,75 +273,93 @@ const cancelEditing = () => {
             Rate a service you have used. A score is all you need to share.
           </p>
         </header>
-        <p v-if="privateStatus === 'waiting-for-auth'" class="service-ratings__muted" role="status">
-          Checking your sign-in before loading your rating…
-        </p>
-        <p v-else-if="privateStatus === 'loading'" class="service-ratings__muted" role="status">
-          Loading your rating…
-        </p>
-        <div v-else-if="privateStatus === 'anonymous'" class="rating-sign-in">
-          <p>Used this service? Share a score to help others compare their options.</p>
-          <RouterLink class="button button--primary" data-testid="rating-sign-in" :to="signInTarget"
-            >Sign in to rate</RouterLink
-          >
-          <p class="service-ratings__muted">
-            You can browse all rating summaries without an account.
-          </p>
-        </div>
-        <template v-else>
-          <div v-if="privateErrorMessage" class="service-ratings__private-error">
-            <p class="service-ratings__error" role="alert">{{ privateErrorMessage }}</p>
-            <p v-if="privateStatus === 'ready'" class="service-ratings__muted">
-              Your changes are still here. Try saving again.
-            </p>
-            <button
-              v-if="privateStatus === 'error'"
-              class="text-button"
-              type="button"
-              @click="reloadMyRating"
-            >
-              Try loading your rating again
-            </button>
-          </div>
+        <div ref="editorContent" class="service-ratings__editor-content">
           <p
-            v-if="successMessage && !isEditing"
-            class="service-ratings__success"
-            data-testid="rating-success"
+            v-if="privateStatus === 'waiting-for-auth'"
+            class="service-ratings__muted"
             role="status"
           >
-            {{ successMessage }}
+            Checking your sign-in before loading your rating…
           </p>
-
-          <div v-if="myRating && !isEditing && privateStatus === 'ready'" class="rating-saved">
-            <p class="rating-saved__score" data-testid="your-rating">
-              <strong>{{ myRatingCopy }}</strong
-              ><span>{{ myRatingLabel }}</span>
-            </p>
-            <p class="service-ratings__muted">Your score is included in the community rating.</p>
-            <details v-if="myRating.reviewText" class="rating-saved__note">
-              <summary>Your private note</summary>
-              <p data-testid="your-review">{{ myRating.reviewText }}</p>
-              <span class="service-ratings__muted">Only you can read this note.</span>
-            </details>
-            <button
-              ref="editButton"
-              class="button button--secondary"
-              type="button"
-              @click="startEditing"
-            >
-              Edit your rating
-            </button>
+          <div v-else-if="privateStatus === 'loading'" class="rating-editor-loading">
+            <p class="service-ratings__muted" role="status">Loading your rating…</p>
+            <div class="rating-skeleton rating-skeleton__editor" aria-hidden="true">
+              <span></span>
+              <div class="rating-skeleton__choices">
+                <span v-for="score in 5" :key="score"></span>
+              </div>
+              <span></span><span></span>
+              <span class="rating-skeleton__button"></span>
+            </div>
           </div>
-          <RatingForm
-            v-else-if="privateStatus === 'ready' || privateStatus === 'saving'"
-            :key="formKey"
-            :rating="myRating"
-            :pending="isSaving"
-            :save-rating="saveDraft"
-            @saved="finishEditing"
-            @cancel="cancelEditing"
-          />
-        </template>
+          <div v-else-if="privateStatus === 'anonymous'" class="rating-sign-in">
+            <p>Used this service? Share a score to help others compare their options.</p>
+            <RouterLink
+              class="button button--primary"
+              data-testid="rating-sign-in"
+              :to="signInTarget"
+              >Sign in to rate</RouterLink
+            >
+            <p class="service-ratings__muted">
+              You can browse all rating summaries without an account.
+            </p>
+          </div>
+          <template v-else>
+            <div v-if="privateErrorMessage" class="service-ratings__private-error">
+              <p class="service-ratings__error" role="alert">{{ privateErrorMessage }}</p>
+              <p v-if="privateStatus === 'ready'" class="service-ratings__muted">
+                Your changes are still here. Try saving again.
+              </p>
+              <button
+                v-if="privateStatus === 'error'"
+                class="text-button"
+                type="button"
+                @click="reloadMyRating"
+              >
+                Try loading your rating again
+              </button>
+            </div>
+            <p
+              v-if="successMessage && !isEditing"
+              v-motion:results="{ key: successMessage }"
+              class="service-ratings__success"
+              data-testid="rating-success"
+              role="status"
+            >
+              {{ successMessage }}
+            </p>
+
+            <div v-if="myRating && !isEditing && privateStatus === 'ready'" class="rating-saved">
+              <p class="rating-saved__score" data-testid="your-rating">
+                <strong>{{ myRatingCopy }}</strong
+                ><span>{{ myRatingLabel }}</span>
+              </p>
+              <p class="service-ratings__muted">Your score is included in the community rating.</p>
+              <details v-if="myRating.reviewText" v-motion:disclosure class="rating-saved__note">
+                <summary>Your private note</summary>
+                <p data-testid="your-review">{{ myRating.reviewText }}</p>
+                <span class="service-ratings__muted">Only you can read this note.</span>
+              </details>
+              <button
+                ref="editButton"
+                class="button button--secondary"
+                type="button"
+                @click="startEditing"
+              >
+                Edit your rating
+              </button>
+            </div>
+            <RatingForm
+              v-else-if="privateStatus === 'ready' || privateStatus === 'saving'"
+              :key="formKey"
+              :rating="myRating"
+              :pending="isSaving"
+              :save-rating="saveDraft"
+              @saved="finishEditing"
+              @cancel="cancelEditing"
+            />
+          </template>
+        </div>
       </section>
     </div>
   </section>
@@ -332,6 +409,14 @@ const cancelEditing = () => {
 
 .service-ratings__evidence {
   min-width: 0;
+  container: rating-evidence / inline-size;
+}
+
+.rating-summary-frame {
+  position: relative;
+  overflow: clip;
+  overflow-clip-margin: 0.375rem;
+  overflow-anchor: none;
 }
 
 .rating-summary {
@@ -373,7 +458,7 @@ const cancelEditing = () => {
 
 .rating-distribution li {
   display: grid;
-  grid-template-columns: 3rem minmax(2rem, 1fr) 6.5rem;
+  grid-template-columns: 4.75rem minmax(2rem, 1fr) 6.5rem;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.8125rem;
@@ -381,7 +466,25 @@ const cancelEditing = () => {
 }
 
 .rating-distribution__label {
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  color: var(--color-brand);
+}
+
+.rating-distribution__label svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  fill: none;
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.rating-distribution__label .rating-distribution__star--filled {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .rating-distribution__track {
@@ -396,6 +499,96 @@ const cancelEditing = () => {
   height: 100%;
   border-radius: inherit;
   background: var(--color-brand);
+  transform-origin: left center;
+  transition: width 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: rating-bar-reveal 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes rating-bar-reveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.rating-skeleton {
+  animation: rating-loading-pulse 1.4s ease-in-out infinite alternate;
+}
+
+.rating-skeleton span {
+  display: block;
+  height: 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--color-border);
+}
+
+.rating-skeleton__overall .rating-skeleton__score {
+  width: 5.5rem;
+  height: 3.5rem;
+}
+
+.rating-skeleton__overall .rating-skeleton__count {
+  width: 3.5rem;
+  margin-top: 0.75rem;
+}
+
+.rating-skeleton__bars {
+  display: grid;
+  align-content: center;
+  gap: 0.625rem;
+}
+
+.rating-skeleton__bars > span {
+  height: 1.25rem;
+}
+
+.rating-skeleton__context {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.rating-skeleton__context > span:first-child {
+  width: 70%;
+}
+.rating-skeleton__context > span:last-child {
+  width: 85%;
+}
+
+.rating-skeleton__editor {
+  display: grid;
+  align-content: start;
+  gap: 1.5rem;
+  min-height: 18rem;
+  padding-top: 1.25rem;
+}
+
+.rating-skeleton__choices {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+
+.rating-skeleton__choices > span {
+  height: 3.5rem;
+  border-radius: var(--radius-small);
+}
+
+.rating-skeleton__editor .rating-skeleton__button {
+  width: 8rem;
+  height: 2.75rem;
+  border-radius: var(--radius-small);
+}
+
+@keyframes rating-loading-pulse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 0.85;
+  }
 }
 
 .rating-distribution__value {
@@ -471,12 +664,21 @@ const cancelEditing = () => {
 }
 
 .service-ratings__editor {
+  position: relative;
   display: grid;
+  align-content: start;
+  overflow: clip;
+  overflow-anchor: none;
   min-width: 0;
   gap: 1.25rem;
   border-radius: var(--radius-medium);
   background: var(--color-surface-muted);
   padding: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.service-ratings__editor-content {
+  display: grid;
+  gap: 1.25rem;
 }
 
 .service-ratings__muted,
@@ -555,10 +757,22 @@ const cancelEditing = () => {
   padding-bottom: 0.75rem;
 }
 
-@media (min-width: 576px) {
+@container rating-evidence (min-width: 24rem) {
   .rating-summary {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 2rem;
+  }
+}
+
+/* Enlarged text still needs room for every star and the literal vote count. */
+@container rating-evidence (max-width: 16rem) {
+  .rating-distribution li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.375rem;
+  }
+
+  .rating-distribution__value {
+    justify-content: start;
   }
 }
 
@@ -576,6 +790,14 @@ const cancelEditing = () => {
   .rating-distribution__track > span {
     background: Highlight;
     forced-color-adjust: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rating-skeleton,
+  .rating-distribution__track > span {
+    animation: none;
+    transition: none;
   }
 }
 </style>

@@ -126,7 +126,14 @@ export function createAppRouter({
         try {
           const target = document.getElementById(decodeURIComponent(to.hash.slice(1)))
           if (target) {
-            return { el: target }
+            return {
+              el: target,
+              behavior:
+                to.path === from.path &&
+                !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                  ? 'smooth'
+                  : 'auto',
+            }
           }
         } catch {
           // A malformed hash must not interrupt otherwise valid navigation.

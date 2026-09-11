@@ -99,7 +99,7 @@ const updatePreferences = ({ actions = selectedActions.value, sortValue = sort.v
   <div v-if="queryState.isValid">
     <section class="search-band page-section--compact" aria-labelledby="search-heading">
       <div class="shell">
-        <div class="search-band__intro">
+        <div v-motion class="search-band__intro">
           <h1 id="search-heading" class="page-title">Find a place for your item.</h1>
         </div>
 

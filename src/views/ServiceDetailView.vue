@@ -59,7 +59,7 @@ watch(
       </div>
 
       <article v-else-if="service" class="detail-card">
-        <header class="detail-card__header">
+        <header v-motion="service.id" class="detail-card__header">
           <ul class="tag-list" aria-label="Available actions">
             <li v-for="action in service.actionTypes" :key="action" class="tag">
               {{ formatActionType(action) }}

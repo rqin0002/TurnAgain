@@ -59,7 +59,7 @@ watch(entry, (value) => {
       </div>
 
       <article v-else-if="entry" class="activity-detail__card">
-        <header class="activity-detail__header">
+        <header v-motion="entry.activity.id" class="activity-detail__header">
           <p class="activity-detail__type">{{ formatActivityType(entry.activity.activityType) }}</p>
           <h1>{{ entry.activity.title }}</h1>
           <p>{{ entry.activity.summary }}</p>

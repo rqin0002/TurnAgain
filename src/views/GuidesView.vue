@@ -1,7 +1,27 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import GuidanceTopicCard from '../features/guidance/components/GuidanceTopicCard.vue'
+
+const router = useRouter()
+
+const goToTopic = async (event, hash) => {
+  // Keep modified clicks and opening a topic in a new tab native.
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const topic = document.getElementById(hash.slice(1))
+  if (!topic) return
+
+  event.preventDefault()
+  await router.push({ name: 'guides', hash })
+  if (router.currentRoute.value.name !== 'guides' || router.currentRoute.value.hash !== hash) return
+
+  // Match About's section navigation without interrupting the smooth scroll.
+  const heading = topic.querySelector('h3')
+  if (heading) {
+    heading.tabIndex = -1
+    heading.focus({ preventScroll: true })
+  }
+}
 
 /**
  * Source-backed public guidance for high-risk or commonly misunderstood items.
@@ -120,7 +140,7 @@ const GUIDANCE_TOPICS = [
   <article class="guides-page">
     <header class="guides-hero page-section">
       <div class="shell guides-hero__layout">
-        <div class="guides-hero__content">
+        <div v-motion class="guides-hero__content">
           <p class="eyebrow">The practical guide</p>
           <h1>Find a safer next step for your item.</h1>
           <p class="guides-hero__lead">
@@ -148,7 +168,12 @@ const GUIDANCE_TOPICS = [
         </div>
 
         <nav class="guides-index" aria-label="Guide topics">
-          <a v-for="topic in GUIDANCE_TOPICS" :key="topic.id" :href="`#${topic.id}`">
+          <a
+            v-for="topic in GUIDANCE_TOPICS"
+            :key="topic.id"
+            :href="`#${topic.id}`"
+            @click="goToTopic($event, `#${topic.id}`)"
+          >
             {{ topic.title }}
           </a>
         </nav>

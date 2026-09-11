@@ -1,5 +1,25 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+
+const router = useRouter()
+
+const goToSection = async (event, hash) => {
+  // Keep modified clicks, copied links and opening a section in a new tab native.
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const section = document.getElementById(hash.slice(1))
+  if (!section) return
+
+  event.preventDefault()
+  await router.push({ name: 'about', hash })
+  if (router.currentRoute.value.name !== 'about' || router.currentRoute.value.hash !== hash) return
+
+  // Focus follows the destination without interrupting the browser's scroll.
+  const heading = section.querySelector('h2')
+  if (heading) {
+    heading.tabIndex = -1
+    heading.focus({ preventScroll: true })
+  }
+}
 
 // ABOUT PAGE CONTENT
 // Edit this object to update page, labels, links or repeated content.
@@ -223,7 +243,7 @@ const pageContent = {
   <article class="about-page">
     <header class="about-hero page-section">
       <div class="shell about-hero__layout">
-        <div class="about-hero__content">
+        <div v-motion class="about-hero__content">
           <p class="eyebrow">{{ pageContent.hero.eyebrow }}</p>
           <h1>{{ pageContent.hero.title }}</h1>
           <p class="about-hero__lead">{{ pageContent.hero.lead }}</p>
@@ -237,7 +257,7 @@ const pageContent = {
           <p class="eyebrow">On this page</p>
           <ul>
             <li v-for="item in pageContent.navigation.items" :key="item.href">
-              <a :href="item.href">{{ item.label }}</a>
+              <a :href="item.href" @click="goToSection($event, item.href)">{{ item.label }}</a>
             </li>
           </ul>
         </nav>
@@ -390,7 +410,7 @@ const pageContent = {
         </div>
 
         <div class="faq-grid">
-          <details v-for="item in pageContent.help.items" :key="item.question">
+          <details v-for="item in pageContent.help.items" :key="item.question" v-motion:disclosure>
             <summary>{{ item.question }}</summary>
             <div>
               <p>{{ item.answer }}</p>

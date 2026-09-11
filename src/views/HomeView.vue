@@ -25,7 +25,7 @@ const findOptions = (search) =>
   <div class="home-page">
     <section class="home-hero" aria-labelledby="home-title">
       <div class="shell home-hero__inner">
-        <header class="home-intro">
+        <header v-motion class="home-intro">
           <h1 id="home-title">Give your things <span>another turn.</span></h1>
           <p>Find local repair, reuse and recycling options in Melbourne.</p>
         </header>

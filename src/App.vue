@@ -95,6 +95,8 @@ watch(
       </button>
 
       <nav
+        v-motion:toggle="menuOpen"
+        v-navigation-indicator
         id="primary-navigation"
         class="primary-nav"
         :class="{ 'primary-nav--open': menuOpen }"
@@ -117,6 +119,7 @@ watch(
         <template v-else>
           <RouterLink to="/login">Login</RouterLink>
         </template>
+        <span class="primary-nav__indicator" aria-hidden="true"></span>
       </nav>
     </div>
   </header>
@@ -178,6 +181,7 @@ watch(
 }
 
 .primary-nav {
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;
@@ -208,6 +212,27 @@ watch(
 .primary-nav a.is-current {
   border-bottom-color: currentColor;
   color: var(--color-brand-strong);
+}
+
+.primary-nav__indicator {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  background: var(--color-brand-strong);
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .primary-nav[data-indicator-ready] .primary-nav__indicator {
+    display: block;
+  }
+
+  .primary-nav[data-indicator-ready] a:is(.router-link-exact-active, .is-current) {
+    border-bottom-color: transparent;
+  }
 }
 
 @media (max-width: 899px) {
