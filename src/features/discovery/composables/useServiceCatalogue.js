@@ -1,84 +1,63 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 
-import { fetchServiceCatalogue } from '../data/serviceRepository.js'
+import { useStaleWhileRevalidate } from '@/shared/composables/useStaleWhileRevalidate.js'
 
-const PUBLIC_ERROR_MESSAGE =
-  'We could not load the service catalogue. Check your connection and try again.'
+import { fetchServiceCatalogue, readCachedServiceCatalogue } from '../data/serviceRepository.js'
 
 /**
- * Owns the asynchronous lifecycle for the public service catalogue.
+ * Owns the asynchronous lifecycle for the public service catalogue, stale-while-revalidate
+ * (spec 11): a persisted copy paints first with `freshness: 'cached'`, the fetch replaces it with
+ * `'fresh'`, and a failed fetch keeps whatever is showing (the view says "Showing results saved
+ * {relative time}"). Nothing is cleared when a load starts; the error panel is for a failure
+ * with nothing to show. The load state itself is useStaleWhileRevalidate's.
  *
  * @param {object} [options]
- * @param {(options: { signal: AbortSignal }) => Promise<object>} [options.loader]
+ * @param {(options: { signal: AbortSignal, force: boolean }) => Promise<object>} [options.loader]
  *   Injectable loader used by production code and deterministic component tests.
+ * @param {(() => { value: object, savedAt: Date } | null) | null} [options.cached]
+ *   Reads the persisted copy; pass null where the public cache must never paint (staff views).
  * @param {boolean} [options.autoLoad=true]
  *   Set false when a route must redirect before making a network request.
  * @returns {{
- *   status: import('vue').Ref<string>,
+ *   status: import('vue').Ref<'idle' | 'loading' | 'ready' | 'error'>,
  *   services: import('vue').Ref<object[]>,
  *   metadata: import('vue').Ref<object>,
- *   errorMessage: import('vue').Ref<string>,
+ *   truncated: import('vue').Ref<boolean>,
+ *   skippedCount: import('vue').Ref<number>,
+ *   freshness: import('vue').Ref<'none' | 'cached' | 'fresh'>,
+ *   savedAt: import('vue').Ref<Date | null>,
+ *   error: import('vue').Ref<import('@/shared/data/RepositoryError.js').RepositoryError | null>,
+ *   errorMessage: import('vue').ComputedRef<string>,
+ *   revalidating: import('vue').ComputedRef<boolean>,
+ *   load: (options?: { force?: boolean }) => Promise<void>,
  *   retry: () => Promise<void>
  * }}
  */
-export function useServiceCatalogue({ loader = fetchServiceCatalogue, autoLoad = true } = {}) {
-  const status = ref('idle')
+export function useServiceCatalogue({
+  loader = fetchServiceCatalogue,
+  cached = readCachedServiceCatalogue,
+  autoLoad = true,
+} = {}) {
   const services = ref([])
   const metadata = ref({})
-  const errorMessage = ref('')
+  const truncated = ref(false)
+  const skippedCount = ref(0)
 
-  let activeController
-  // A sequence guard prevents a slower superseded request from overwriting a
-  // newer result even when an injected loader does not honour AbortSignal.
-  let requestSequence = 0
-
-  const load = async () => {
-    activeController?.abort()
-    activeController = new AbortController()
-    const requestId = ++requestSequence
-
-    status.value = 'loading'
-    errorMessage.value = ''
-
-    try {
-      const catalogue = await loader({ signal: activeController.signal })
-
-      if (requestId !== requestSequence || activeController.signal.aborted) {
-        return
-      }
-
-      services.value = catalogue.services
-      metadata.value = catalogue.metadata ?? {}
-      status.value = 'ready'
-    } catch (error) {
-      if (error?.name === 'AbortError' || requestId !== requestSequence) {
-        return
-      }
-
-      services.value = []
-      metadata.value = {}
-      errorMessage.value = PUBLIC_ERROR_MESSAGE
-      status.value = 'error'
-    }
+  const apply = (catalogue) => {
+    services.value = catalogue.services
+    metadata.value = catalogue.metadata ?? {}
+    truncated.value = catalogue.truncated === true
+    skippedCount.value = catalogue.skippedCount ?? 0
   }
 
-  const retry = () => load()
-
-  onMounted(() => {
-    if (autoLoad) {
-      void load()
-    }
-  })
-  onBeforeUnmount(() => {
-    ++requestSequence
-    activeController?.abort()
-  })
-
-  return {
-    status,
-    services,
-    metadata,
-    errorMessage,
-    retry,
+  const reset = () => {
+    services.value = []
+    metadata.value = {}
+    truncated.value = false
+    skippedCount.value = 0
   }
+
+  const loadState = useStaleWhileRevalidate({ loader, cached, apply, reset, autoLoad })
+
+  return { ...loadState, services, metadata, truncated, skippedCount }
 }
