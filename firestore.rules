@@ -5,30 +5,54 @@ rules_version = '2';
 // ============================================================================
 // catalogues/current (public get): datasetId, schemaVersion, catalogueType,
 //   checkedAt, coverage, updatedAt.
-// services/{serviceId} (public when published): id, name, actionTypes,
-//   acceptedItems, aliases, summary, optional address, suburb, postcode,
-//   searchAreas, status, source map, createdAt, updatedAt. Client writes denied.
+// services/{serviceId} (public when published; staff read any status): the
+//   22 keys of spec 4.4 isValidService: id, name, actionTypes, acceptedItems,
+//   aliases, summary, address, suburb, postcode, searchAreas, status, source
+//   map, createdAt, updatedAt, geo, itemCategories, acceptanceConditions,
+//   preparation, access, openingHours, cost, revision. Staff create (with the
+//   zero summary in the same batch) and update (revision + 1); the seed writes
+//   as the admin under the same rules; never deleted.
 // services/{serviceId}/aggregates/rating-summary (public get): ratingCount,
 //   ratingSum, five-bucket histogram, updatedAt.
 // services/{serviceId}/ratings/{uid} (owner only): score, reviewText, status,
 //   createdAt, updatedAt.
-// users/{uid} (private owner only): uid, email, displayName, role, status,
-//   createdAt, updatedAt.
-// activities/{activityId} (public when published): id, title, summary,
-//   activityType, suitableItems, acceptedConditions, excludedConditions,
-//   costLabel, whatToBring, accessibilityLabel, cancellationLabel,
-//   providerName, providerUrl, sourceCheckedAt, status, createdAt, updatedAt.
-// activitySessions/{sessionId} (public schedule or staff register): id,
-//   activityId, activityTitle, startsAt, endsAt, venueName, address, suburb,
-//   postcode, capacity, bookedCount, waitlistCount, registrationType,
-//   registrationUrl, status, sourceCheckedAt, participantNotice, createdAt,
-//   updatedAt. No participant identity, contact detail, or access request is
-//   permitted. Capacity fields are all null when an external provider does not
-//   publish live availability; TurnAgain-managed sessions require integers.
+// users/{uid} (owner get; admin get, list and count): uid, email, displayName,
+//   role, status, revision, savedServiceIds, createdAt, updatedAt. Owner create
+//   and the four update branches of spec 4.4; never deleted.
+// activities/{activityId} (public when published; staff read any status): the
+//   18 keys of isValidActivity: id, title, summary, activityType,
+//   suitableItems, acceptedConditions, excludedConditions, costLabel,
+//   whatToBring, accessibilityLabel, cancellationLabel, providerName,
+//   providerUrl, sourceCheckedAt, status, createdAt, updatedAt, revision.
+// activitySessions/{sessionId} (public schedule; staff register; any status by
+//   id for the owner of a stored booking on it, and in any bounded list for an
+//   active member, which My Bookings runs as id chunks):
+//   the 20 keys of isValidActivitySession: id, activityId, startsAt, endsAt,
+//   venueName, address, suburb, postcode, capacity, bookedCount,
+//   waitlistCount, registrationType, registrationUrl, status, sourceCheckedAt,
+//   participantNotice, cancellationNoticeAt, createdAt, updatedAt, revision.
+//   No activityTitle (the client joins the activity, C7), and no participant
+//   identity, contact detail, or access request is permitted. Capacity fields
+//   are all null when an external provider does not publish live availability;
+//   TurnAgain-managed sessions require integers. Reads never validate the
+//   schema (spec 4.4 line 334), so a legacy session that still carries
+//   activityTitle stays readable until the seed migrates it.
+// bookings/{uid}_{sessionId} (owner get and list by uid; staff get and list):
+//   the 20 keys of isValidBooking: uid, email, contactName, itemDescription,
+//   sessionId, activityId, activityTitle, venueName, address, suburb,
+//   postcode, startsAt, endsAt, status, reference, waitlistedAt, promotedAt,
+//   cancelledAt, createdAt, updatedAt. The owner creates, cancels and rebooks
+//   in one write with the session's counters (R7); only promoteNextBooking
+//   (Admin SDK) promotes; never deleted.
+// emailLogs/{logId} (staff get and bounded list) and emailSends/{sendKey} (no
+//   client access): written by the two email functions with the Admin SDK.
+// corrections/{correctionId} (anyone creates an open one against a published
+//   service; staff get, bounded list and one triage of an open one; never
+//   deleted): the 12 keys of isValidCorrection.
+// accessLocks/{uid}: the adminSetUserAccess lease; no client access.
 //
-// New activity/session documents are administrative migration inputs. This
-// client ruleset exposes bounded, status-scoped reads while trusted imports
-// and repositories validate schemas. Client writes remain denied.
+// Activities and sessions: staff create and update; sessions also take the
+// member counter write of milestone 5; never deleted.
 // ============================================================================
 
 service cloud.firestore {
@@ -37,22 +61,7 @@ service cloud.firestore {
     // application data requires verification independently of the browser UI.
     function hasVerifiedIdentity() {
       return request.auth != null
-        && (
-          request.auth.token.get('email_verified', false) == true
-          || isDemoMember()
-        );
-    }
-
-    function isDemoMember() {
-      let path = profilePath('user-member-demo');
-      // Administratively provisioned identity, never an email-only allowlist.
-      return request.auth.uid == 'user-member-demo'
-        && request.auth.token.get('email', '') == 'member@turnagain.test'
-        && exists(path)
-        && get(path).data.uid == request.auth.uid
-        && get(path).data.email == 'member@turnagain.test'
-        && get(path).data.role == 'member'
-        && get(path).data.status == 'active';
+        && request.auth.token.get('email_verified', false) == true;
     }
 
     function isOwner(uid) {
@@ -125,14 +134,17 @@ service cloud.firestore {
         || (data.status == 'full' && data.bookedCount == data.capacity);
     }
 
+    // Spec 4.4 line 378 (C7): no activityTitle; revision and cancellationNoticeAt join the exact
+    // key list. Called by the session create and update branches only; reads never validate
+    // (spec 4.4 line 334).
     function isValidActivitySession(data, sessionId) {
       return hasExactFields(
           data,
           [
             'activityId',
-            'activityTitle',
             'address',
             'bookedCount',
+            'cancellationNoticeAt',
             'capacity',
             'createdAt',
             'endsAt',
@@ -141,6 +153,7 @@ service cloud.firestore {
             'postcode',
             'registrationType',
             'registrationUrl',
+            'revision',
             'sourceCheckedAt',
             'startsAt',
             'status',
@@ -153,9 +166,6 @@ service cloud.firestore {
         && isValidId(data.id)
         && data.id == sessionId
         && isValidId(data.activityId)
-        && data.activityTitle is string
-        && data.activityTitle.size() >= 1
-        && data.activityTitle.size() <= 150
         && data.venueName is string
         && data.venueName.size() >= 1
         && data.venueName.size() <= 150
@@ -193,6 +203,9 @@ service cloud.firestore {
             && data.participantNotice.size() <= 500
           )
         )
+        && data.revision is int
+        && data.revision >= 1
+        && (data.cancellationNoticeAt == null || data.cancellationNoticeAt is timestamp)
         && data.startsAt is timestamp
         && data.endsAt is timestamp
         && data.startsAt < data.endsAt
@@ -215,7 +228,7 @@ service cloud.firestore {
         )
         && isValidId(data.datasetId)
         && data.schemaVersion is int
-        && data.schemaVersion == 1
+        && data.schemaVersion >= 1
         && data.catalogueType is string
         && data.catalogueType.size() >= 1
         && data.catalogueType.size() <= 50
@@ -229,7 +242,17 @@ service cloud.firestore {
     function isValidProfile(data, uid) {
       return hasExactFields(
           data,
-          ['uid', 'email', 'displayName', 'role', 'status', 'createdAt', 'updatedAt']
+          [
+            'uid',
+            'email',
+            'displayName',
+            'role',
+            'status',
+            'revision',
+            'savedServiceIds',
+            'createdAt',
+            'updatedAt'
+          ]
         )
         && isValidId(data.uid)
         && data.uid == uid
@@ -239,6 +262,10 @@ service cloud.firestore {
         && data.displayName.size() <= 50
         && data.role in ['member', 'staff', 'admin']
         && data.status in ['active', 'disabled']
+        && data.revision is int
+        && data.revision >= 1
+        && data.savedServiceIds is list
+        && data.savedServiceIds.size() <= 100
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.createdAt <= data.updatedAt;
@@ -326,20 +353,136 @@ service cloud.firestore {
 
     function isActiveProfile(uid) {
       let path = profilePath(uid);
+      let profile = get(path);
       return hasVerifiedIdentity()
         && exists(path)
-        && get(path).data.uid == uid
-        && get(path).data.status == 'active'
-        && get(path).data.role in ['member', 'staff', 'admin']
+        && profile.data.uid == uid
+        && profile.data.status == 'active'
+        && profile.data.role in ['member', 'staff', 'admin']
         && ('email' in request.auth.token)
         && request.auth.token.email is string
-        && get(path).data.email == request.auth.token.email;
+        && profile.data.email == request.auth.token.email;
     }
 
     function hasStaffRole() {
+      let profile = get(profilePath(request.auth.uid));
       return hasVerifiedIdentity()
         && isActiveProfile(request.auth.uid)
-        && get(profilePath(request.auth.uid)).data.role in ['staff', 'admin'];
+        && profile.data.role in ['staff', 'admin'];
+    }
+
+    // Spec 4.4 line 337: admin reads and the role-only update branch of the users block.
+    function isAdmin() {
+      return hasStaffRole()
+        && get(profilePath(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Spec 4.4 lines 338-339: staff content writes carry request.time stamps and an exact
+    // revision step (optimistic concurrency, R1); a legacy document without revision reads as 0.
+    function isStaffCreate(after) {
+      return hasStaffRole()
+        && after.createdAt == request.time
+        && after.updatedAt == request.time
+        && after.revision == 1;
+    }
+
+    function isStaffUpdate(before, after) {
+      return hasStaffRole()
+        && after.createdAt == before.createdAt
+        && after.updatedAt == request.time
+        && after.revision == before.get('revision', 0) + 1;
+    }
+
+    // Spec 4.4 line 343: rules cannot loop, so only the first element is typed and bounded; the
+    // schema modules check every element and the seed and forms never write anything else.
+    function isStringList(v, maxItems, maxLen) {
+      return v is list
+        && v.size() <= maxItems
+        && (v.size() == 0 || (v[0] is string && v[0].size() <= maxLen));
+    }
+
+    // Spec 4.4 lines 344-349.
+    function isValidGeo(g) {
+      return hasExactFields(g, ['latitude', 'longitude', 'precision', 'sourceUrl', 'checkedAt'])
+        && g.latitude is number
+        && g.latitude >= -90
+        && g.latitude <= 90
+        && g.longitude is number
+        && g.longitude >= -180
+        && g.longitude <= 180
+        && g.precision in ['venue', 'area']
+        && isValidHttpsUrl(g.sourceUrl)
+        && isValidDateString(g.checkedAt);
+    }
+
+    // Spec 4.4 lines 350-371: the 22 keys of a stored service and the bounds serviceSchema.js
+    // mirrors (name 1-150, summary 1-600, source.organisation 1-150, the list sizes, nullable
+    // address/suburb/postcode/cost).
+    function isValidService(d, id) {
+      return hasExactFields(
+          d,
+          [
+            'id',
+            'name',
+            'actionTypes',
+            'acceptedItems',
+            'aliases',
+            'summary',
+            'address',
+            'suburb',
+            'postcode',
+            'searchAreas',
+            'status',
+            'source',
+            'createdAt',
+            'updatedAt',
+            'geo',
+            'itemCategories',
+            'acceptanceConditions',
+            'preparation',
+            'access',
+            'openingHours',
+            'cost',
+            'revision'
+          ]
+        )
+        && isValidId(d.id)
+        && d.id == id
+        && d.name is string
+        && d.name.size() >= 1
+        && d.name.size() <= 150
+        && d.actionTypes is list
+        && d.actionTypes.size() >= 1
+        && d.actionTypes.size() <= 3
+        && d.actionTypes.hasOnly(['repair', 'reuse', 'recycle'])
+        && isStringList(d.acceptedItems, 40, 100)
+        && isStringList(d.aliases, 20, 100)
+        && isStringList(d.searchAreas, 20, 100)
+        && d.summary is string
+        && d.summary.size() >= 1
+        && d.summary.size() <= 600
+        && (d.address == null || (d.address is string && d.address.size() <= 200))
+        && (d.suburb == null || (d.suburb is string && d.suburb.size() <= 100))
+        && (d.postcode == null || (d.postcode is string && d.postcode.matches('^[0-9]{4}$')))
+        && d.status in ['published', 'archived']
+        && hasExactFields(d.source, ['organisation', 'url', 'checkedAt'])
+        && d.source.organisation is string
+        && d.source.organisation.size() >= 1
+        && d.source.organisation.size() <= 150
+        && isValidHttpsUrl(d.source.url)
+        && isValidDateString(d.source.checkedAt)
+        && (d.geo == null || isValidGeo(d.geo))
+        && isStringList(d.itemCategories, 10, 40)
+        && isStringList(d.acceptanceConditions, 8, 200)
+        && isStringList(d.preparation, 8, 200)
+        && isStringList(d.access, 6, 200)
+        && isStringList(d.openingHours, 8, 100)
+        && (d.cost == null || (d.cost is string && d.cost.size() <= 200))
+        && d.revision is int
+        && d.revision >= 1
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp
+        && d.createdAt <= d.updatedAt;
     }
 
     function scoreBucket(score, bucket) {
@@ -428,26 +571,309 @@ service cloud.firestore {
         );
     }
 
+    function activityPath(activityId) {
+      return /databases/$(database)/documents/activities/$(activityId);
+    }
+
+    function sessionPath(sessionId) {
+      return /databases/$(database)/documents/activitySessions/$(sessionId);
+    }
+
+    function bookingPath(bookingId) {
+      return /databases/$(database)/documents/bookings/$(bookingId);
+    }
+
+    // Spec 4.4 line 372: the 18 stored activity keys with the bounds activitySchema.js uses.
+    function isValidActivity(d, id) {
+      return hasExactFields(
+          d,
+          [
+            'id',
+            'title',
+            'summary',
+            'activityType',
+            'suitableItems',
+            'acceptedConditions',
+            'excludedConditions',
+            'costLabel',
+            'whatToBring',
+            'accessibilityLabel',
+            'cancellationLabel',
+            'providerName',
+            'providerUrl',
+            'sourceCheckedAt',
+            'status',
+            'createdAt',
+            'updatedAt',
+            'revision'
+          ]
+        )
+        && isValidId(d.id)
+        && d.id == id
+        && d.title is string && d.title.size() >= 1 && d.title.size() <= 150
+        && d.summary is string && d.summary.size() >= 1 && d.summary.size() <= 1200
+        && d.activityType in ['repair', 'reuse', 'workshop']
+        && isStringList(d.suitableItems, 12, 160) && d.suitableItems.size() >= 1
+        && isStringList(d.acceptedConditions, 12, 160) && d.acceptedConditions.size() >= 1
+        && isStringList(d.excludedConditions, 12, 160)
+        && d.costLabel is string && d.costLabel.size() >= 1 && d.costLabel.size() <= 300
+        && isStringList(d.whatToBring, 12, 160) && d.whatToBring.size() >= 1
+        && d.accessibilityLabel is string && d.accessibilityLabel.size() >= 1
+        && d.accessibilityLabel.size() <= 500
+        && d.cancellationLabel is string && d.cancellationLabel.size() >= 1
+        && d.cancellationLabel.size() <= 500
+        && d.providerName is string && d.providerName.size() >= 1 && d.providerName.size() <= 150
+        && isValidHttpsUrl(d.providerUrl)
+        && isValidDateString(d.sourceCheckedAt)
+        && d.status in ['published', 'archived']
+        && d.revision is int
+        && d.revision >= 1
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp
+        && d.createdAt <= d.updatedAt;
+    }
+
+    // Ownership of an absent booking is provable from the id, so the owner may read it inside
+    // runTransaction before the create (spec 4.4 line 421); a stored booking is proved by its uid,
+    // because isValidId admits '_' in uids and session ids and `amy` + `_x_s1` is `amy_x` + `_s1`.
+    function ownsBookingId(id) {
+      let prefix = request.auth.uid + '_';
+      return request.auth != null && id.size() > prefix.size() && id[0:prefix.size()] == prefix;
+    }
+
+    // The caller's own stored booking on this session: the document, not the id alone, says whose it is.
+    function ownsStoredBookingOn(sessionId) {
+      let p = bookingPath(request.auth.uid + '_' + sessionId);
+      return exists(p)
+        && get(p).data.uid == request.auth.uid
+        && get(p).data.sessionId == sessionId;
+    }
+
+    // A single line of text: no C0 control (tab, line feed and carriage return included), DEL or C1.
+    function isSingleLineText(v) {
+      return v.matches('[^\\x00-\\x1F\\x7F-\\x9F]*');
+    }
+
+    function hasNoControlChars(v) {
+      return v.matches('[^\\x00-\\x08\\x0B-\\x0C\\x0E-\\x1F\\x7F-\\x9F]*');
+    }
+
+    function isNullableTimestamp(v) {
+      return v == null || v is timestamp;
+    }
+
+    function isValidBooking(b, id) {
+      return hasExactFields(
+          b,
+          [
+            'uid',
+            'email',
+            'contactName',
+            'itemDescription',
+            'sessionId',
+            'activityId',
+            'activityTitle',
+            'venueName',
+            'address',
+            'suburb',
+            'postcode',
+            'startsAt',
+            'endsAt',
+            'status',
+            'reference',
+            'waitlistedAt',
+            'promotedAt',
+            'cancelledAt',
+            'createdAt',
+            'updatedAt'
+          ]
+        )
+        && id == b.uid + '_' + b.sessionId
+        && isValidId(b.uid)
+        && isValidId(b.sessionId)
+        && isValidId(b.activityId)
+        && isValidEmail(b.email)
+        && b.contactName is string
+        && b.contactName.size() >= 1
+        && b.contactName.size() <= 50
+        && isSingleLineText(b.contactName)
+        && (
+          b.itemDescription == null
+          || (
+            b.itemDescription is string
+            && b.itemDescription.size() <= 200
+            && hasNoControlChars(b.itemDescription)
+          )
+        )
+        && b.activityTitle is string
+        && b.activityTitle.size() >= 1
+        && b.activityTitle.size() <= 150
+        && b.startsAt is timestamp
+        && b.endsAt is timestamp
+        && b.status in ['confirmed', 'waitlisted', 'cancelled']
+        && b.reference is string
+        && b.reference.matches('^TA-[A-HJ-NP-Z2-9]{6}$')
+        && isNullableTimestamp(b.waitlistedAt)
+        && isNullableTimestamp(b.promotedAt)
+        && isNullableTimestamp(b.cancelledAt)
+        && b.createdAt is timestamp
+        && b.updatedAt is timestamp;
+    }
+
+    function isBookableSession(s) {
+      return s.registrationType == 'turnagain'
+        && s.status in ['scheduled', 'full']
+        && s.startsAt > request.time;
+    }
+
+    // Snapshot fields equal the session; the title snapshot equals the activity's title (C7).
+    function matchesSession(b, s) {
+      return b.activityId == s.activityId
+        && b.venueName == s.venueName
+        && b.address == s.address
+        && b.suburb == s.suburb
+        && b.postcode == s.postcode
+        && b.startsAt == s.startsAt
+        && b.endsAt == s.endsAt
+        && b.activityTitle == get(activityPath(s.activityId)).data.title;
+    }
+
+    // A seat is taken only while one is free and nobody waits; otherwise waitlisted (max 10).
+    function bookingFitsSession(s, b) {
+      return (
+          b.status == 'confirmed'
+          && s.bookedCount < s.capacity
+          && s.waitlistCount == 0
+          && b.waitlistedAt == null
+        )
+        || (
+          b.status == 'waitlisted'
+          && (s.bookedCount == s.capacity || s.waitlistCount > 0)
+          && s.waitlistCount < 10
+          && b.waitlistedAt == request.time
+        );
+    }
+
+    function confirmedDelta(before, after) {
+      return (after == 'confirmed' ? 1 : 0) - (before == 'confirmed' ? 1 : 0);
+    }
+
+    function waitlistDelta(before, after) {
+      return (after == 'waitlisted' ? 1 : 0) - (before == 'waitlisted' ? 1 : 0);
+    }
+
+    // The session's counters move by exactly this booking's delta in the same write (R7).
+    function sessionCountersMoved(id, beforeStatus, afterStatus) {
+      let p = sessionPath(id);
+      return existsAfter(p)
+        && getAfter(p).data.updatedAt == request.time
+        && getAfter(p).data.bookedCount
+          == get(p).data.bookedCount + confirmedDelta(beforeStatus, afterStatus)
+        && getAfter(p).data.waitlistCount
+          == get(p).data.waitlistCount + waitlistDelta(beforeStatus, afterStatus);
+    }
+
+    // The caller's own booking, written in the same request, explains the counter change.
+    function memberCountersMatchBooking(sessionId, before, after) {
+      let p = bookingPath(request.auth.uid + '_' + sessionId);
+      let beforeStatus = exists(p) ? get(p).data.status : 'cancelled';
+      let b = getAfter(p).data;
+      return existsAfter(p)
+        && b.uid == request.auth.uid
+        && b.sessionId == sessionId
+        && b.updatedAt == request.time
+        && after.bookedCount == before.bookedCount + confirmedDelta(beforeStatus, b.status)
+        && after.waitlistCount == before.waitlistCount + waitlistDelta(beforeStatus, b.status);
+    }
+
+    // Spec 4.2 and 4.4 (C4, invariant 10): the twelve keys of a correction. Anyone files one against
+    // a published service; staff triage an open one once; nobody deletes one.
+    function isValidCorrection(data) {
+      return hasExactFields(
+          data,
+          [
+            'serviceId',
+            'serviceName',
+            'field',
+            'message',
+            'reporterEmail',
+            'reporterUid',
+            'status',
+            'resolutionNote',
+            'resolvedBy',
+            'resolvedAt',
+            'createdAt',
+            'updatedAt'
+          ]
+        )
+        && isValidId(data.serviceId)
+        && data.serviceName is string
+        && data.serviceName.size() >= 1
+        && data.serviceName.size() <= 150
+        && isSingleLineText(data.serviceName)
+        && data.field in ['address', 'hours', 'items', 'closed', 'contact', 'other']
+        && data.message is string
+        && data.message.size() >= 10
+        && data.message.size() <= 1000
+        && hasNoControlChars(data.message)
+        && (data.reporterEmail == null || isValidEmail(data.reporterEmail))
+        && (data.reporterUid == null || data.reporterUid is string)
+        && data.status in ['open', 'applied', 'dismissed']
+        && (
+          data.resolutionNote == null
+          || (
+            data.resolutionNote is string
+            && data.resolutionNote.size() >= 1
+            && data.resolutionNote.size() <= 500
+            && hasNoControlChars(data.resolutionNote)
+          )
+        )
+        && (data.resolvedBy == null || data.resolvedBy is string)
+        && isNullableTimestamp(data.resolvedAt)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     match /catalogues/{catalogueId} {
-      allow get: if catalogueId == 'current' && isValidCatalogue(resource.data);
-      allow list, create, update, delete: if false;
+      // Spec 4.4 lines 588-591 with the milestone 4 amendment (M4-D2): a staff identity may
+      // confirm that the document is absent (the seed's dry run), so the public branch reads an
+      // existing valid document and the staff branch reads an absent one.
+      allow get: if catalogueId == 'current'
+        && ((resource == null && hasStaffRole()) || isValidCatalogue(resource.data));
+      // The updatedAt pin stays out of isValidCatalogue: the get rule shares that function, and
+      // a stored document's updatedAt is never request.time.
+      allow create, update: if catalogueId == 'current'
+        && isAdmin()
+        && isValidCatalogue(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow list, delete: if false;
     }
 
     match /services/{serviceId} {
-      // Published service content is public. The repository performs the full
-      // schema check for both direct and list reads before displaying it.
-      allow get: if resource.data.status == 'published';
+      // Spec 4.4 lines 383-389. Published content is public; a staff identity reads any status
+      // (and an absent document, which the seed's plan needs to confirm a create). The repository
+      // performs the full schema check for both direct and list reads before displaying it.
+      allow get: if resource.data.status == 'published' || hasStaffRole();
 
-      // Rules are not filters. The query proves only status and its maximum
-      // result count; the repository validates every returned document.
-      allow list: if resource.data.status == 'published'
-        && isBoundedCollectionQuery();
+      // Rules are not filters. A public query proves the published status and its maximum result
+      // count; a staff query needs only the bound; the repository validates every document.
+      allow list: if isBoundedCollectionQuery()
+        && (resource.data.status == 'published' || hasStaffRole());
 
-      allow create, update, delete: if false;
+      // A new service and its zero summary are one batch (C3, R3).
+      allow create: if isValidService(request.resource.data, serviceId)
+        && isStaffCreate(request.resource.data)
+        && existsAfter(summaryPath(serviceId))
+        && getAfter(summaryPath(serviceId)).data.ratingCount == 0;
+      allow update: if isValidService(request.resource.data, serviceId)
+        && isStaffUpdate(resource.data, request.resource.data);
+      // Archive instead (C4).
+      allow delete: if false;
 
       match /aggregates/rating-summary {
-        allow get: if isPublishedService(serviceId)
-          && isValidRatingSummary(resource.data);
+        // No read-time schema check (spec 4.4, C3): projectRatingSummary rejects malformed data
+        // client-side and renders "can't be rated yet"; staff read any service's summary.
+        allow get: if isPublishedService(serviceId) || hasStaffRole();
         allow list: if false;
 
         allow update: if hasVerifiedIdentity()
@@ -468,9 +894,21 @@ service cloud.firestore {
             request.resource.data
           );
 
-        // Every service summary, including zero, is created only by a trusted
-        // administrative migration before users can submit a rating.
-        allow create, delete: if false;
+        // Spec 4.4 lines 400-405. The summary must pre-exist before any rating (C3). Staff create
+        // it with zero values in the same batch as the service; the seed does the same only when
+        // it creates a service. The pairing is enforced in both directions (R3): a service cannot
+        // be created without its summary, and a zero summary can never be created for a service
+        // that already exists, so a legacy service with ratings but no summary stays unrateable
+        // until an admin rebuild from its existing ratings, which is a future function.
+        allow create: if hasStaffRole()
+          && !exists(servicePath(serviceId))
+          && existsAfter(servicePath(serviceId))
+          && isValidRatingSummary(request.resource.data)
+          && request.resource.data.ratingCount == 0
+          && request.resource.data.ratingSum == 0
+          && request.resource.data.histogram == [0, 0, 0, 0, 0]
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
       }
 
       match /ratings/{uid} {
@@ -515,60 +953,242 @@ service cloud.firestore {
     }
 
     match /activities/{activityId} {
-      // A published document is already returned in full by the public list
-      // query, so direct reads use the same visibility boundary. Schema and
-      // relationship validation remain at the trusted import and repository
-      // projection boundaries.
-      allow get: if resource.data.status == 'published';
-
-      // Rules are not filters: the public repository supplies the published
-      // status constraint and a bounded limit on every collection query. Full
-      // document validation happens at the trusted import and client boundary.
-      allow list: if resource.data.status == 'published'
-        && isBoundedCollectionQuery();
-
-      allow create, update, delete: if false;
+      // Spec 4.4 lines 409-415. Published content is public; a staff identity reads any status
+      // (and an absent document, which the seed's plan needs to confirm a create). The
+      // repositories validate every document they display.
+      allow get: if resource.data.status == 'published' || hasStaffRole();
+      allow list: if isBoundedCollectionQuery()
+        && (resource.data.status == 'published' || hasStaffRole());
+      allow create: if isValidActivity(request.resource.data, activityId)
+        && isStaffCreate(request.resource.data);
+      allow update: if isValidActivity(request.resource.data, activityId)
+        && isStaffUpdate(resource.data, request.resource.data);
+      // Archive instead (C4).
+      allow delete: if false;
     }
 
     match /activitySessions/{sessionId} {
-      allow get: if isValidActivitySession(resource.data, sessionId)
-        && (
-          resource.data.status in ['scheduled', 'full', 'cancelled']
-          || hasStaffRole()
-        );
-
-      // Public callers prove a public status with `where status in (...)`.
-      // Active staff/admin profiles may list all valid statuses for operations.
-      // Exact schema and relationship checks remain at the trusted import and
-      // client projection boundaries because list rules must be query-provable.
+      // Spec 4.4 lines 472-475: no read-time schema check (line 334). The owner of a stored
+      // booking on the session reads it by id in any status (no profile read); an active member
+      // may run any bounded list in any status (sessions hold no personal data); My Bookings reads
+      // them by id chunk (D6); a public query proves a public status.
+      allow get: if resource.data.status in ['scheduled', 'full', 'cancelled']
+        || hasStaffRole()
+        || (request.auth != null && ownsStoredBookingOn(sessionId));
       allow list: if isBoundedCollectionQuery()
         && (
           resource.data.status in ['scheduled', 'full', 'cancelled']
           || hasStaffRole()
+          || (request.auth != null && isActiveProfile(request.auth.uid))
         );
-
-      allow create, update, delete: if false;
+      // Spec 4.4 lines 476-478: a new session starts scheduled with empty counters (0/0 on a
+      // TurnAgain session, null/null on a provider or drop-in one).
+      allow create: if isValidActivitySession(request.resource.data, sessionId)
+        && isStaffCreate(request.resource.data)
+        && request.resource.data.status == 'scheduled'
+        && request.resource.data.bookedCount in [0, null]
+        && request.resource.data.waitlistCount in [0, null];
+      // Spec 4.4 lines 479-484: a staff content write leaves the counters alone and never drops
+      // the capacity below the places already taken.
+      allow update: if isValidActivitySession(request.resource.data, sessionId)
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            isStaffUpdate(resource.data, request.resource.data)
+            && request.resource.data.bookedCount == resource.data.bookedCount
+            && request.resource.data.waitlistCount == resource.data.waitlistCount
+            // Restates isValidActivitySession's bookedCount <= capacity for the reader (spec 4.4
+            // line 482); the validator is what refuses a smaller room.
+            && (
+              request.resource.data.capacity == null
+              || request.resource.data.capacity >= request.resource.data.bookedCount
+            )
+          )
+          // Spec 4.4 lines 486-489: the member's counter write moves by exactly the delta of the
+          // caller's own booking written in the same request, with the status re-derived; revision
+          // never moves here.
+          || (
+            resource.data.status in ['scheduled', 'full']
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['bookedCount', 'waitlistCount', 'status', 'updatedAt'])
+            && request.resource.data.status
+              == (request.resource.data.bookedCount == request.resource.data.capacity
+                ? 'full'
+                : 'scheduled')
+            && isActiveProfile(request.auth.uid)
+            && memberCountersMatchBooking(sessionId, resource.data, request.resource.data)
+          )
+        );
+      allow delete: if false;
     }
 
     match /users/{uid} {
-      // Only the owner can read the profile; the auth repository rejects any
-      // malformed or inactive profile before exposing a public user object.
-      allow get: if isOwner(uid);
-      allow list: if false;
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();   // count queries carry no limit, so no isBoundedCollectionQuery() here; the Team tab lists at most 1,000
+      allow create: if isOwner(uid) && isValidProfile(request.resource.data, uid)
+        && ('email' in request.auth.token) && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'member' && request.resource.data.status == 'active'
+        && request.resource.data.revision == 1 && request.resource.data.savedServiceIds == []
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if isValidProfile(request.resource.data, uid)
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+        && request.resource.data.revision == resource.data.get('revision', 0) + 1 && (
+           // legacy migration (R9): a profile without revision/savedServiceIds is completed in one write, syncing the email at the same time
+           (isOwner(uid) && (!('revision' in resource.data) || !('savedServiceIds' in resource.data))
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revision','savedServiceIds','email','updatedAt'])
+             && (('savedServiceIds' in resource.data)
+                   ? request.resource.data.savedServiceIds == resource.data.savedServiceIds
+                   : request.resource.data.savedServiceIds == [])
+             && request.resource.data.email == request.auth.token.email)   // the outer condition already fixes revision to (existing ?? 0) + 1 (R15)
+           // email sync only (E1): isOwner rather than isActiveProfile, because isActiveProfile fails while the two emails differ
+        || (isOwner(uid)
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','revision','updatedAt'])
+             && request.resource.data.email == request.auth.token.email)
+           // profile edits need an active profile, so a disabled account cannot write displayName or savedServiceIds
+        || (isOwner(uid) && isActiveProfile(uid)
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','savedServiceIds','revision','updatedAt']))
+           // an admin may change another user's role directly; status changes need the Auth side effects and go through adminSetUserAccess
+        || (isAdmin() && uid != request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','revision','updatedAt'])));
+      allow delete: if false;
+    }
 
-      // First verified sign-in can create only the caller's active member profile.
-      // Privileged staff/admin profiles are provisioned administratively.
-      allow create: if isOwner(uid)
-        && isValidProfile(request.resource.data, uid)
-        && ('email' in request.auth.token)
-        && request.auth.token.email is string
+    match /bookings/{bookingId} {
+      // Spec 4.4 lines 493-495: the owner reads by id: an absent own id inside the booking
+      // transaction, a stored booking only when its uid is the caller's; the owner lists
+      // `where uid ==`; staff read and list any booking.
+      allow get: if (
+          isActiveProfile(request.auth.uid)
+          && (resource == null
+            ? ownsBookingId(bookingId)
+            : (resource.data.uid == request.auth.uid
+              && bookingId == resource.data.uid + '_' + resource.data.sessionId))
+        )
+        || hasStaffRole();
+      allow list: if isBoundedCollectionQuery()
+        && (
+          (isActiveProfile(request.auth.uid) && resource.data.uid == request.auth.uid)
+          || hasStaffRole()
+        );
+      // Spec 4.4 lines 496-504: a bookable session, snapshots equal to the session and the
+      // activity title, a seat only while one is free and nobody waits, and the session's
+      // counters moved by this booking in the same write (R7).
+      allow create: if isActiveProfile(request.auth.uid)
+        && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email
-        && request.resource.data.role == 'member'
-        && request.resource.data.status == 'active'
+        && isValidBooking(request.resource.data, bookingId)
+        && request.resource.data.status in ['confirmed', 'waitlisted']
+        && request.resource.data.promotedAt == null
+        && request.resource.data.cancelledAt == null
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && isBookableSession(get(sessionPath(request.resource.data.sessionId)).data)
+        && matchesSession(
+          request.resource.data,
+          get(sessionPath(request.resource.data.sessionId)).data
+        )
+        && bookingFitsSession(
+          get(sessionPath(request.resource.data.sessionId)).data,
+          request.resource.data
+        )
+        && sessionCountersMoved(
+          request.resource.data.sessionId,
+          'cancelled',
+          request.resource.data.status
+        );
+      // Spec 4.4 lines 505-525: the owner cancels before the start, or rebooks a cancelled
+      // booking with the current sign-in email (R6); promotion is promoteNextBooking only.
+      allow update: if isValidBooking(request.resource.data, bookingId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time
+        && !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['uid', 'sessionId', 'activityId', 'createdAt'])
+        && sessionCountersMoved(
+          resource.data.sessionId,
+          resource.data.status,
+          request.resource.data.status
+        )
+        && (
+          (
+            isActiveProfile(request.auth.uid)
+            && resource.data.uid == request.auth.uid
+            && resource.data.status in ['confirmed', 'waitlisted']
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.cancelledAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'cancelledAt', 'updatedAt'])
+            && get(sessionPath(resource.data.sessionId)).data.status in ['scheduled', 'full']
+            && get(sessionPath(resource.data.sessionId)).data.startsAt > request.time
+          )
+          || (
+            isActiveProfile(request.auth.uid)
+            && resource.data.uid == request.auth.uid
+            && resource.data.status == 'cancelled'
+            && request.resource.data.status in ['confirmed', 'waitlisted']
+            && request.resource.data.cancelledAt == null
+            && request.resource.data.promotedAt == null
+            && request.resource.data.email == request.auth.token.email
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'status', 'reference', 'contactName', 'itemDescription', 'email', 'waitlistedAt',
+              'promotedAt', 'cancelledAt', 'activityTitle', 'venueName', 'address', 'suburb',
+              'postcode', 'startsAt', 'endsAt', 'updatedAt'
+            ])
+            && isBookableSession(get(sessionPath(resource.data.sessionId)).data)
+            && matchesSession(request.resource.data, get(sessionPath(resource.data.sessionId)).data)
+            && bookingFitsSession(
+              get(sessionPath(resource.data.sessionId)).data,
+              request.resource.data
+            )
+          )
+        );
+      // Cancel instead (C4).
+      allow delete: if false;
+    }
+
+    // Spec 4.4 lines 581-586: written by sendSessionEmail with the Admin SDK; staff read the log.
+    match /emailLogs/{logId} {
+      allow get: if hasStaffRole();
+      allow list: if hasStaffRole() && isBoundedCollectionQuery();
+      allow create, update, delete: if false;
+    }
+
+    // The send lock and result records of the two email functions; no client access (inv. 6).
+    match /emailSends/{sendKey} {
+      allow read, write: if false;
+    }
+
+    // Spec 4.4 lines 567-580 (C4, invariant 10), with the open-only triage of decision M6-D3.
+    match /corrections/{correctionId} {
+      allow create: if isValidCorrection(request.resource.data)
+        && isPublishedService(request.resource.data.serviceId)
+        && request.resource.data.status == 'open'
+        && request.resource.data.resolutionNote == null
+        && request.resource.data.resolvedBy == null
+        && request.resource.data.resolvedAt == null
+        && (
+          request.resource.data.reporterUid == null
+          || (request.auth != null && request.resource.data.reporterUid == request.auth.uid)
+        )
         && request.resource.data.createdAt == request.time
         && request.resource.data.updatedAt == request.time;
+      allow get: if hasStaffRole();
+      allow list: if hasStaffRole() && isBoundedCollectionQuery();
+      allow update: if hasStaffRole()
+        && resource.data.status == 'open'
+        && isValidCorrection(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'resolutionNote', 'resolvedBy', 'resolvedAt', 'updatedAt'])
+        && request.resource.data.status in ['applied', 'dismissed']
+        && request.resource.data.resolvedBy == request.auth.uid
+        && request.resource.data.resolvedAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      // Dismissed corrections stay as a record (C4).
+      allow delete: if false;
+    }
 
-      allow update, delete: if false;
+    // Spec 4.4 line 587: the per-uid lease of adminSetUserAccess; no client access.
+    match /accessLocks/{uid} {
+      allow read, write: if false;
     }
 
     match /{document=**} {
