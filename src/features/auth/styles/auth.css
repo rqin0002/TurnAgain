@@ -1,4 +1,5 @@
-/* Authentication pages share one compact form and feedback system. */
+/* Authentication pages share one compact layout, card and feedback system (spec 9.2). Fields
+   are FormField, buttons are AppButton; this file owns only the page frame and the summaries. */
 .auth-page__layout {
   display: grid;
   max-width: 32rem;
@@ -20,6 +21,12 @@
   font-size: clamp(2.25rem, 4vw, 3rem);
 }
 
+.auth-page__intro p {
+  margin: 1rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+}
+
 .auth-card {
   border: 0;
   border-radius: var(--radius-medium);
@@ -27,36 +34,13 @@
   padding: clamp(1.25rem, 4vw, 2rem);
 }
 
-.auth-page__intro p {
-  margin: 1rem 0 0;
-  color: var(--color-text-muted);
-  font-size: 1.05rem;
-}
-
 .auth-form {
   display: grid;
-  gap: 0.25rem;
-}
-
-.auth-field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.auth-field__label {
-  color: var(--color-heading);
-  font-weight: 600;
-}
-
-.auth-field__error {
-  min-height: 1.4rem;
-  margin: 0;
-  color: var(--color-danger);
-  font-size: 0.875rem;
+  gap: 1rem;
 }
 
 .auth-form__summary {
-  margin-bottom: 0.75rem;
+  margin: 0;
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-small);
   background: var(--color-danger-soft);
@@ -65,20 +49,22 @@
 }
 
 .auth-form__summary--info {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1e40af;
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+  color: var(--color-brand-strong);
+}
+
+.auth-form__summary > p {
+  margin: 0 0 0.75rem;
 }
 
 .auth-form__submit {
   width: 100%;
-  margin-top: 0.5rem;
 }
 
 .auth-form__recovery {
   display: flex;
   justify-content: flex-end;
-  margin-top: -0.35rem;
 }
 
 .auth-form__recovery a {
@@ -88,27 +74,6 @@
   color: var(--color-brand-strong);
   font-weight: 700;
   text-underline-offset: 0.18em;
-}
-
-.auth-form__spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid color-mix(in srgb, currentcolor 35%, transparent);
-  border-top-color: currentcolor;
-  border-radius: 50%;
-  animation: auth-spinner 0.8s linear infinite;
-}
-
-@keyframes auth-spinner {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auth-form__spinner {
-    animation: none;
-  }
 }
 
 .auth-card__alternate {
@@ -126,43 +91,4 @@
 
 .auth-card__alternate-action {
   width: 100%;
-}
-
-.auth-demo {
-  grid-column: 1 / -1;
-  max-width: none;
-  background: var(--color-surface-muted);
-}
-
-.auth-demo h2 {
-  margin: 0;
-  color: var(--color-heading);
-  font-size: 1.2rem;
-}
-
-.auth-demo p {
-  margin: 0.5rem 0 1rem;
-}
-
-.auth-demo dl {
-  margin: 0;
-}
-
-.auth-demo dl {
-  display: grid;
-  gap: 0.8rem;
-}
-
-.auth-demo dt {
-  color: var(--color-heading);
-  font-weight: 800;
-}
-
-.auth-demo dd {
-  margin: 0.2rem 0 0;
-  overflow-wrap: anywhere;
-}
-
-.auth-demo code {
-  font-size: 0.85em;
 }
