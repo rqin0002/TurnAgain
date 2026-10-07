@@ -1,23 +1,20 @@
 import './assets/main.css'
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 
 import App from './App.vue'
-import { motion, navigationIndicator } from './motion/index.js'
 import { useAuthStore } from './features/auth/stores/authStore.js'
-import router from './router'
-import pinia from './stores/pinia.js'
+import router from './router/index.js'
 
 const app = createApp(App)
-app.directive('motion', motion)
-app.directive('navigation-indicator', navigationIndicator)
 
-const bootstrap = async () => {
-  app.use(pinia)
-  await useAuthStore(pinia).initialize()
-  app.use(router)
+const pinia = createPinia()
+app.use(pinia)
 
-  app.mount('#app')
-}
-
-void bootstrap()
+// Mount immediately (spec 9.5): the store starts its single listener with the router in hand,
+// the guard holds protected navigation until `ready`, and index.html shows the loading text
+// until this mount replaces it. Nothing awaits auth before the first paint.
+useAuthStore(pinia).init({ router })
+app.use(router)
+app.mount('#app')
