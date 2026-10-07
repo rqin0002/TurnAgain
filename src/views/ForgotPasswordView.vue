@@ -1,94 +1,47 @@
 <script setup>
-import { computed, nextTick, reactive, ref } from 'vue'
+import '@/features/auth/styles/auth.css'
+
+import { computed, nextTick, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
-import AuthFormField from '../features/auth/components/AuthFormField.vue'
-import { validatePasswordResetInput } from '../features/auth/domain/authValidation.js'
-import { resolveSafeRedirect } from '../features/auth/router/authGuard.js'
-import { useAuthStore } from '../features/auth/stores/authStore.js'
+import { useAuthForm } from '@/features/auth/composables/useAuthForm.js'
+import { validatePasswordResetInput } from '@/features/auth/domain/authValidation.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import AppButton from '@/shared/components/AppButton.vue'
+import FormField from '@/shared/components/FormField.vue'
+import { resolveSafeRedirect } from '@/shared/domain/safeRedirect.js'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const requested = ref(false)
 const successPanel = ref(null)
-const authStore = useAuthStore()
-const form = ref(null)
-const isSubmitting = ref(false)
-const summary = ref('')
-const fields = reactive({ email: '' })
-const errors = reactive({ email: '' })
-const pending = computed(
-  () => isSubmitting.value || authStore.operationStatus === 'requesting-password-reset',
-)
 
 const loginDestination = computed(() => {
   const redirect = resolveSafeRedirect(route.query.redirect, router)
   return redirect ? { name: 'login', query: { redirect } } : { name: 'login' }
 })
 
-const updateEmail = (value) => {
-  fields.email = value
-  errors.email = ''
-}
-
-const readSubmittedEmail = () => {
-  const submitted = form.value ? new FormData(form.value).get('email') : null
-  return typeof submitted === 'string' ? submitted : fields.email
-}
-
-const submit = async () => {
-  if (pending.value) {
-    return
-  }
-
-  summary.value = ''
-  const submittedEmail = readSubmittedEmail()
-  fields.email = submittedEmail
-  const validation = validatePasswordResetInput({ email: submittedEmail })
-  Object.assign(errors, validation.errors)
-
-  if (!validation.isValid) {
-    summary.value = 'Check the highlighted field and try again.'
+const { values, errors, summary, submitting, submit, reset } = useAuthForm({
+  initial: { email: '' },
+  validate: validatePasswordResetInput,
+  submit: async (validated) => {
+    await authStore.requestPasswordReset(validated.email)
+    requested.value = true
     await nextTick()
-    form.value?.querySelector('[name="email"]')?.focus()
-    return
-  }
+    successPanel.value?.focus()
+  },
+})
 
-  isSubmitting.value = true
-  try {
-    const sent = await authStore.requestPasswordReset({
-      email: validation.values.email,
-    })
-
-    if (sent) {
-      requested.value = true
-      await nextTick()
-      successPanel.value?.focus()
-      return
-    }
-
-    summary.value =
-      authStore.errorMessage || 'Password recovery is temporarily unavailable. Try again later.'
-  } catch {
-    summary.value = 'Password recovery is temporarily unavailable. Try again later.'
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-const resetForm = () => {
-  // The former child component reset on remount; keep that fresh-form behavior here.
-  fields.email = ''
-  errors.email = ''
-  summary.value = ''
-  isSubmitting.value = false
+const tryAnotherEmail = () => {
+  reset()
   requested.value = false
 }
 </script>
 
 <template>
   <section class="page-section">
-    <div v-motion.fade class="shell auth-page__layout">
+    <div class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Reset your password</h1>
         <p>Enter the email address you use for TurnAgain.</p>
@@ -96,39 +49,39 @@ const resetForm = () => {
 
       <div class="surface surface--padded auth-card">
         <template v-if="!requested">
-          <form
-            ref="form"
-            class="auth-form"
-            novalidate
-            :aria-busy="pending"
-            @submit.prevent="submit"
-          >
-            <div v-if="summary" class="auth-form__summary" role="alert" aria-live="assertive">
-              {{ summary }}
-            </div>
-
-            <AuthFormField
-              id="password-reset-email"
-              :model-value="fields.email"
-              name="email"
-              type="email"
-              label="Email address"
-              autocomplete="email"
-              :spellcheck="false"
-              required
-              :disabled="pending"
-              :error="errors.email"
-              @update:model-value="updateEmail"
-            />
-
-            <button
-              class="button button--primary auth-form__submit"
-              type="submit"
-              :disabled="pending"
+          <form class="auth-form" novalidate :aria-busy="submitting" @submit.prevent="submit">
+            <p
+              v-if="summary"
+              class="auth-form__summary"
+              role="alert"
+              tabindex="-1"
+              data-form-summary
             >
-              <span v-if="pending" class="auth-form__spinner" aria-hidden="true"></span>
-              {{ pending ? 'Sending reset link…' : 'Send reset link' }}
-            </button>
+              {{ summary }}
+            </p>
+
+            <FormField
+              id="password-reset-email"
+              label="Email address"
+              :error="errors.email"
+              required
+            >
+              <template #default="{ control }">
+                <input
+                  v-bind="control"
+                  v-model="values.email"
+                  class="form-control"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  spellcheck="false"
+                />
+              </template>
+            </FormField>
+
+            <AppButton class="auth-form__submit" variant="primary" type="submit" :busy="submitting">
+              {{ submitting ? 'Sending reset link…' : 'Send reset link' }}
+            </AppButton>
           </form>
           <div class="auth-card__alternate">
             <p>Remembered your password?</p>
@@ -141,19 +94,12 @@ const resetForm = () => {
           </div>
         </template>
 
-        <div
-          v-else
-          ref="successPanel"
-          class="auth-recovery__success"
-          role="status"
-          aria-live="polite"
-          tabindex="-1"
-        >
+        <div v-else ref="successPanel" class="auth-recovery__success" role="status" tabindex="-1">
           <div>
             <h2>Check your inbox</h2>
             <p>
-              If an eligible account matches that address, We will send password reset instructions.
-              Check your spam folder if the message does not arrive shortly.
+              If an account matches that address, we have sent password reset instructions. Check
+              your spam folder if the message does not arrive shortly.
             </p>
           </div>
 
@@ -161,9 +107,9 @@ const resetForm = () => {
             <RouterLink class="button button--primary" :to="loginDestination">
               Back to sign in
             </RouterLink>
-            <button class="button button--secondary" type="button" @click="resetForm">
+            <AppButton variant="secondary" type="button" @click="tryAnotherEmail">
               Try another email
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>
@@ -193,7 +139,8 @@ const resetForm = () => {
   gap: 0.75rem;
 }
 
-@media (min-width: 30rem) {
+/* Contract breakpoint (spec 10.1): the two actions sit side by side from 576 px. */
+@media (min-width: 576px) {
   .auth-recovery__actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -1,236 +1,209 @@
 <script setup>
-import { computed, nextTick, onScopeDispose, reactive, ref } from 'vue'
+import '@/features/auth/styles/auth.css'
+
+import { computed, nextTick, onScopeDispose, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
-import AuthFormField from '../features/auth/components/AuthFormField.vue'
-import { validateLoginInput } from '../features/auth/domain/authValidation.js'
-import { resolveSafeRedirect } from '../features/auth/router/authGuard.js'
-import { useAuthStore } from '../features/auth/stores/authStore.js'
-
-/**
- * Development-only credentials for the three public demonstration identities.
- * Firebase Authentication validates sign-in; this list does not authenticate users.
- * The build-time branch removes the credentials from production JavaScript.
- *
- * @type {ReadonlyArray<Readonly<{ uid: string, email: string, password: string, role: string }>>}
- */
-const DEMO_ACCOUNTS = import.meta.env.DEV
-  ? Object.freeze([
-      Object.freeze({
-        uid: 'user-member-demo',
-        email: 'member@turnagain.test',
-        password: 'Qwer1234!',
-        role: 'member',
-      }),
-      Object.freeze({
-        uid: 'user-staff-demo',
-        email: 'staff@turnagain.test',
-        password: 'Qwer1234!',
-        role: 'staff',
-      }),
-      Object.freeze({
-        uid: 'user-admin-demo',
-        email: 'admin@turnagain.test',
-        password: 'Qwer1234!',
-        role: 'admin',
-      }),
-    ])
-  : []
+import { useAuthForm } from '@/features/auth/composables/useAuthForm.js'
+import { validateLoginInput } from '@/features/auth/domain/authValidation.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import { BOOKING_MESSAGES } from '@/features/bookings/domain/bookingMessages.js'
+import { isBookingReviewPath } from '@/features/bookings/domain/bookingRules.js'
+import { defaultDestination } from '@/router/authGuard.js'
+import AppButton from '@/shared/components/AppButton.vue'
+import FormField from '@/shared/components/FormField.vue'
+import { describeError } from '@/shared/domain/errorCopy.js'
+import { resolveSafeRedirect } from '@/shared/domain/safeRedirect.js'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
-const form = ref(null)
-const isSubmitting = ref(false)
-const summary = ref('')
-const verificationNotice = ref(
-  authStore.consumeRegistrationNotice()
-    ? 'Verification email sent. Please verify your email address using the link in your email, then sign in. Check your spam folder if you cannot find it.'
-    : '',
-)
-const fields = reactive({ email: '', password: '' })
-const errors = reactive({ email: '', password: '' })
-const pending = computed(() => isSubmitting.value || authStore.operationStatus === 'logging-in')
-let isPageActive = true
 
+let isPageActive = true
 onScopeDispose(() => {
-  // Finishing sign-in must not redirect someone who has already left this page.
+  // A sign-in that finishes after the person left this page must not navigate them again.
   isPageActive = false
 })
 
-const recoveryDestination = computed(() => {
-  const redirect = resolveSafeRedirect(route.query.redirect, router)
-  return redirect ? { name: 'forgot-password', query: { redirect } } : { name: 'forgot-password' }
+// The URL is the hand-off (spec 9.2): registration, verification and sign-out reasons arrive as
+// queries, never as store state, so a reload or a second tab shows the same notice.
+const QUERY_NOTICES = Object.freeze({
+  registered:
+    'Verification email sent. Open the link in it, then sign in. Check your spam folder if it does not arrive.',
+  verified: 'Your email address is verified. Sign in to continue.',
 })
-
-const registrationDestination = computed(() => {
-  const redirect = resolveSafeRedirect(route.query.redirect, router)
-  return redirect ? { name: 'register', query: { redirect } } : { name: 'register' }
+const REASON_NOTICES = Object.freeze({
+  'account-disabled':
+    'Your account has been disabled. Contact TurnAgain if you think this is a mistake.',
 })
-
-const updateField = (field, value) => {
-  fields[field] = value
-  errors[field] = ''
-}
-
-const focusFirstInvalid = async () => {
-  const field = ['email', 'password'].find((name) => errors[name])
-  await nextTick()
-  form.value?.querySelector(`[name="${field}"]`)?.focus()
-}
-
-const readSubmittedFields = () => {
-  const submitted = form.value ? new FormData(form.value) : null
-  const email = submitted?.get('email')
-  const password = submitted?.get('password')
-
-  return {
-    email: typeof email === 'string' ? email : fields.email,
-    password: typeof password === 'string' ? password : fields.password,
+const queryNotice = computed(() => {
+  if (route.query.registered === '1') {
+    return QUERY_NOTICES.registered
   }
-}
-
-const submit = async () => {
-  if (pending.value) {
-    return
+  if (route.query.verified === '1') {
+    return QUERY_NOTICES.verified
   }
+  return ''
+})
+const reasonNotice = computed(() => REASON_NOTICES[route.query.reason] ?? '')
 
-  summary.value = ''
-  verificationNotice.value = ''
-  // Read native controls at submit time because password managers can autofill
-  // without dispatching the input event that normally updates Vue state.
-  const submittedFields = readSubmittedFields()
-  Object.assign(fields, submittedFields)
-  const validation = validateLoginInput(submittedFields)
-  Object.assign(errors, validation.errors)
+const redirectTarget = computed(() => resolveSafeRedirect(route.query.redirect, router))
+// Spec 7.4 L940: the person came from "Book this session" and goes back to it after signing in.
+const isBookingRedirect = computed(() => isBookingReviewPath(redirectTarget.value))
+const withRedirect = (name) =>
+  redirectTarget.value ? { name, query: { redirect: redirectTarget.value } } : { name }
+const destination = () => redirectTarget.value ?? defaultDestination(authStore)
 
-  if (!validation.isValid) {
-    summary.value = 'Check the highlighted fields and try again.'
-    await focusFirstInvalid()
-    return
-  }
+const form = ref(null)
+const verificationNotice = ref('')
+const resendNotice = ref('')
+const resendPending = ref(false)
 
-  isSubmitting.value = true
-  try {
-    const user = await authStore.login({
-      email: validation.values.email,
-      password: submittedFields.password,
-    })
-
-    if (user) {
-      if (isPageActive) {
-        await router.push(resolveSafeRedirect(route.query.redirect, router) ?? { name: 'account' })
+const { values, errors, summary, submitting, submit } = useAuthForm({
+  initial: { email: '', password: '' },
+  validate: validateLoginInput,
+  submit: async (validated, raw) => {
+    verificationNotice.value = ''
+    resendNotice.value = ''
+    try {
+      const signedIn = await authStore.login({ email: validated.email, password: raw.password })
+      // null: the store already replaced the route (account disabled or session ended).
+      if (signedIn && isPageActive) {
+        await router.push(destination())
       }
+    } catch (error) {
+      if (error?.code !== 'email-unverified') {
+        throw error
+      }
+      verificationNotice.value = error.message
+    }
+  },
+})
+
+/** "Send the verification email again" is a sign-in attempt with the typed password (C4.12). */
+const resendVerification = async () => {
+  if (resendPending.value || submitting.value) {
+    return
+  }
+  if (!values.password) {
+    errors.password = 'Enter your password to send the verification email again.'
+    await nextTick()
+    form.value?.querySelector('[name="password"]')?.focus()
+    return
+  }
+  resendPending.value = true
+  summary.value = ''
+  try {
+    const outcome = await authStore.resendVerification({
+      email: values.email,
+      password: values.password,
+    })
+    if (outcome === 'signed-in' && isPageActive) {
+      await router.push(destination())
       return
     }
-
-    if (['email-unverified', 'verification-unavailable'].includes(authStore.errorCode)) {
-      verificationNotice.value = authStore.errorMessage
-    } else {
-      summary.value = authStore.errorMessage || 'Email or password is incorrect.'
+    if (outcome === 'sent') {
+      resendNotice.value = 'Verification email sent again. Open the link in it, then sign in.'
     }
-  } catch {
-    summary.value = 'Authentication is temporarily unavailable.'
+  } catch (error) {
+    // The notice above says the email went out; only the resend's own error may show now. Its
+    // button leaves with it, so focus moves to the alert instead of dropping to the body.
+    verificationNotice.value = ''
+    summary.value = describeError(error)
+    await nextTick()
+    form.value?.querySelector('[data-form-summary]')?.focus()
   } finally {
-    isSubmitting.value = false
+    resendPending.value = false
   }
 }
-
-const roleLabel = (role) => role.charAt(0).toUpperCase() + role.slice(1)
 </script>
 
 <template>
   <section class="page-section">
-    <div v-motion.fade class="shell auth-page__layout">
+    <div class="shell auth-page__layout">
       <header class="auth-page__intro">
         <h1 class="page-title">Sign in</h1>
-        <p>Welcome back. Sign in to share your experience.</p>
+        <p>Welcome back. Sign in to save services and share your experience.</p>
       </header>
 
       <div class="surface surface--padded auth-card">
-        <form ref="form" class="auth-form" novalidate :aria-busy="pending" @submit.prevent="submit">
-          <div
-            v-if="verificationNotice"
-            class="auth-form__summary auth-form__summary--info"
-            role="status"
-            aria-live="polite"
-          >
-            {{ verificationNotice }}
+        <p v-if="isBookingRedirect" class="auth-form__summary auth-form__summary--info">
+          {{ BOOKING_MESSAGES.signInToBook }}
+        </p>
+        <form
+          ref="form"
+          class="auth-form"
+          novalidate
+          :aria-busy="submitting"
+          @submit.prevent="submit"
+        >
+          <p v-if="reasonNotice" class="auth-form__summary" role="alert">{{ reasonNotice }}</p>
+          <p v-if="queryNotice" class="auth-form__summary auth-form__summary--info" role="status">
+            {{ queryNotice }}
+          </p>
+          <div v-if="verificationNotice" class="auth-form__summary auth-form__summary--info">
+            <p role="status">{{ verificationNotice }}</p>
+            <AppButton
+              variant="secondary"
+              type="button"
+              :busy="resendPending"
+              @click="resendVerification"
+            >
+              Send the verification email again
+            </AppButton>
           </div>
-          <div v-if="summary" class="auth-form__summary" role="alert" aria-live="assertive">
+          <p v-if="resendNotice" class="auth-form__summary auth-form__summary--info" role="status">
+            {{ resendNotice }}
+          </p>
+          <p v-if="summary" class="auth-form__summary" role="alert" tabindex="-1" data-form-summary>
             {{ summary }}
-          </div>
+          </p>
 
-          <AuthFormField
-            id="login-email"
-            :model-value="fields.email"
-            name="email"
-            type="email"
-            label="Email address"
-            autocomplete="username"
-            :spellcheck="false"
-            required
-            :disabled="pending"
-            :error="errors.email"
-            @update:model-value="updateField('email', $event)"
-          />
+          <FormField id="login-email" label="Email address" :error="errors.email" required>
+            <template #default="{ control }">
+              <input
+                v-bind="control"
+                v-model="values.email"
+                class="form-control"
+                name="email"
+                type="email"
+                autocomplete="username"
+                spellcheck="false"
+              />
+            </template>
+          </FormField>
 
-          <AuthFormField
-            id="login-password"
-            :model-value="fields.password"
-            name="password"
-            type="password"
-            label="Password"
-            autocomplete="current-password"
-            required
-            :disabled="pending"
-            :error="errors.password"
-            @update:model-value="updateField('password', $event)"
-          />
+          <FormField id="login-password" label="Password" :error="errors.password" required>
+            <template #default="{ control }">
+              <input
+                v-bind="control"
+                v-model="values.password"
+                class="form-control"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+              />
+            </template>
+          </FormField>
 
           <div class="auth-form__recovery">
-            <RouterLink :to="recoveryDestination">Forgot your password?</RouterLink>
+            <RouterLink :to="withRedirect('forgot-password')">Forgot your password?</RouterLink>
           </div>
 
-          <button
-            class="button button--primary auth-form__submit"
-            type="submit"
-            :disabled="pending"
-          >
-            <span
-              v-if="pending"
-              class="auth-form__spinner"
-              data-testid="auth-pending-indicator"
-              aria-hidden="true"
-            ></span>
-            {{ pending ? 'Signing in…' : 'Sign in' }}
-          </button>
+          <AppButton class="auth-form__submit" variant="primary" type="submit" :busy="submitting">
+            {{ submitting ? 'Signing in…' : 'Sign in' }}
+          </AppButton>
         </form>
         <div class="auth-card__alternate">
           <p>New to TurnAgain?</p>
           <RouterLink
             class="button button--secondary auth-card__alternate-action"
-            :to="registrationDestination"
+            :to="withRedirect('register')"
           >
             Register
           </RouterLink>
         </div>
       </div>
-      <aside
-        v-if="DEMO_ACCOUNTS.length"
-        class="surface surface--padded auth-demo"
-        aria-labelledby="demo-accounts-heading"
-      >
-        <h2 id="demo-accounts-heading">Demo accounts</h2>
-        <dl>
-          <div v-for="account in DEMO_ACCOUNTS" :key="account.uid">
-            <dt>{{ roleLabel(account.role) }}</dt>
-            <dd>
-              <code>{{ account.email }}</code> / <code>{{ account.password }}</code>
-            </dd>
-          </div>
-        </dl>
-      </aside>
     </div>
   </section>
 </template>
