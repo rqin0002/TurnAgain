@@ -1,41 +1,84 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { useSearchDraft } from '../composables/useSearchDraft.js'
-import ActivityCard from '../features/activities/components/ActivityCard.vue'
-import { useActivityCatalogue } from '../features/activities/composables/useActivityCatalogue.js'
+import { useSearchDraft } from '@/shared/composables/useSearchDraft.js'
+import ActivityCard from '@/features/activities/components/ActivityCard.vue'
+import SessionCalendarLoader from '@/features/bookings/components/SessionCalendarLoader.vue'
+import { useMyBookings } from '@/features/bookings/composables/useMyBookings.js'
+import {
+  initialCalendarDate,
+  toCalendarEvents,
+} from '@/features/bookings/domain/sessionCalendar.js'
+import Chip from '@/shared/components/Chip.vue'
+import ResultPagination from '@/shared/components/ResultPagination.vue'
+import { paginateRecords } from '@/shared/domain/pagination.js'
+import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
+import { useActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
 import {
   buildActivityCatalogue,
   normalizeActivityCriteria,
   toActivityQuery,
-} from '../features/activities/domain/activityCatalogue.js'
+} from '@/features/activities/domain/activityCatalogue.js'
 
 const route = useRoute()
 const router = useRouter()
-const { status, activities, sessions, now, errorMessage, retry } = useActivityCatalogue()
-
+const { status, activities, sessions, truncated, now, freshness, savedAt, errorMessage, retry } =
+  useActivityCatalogue()
 const criteria = computed(() => normalizeActivityCriteria(route.query))
+// Only the calendar marks the member's bookings on this page, so the list never loads them.
+const { bookings: myBookings } = useMyBookings({
+  withSessions: false,
+  autoLoad: () => criteria.value.view === 'calendar',
+})
 const catalogue = computed(() =>
   buildActivityCatalogue(activities.value, sessions.value, criteria.value, now.value),
 )
 const hasFilters = computed(() => Boolean(criteria.value.search || criteria.value.type))
+const paged = computed(() => paginateRecords(catalogue.value, criteria.value))
 const resultLabel = computed(() => {
   const count = catalogue.value.length
   return `${count} ${count === 1 ? 'activity' : 'activities'}`
 })
 
-const resultMotion = computed(() => ({
-  key: catalogue.value.map((entry) => entry.activity.id).join('|'),
-  quietKey: criteria.value.search,
-}))
-
 const updateCriteria = (patch) => {
-  const nextCriteria = { ...criteria.value, ...patch }
+  const nextCriteria = { ...criteria.value, page: 1, ...patch }
   return router.replace({ name: 'activities', query: toActivityQuery(nextCriteria) })
 }
+watch([() => route.fullPath, status, () => paged.value.page], () => {
+  if (status.value !== 'ready') return
+  const query = toActivityQuery({ ...criteria.value, page: paged.value.page })
+  if (router.resolve({ name: 'activities', query }).fullPath !== route.fullPath) {
+    void router.replace({ name: 'activities', query })
+  }
+})
 
 const clearFilters = () => updateCriteria({ search: '', type: '', sort: criteria.value.sort })
+
+// The calendar shows the sessions of the activities the filters keep (spec 7.3 L936).
+const calendarSessions = computed(() => catalogue.value.flatMap((row) => row.sessions))
+const calendarEvents = computed(() =>
+  toCalendarEvents(
+    calendarSessions.value,
+    new Map(catalogue.value.map((row) => [row.activity.id, row.activity])),
+    myBookings.value,
+    now.value,
+    { withActivityTitle: true },
+  ),
+)
+const calendarDate = computed(() => initialCalendarDate(calendarEvents.value, now.value))
+// This page has no session rows: an event opens its activity, which focuses the row (M5-D9).
+const openSession = ({ sessionId, activityId }) =>
+  router.push({ name: 'activity-detail', params: { activityId }, query: { session: sessionId } })
+
+const resultsHeading = ref(null)
+// The loader and its focused "Show the list" button unmount with the calendar, so focus moves to
+// the list's heading instead of <body>.
+const showList = async () => {
+  await updateCriteria({ view: 'list' })
+  await nextTick()
+  resultsHeading.value?.focus()
+}
 
 const searchInput = useSearchDraft({
   value: () => criteria.value.search,
@@ -46,7 +89,7 @@ const searchInput = useSearchDraft({
 <template>
   <section class="page-section">
     <div class="shell activities-page">
-      <header v-motion class="activities-page__intro reading-width">
+      <header class="activities-page__intro reading-width">
         <p class="activities-page__context">Repair &amp; reuse activities</p>
         <h1 class="page-title">Learn, repair, and keep useful things moving.</h1>
         <p>
@@ -135,21 +178,47 @@ const searchInput = useSearchDraft({
         </fieldset>
 
         <div class="activities-page__results-heading">
-          <h2 class="section-title">Current activities</h2>
+          <h2 ref="resultsHeading" class="section-title" tabindex="-1">Current activities</h2>
           <output aria-live="polite">{{ resultLabel }}</output>
+          <div class="activities-page__views" role="group" aria-label="Show activities as">
+            <Chip
+              label="List"
+              :pressed="criteria.view === 'list'"
+              @toggle="updateCriteria({ view: 'list' })"
+            />
+            <Chip
+              label="Calendar"
+              :pressed="criteria.view === 'calendar'"
+              @toggle="updateCriteria({ view: 'calendar' })"
+            />
+          </div>
         </div>
+        <p v-if="truncated" role="status">Results incomplete: showing the first 1,000 records.</p>
+        <p v-if="freshness === 'cached' && savedAt" class="catalogue-freshness" role="status">
+          Showing results saved {{ formatRelativeTime(savedAt, { now }) }}
+        </p>
 
-        <div v-if="catalogue.length" v-motion:results="resultMotion" class="activities-page__list">
+        <template v-if="criteria.view === 'calendar' && catalogue.length">
+          <SessionCalendarLoader
+            :events="calendarEvents"
+            :initial-date="calendarDate"
+            skip-target="activities-calendar-end"
+            :heading-level="3"
+            @select-session="openSession"
+            @show-list="showList"
+          />
+          <span id="activities-calendar-end" tabindex="-1"></span>
+        </template>
+        <div v-else-if="catalogue.length" class="activities-page__list">
           <ActivityCard
-            v-for="entry in catalogue"
+            v-for="entry in paged.items"
             :key="entry.activity.id"
             :activity="entry.activity"
             :next-session="entry.nextSession"
             :session-count="entry.sessions.length"
           />
         </div>
-
-        <div v-else v-motion:results="resultMotion" class="state-panel">
+        <div v-else class="state-panel">
           <div>
             <h2>
               {{ hasFilters ? 'No activities match these filters' : 'No activities published yet' }}
@@ -171,6 +240,12 @@ const searchInput = useSearchDraft({
             </button>
           </div>
         </div>
+        <ResultPagination
+          v-if="criteria.view === 'list'"
+          v-bind="paged"
+          @update:page="updateCriteria({ page: $event })"
+          @update:page-size="updateCriteria({ pageSize: $event })"
+        />
       </template>
     </div>
   </section>
@@ -254,6 +329,11 @@ const searchInput = useSearchDraft({
 .activities-page__list {
   display: grid;
   gap: 1.25rem;
+}
+
+.activities-page__views {
+  display: flex;
+  gap: 0.5rem;
 }
 
 @media (min-width: 768px) {

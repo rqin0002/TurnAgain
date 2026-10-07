@@ -1,22 +1,48 @@
 <script setup>
-import { computed, watch } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { computed, nextTick, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
-import { useBackNavigation } from '../composables/useBackNavigation.js'
-import { useActivityCatalogue } from '../features/activities/composables/useActivityCatalogue.js'
+import { useBackNavigation } from '@/shared/composables/useBackNavigation.js'
+import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import { useActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
 import {
   buildActivityCatalogue,
   formatActivityType,
-  formatSessionAvailability,
-  formatSessionDate,
-  formatSessionStatus,
-  formatSessionTime,
-} from '../features/activities/domain/activityCatalogue.js'
-import { formatCheckedDate } from '../features/discovery/domain/servicePresentation.js'
+  normalizeActivityView,
+} from '@/features/activities/domain/activityCatalogue.js'
+import SessionCalendarLoader from '@/features/bookings/components/SessionCalendarLoader.vue'
+import SessionList from '@/features/bookings/components/SessionList.vue'
+import { useMyBookings } from '@/features/bookings/composables/useMyBookings.js'
+import { BOOKING_MESSAGES } from '@/features/bookings/domain/bookingMessages.js'
+import {
+  initialCalendarDate,
+  toCalendarEvents,
+} from '@/features/bookings/domain/sessionCalendar.js'
+import Chip from '@/shared/components/Chip.vue'
+import { formatCheckedDate } from '@/features/discovery/domain/servicePresentation.js'
 
 const route = useRoute()
+const router = useRouter()
 const { goBack } = useBackNavigation({ name: 'activities' })
-const { status, activities, sessions, now, errorMessage, retry } = useActivityCatalogue()
+// The staff-only Edit link (spec 8.1 L975); the route meta and the rules guard the form itself.
+const authStore = useAuthStore()
+const canEdit = computed(() => authStore.canAccess(['staff', 'admin']))
+const {
+  status,
+  activities,
+  sessions,
+  truncated,
+  now,
+  freshness,
+  savedAt,
+  error,
+  errorMessage,
+  revalidating,
+  retry,
+} = useActivityCatalogue()
+// "You're booked, TA-..." on a row (spec 7.3): the member's bookings, loaded only when signed in.
+const { bookings: myBookings } = useMyBookings({ withSessions: false })
 
 const requestedId = computed(() => {
   const value = Array.isArray(route.params.activityId)
@@ -31,11 +57,100 @@ const entry = computed(() =>
   ),
 )
 
+// A saved copy without this id proves nothing (the activity may be newer than the copy): keep
+// loading while the copy is revalidated, and report a failed fetch rather than "not found".
+const awaitingEntry = computed(
+  () =>
+    status.value === 'loading' || status.value === 'idle' || (!entry.value && revalidating.value),
+)
+const entryUnavailable = computed(() => !entry.value && error.value !== null)
+
 watch(entry, (value) => {
   if (value) {
     document.title = `${value.activity.title} | TurnAgain`
   }
 })
+
+const view = computed(() => normalizeActivityView(route.query.view))
+const listNotice = ref('')
+const setView = (next) => {
+  listNotice.value = ''
+  return router.replace({
+    query: { ...route.query, view: next === 'calendar' ? 'calendar' : undefined },
+  })
+}
+const calendarEvents = computed(() =>
+  entry.value
+    ? toCalendarEvents(
+        entry.value.sessions,
+        new Map([[entry.value.activity.id, entry.value.activity]]),
+        myBookings.value,
+        now.value,
+      )
+    : [],
+)
+const calendarDate = computed(() => initialCalendarDate(calendarEvents.value, now.value))
+
+const sessionsHeading = ref(null)
+// The loader and its focused "Show the list" button unmount with the calendar, so focus moves to
+// the list's heading instead of <body>.
+const showList = async () => {
+  await setView('list')
+  await nextTick()
+  sessionsHeading.value?.focus()
+}
+
+const focusSessionRow = (sessionId) => {
+  const row = document.getElementById(`session-${sessionId}`)
+  if (!row) {
+    listNotice.value = BOOKING_MESSAGES.sessionNotInList
+    return
+  }
+  listNotice.value = ''
+  row.scrollIntoView({ block: 'center' })
+  row.focus({ preventScroll: true })
+}
+
+// D8 (spec 7.3 L936): an event opens its row in the list; a row that is not there is said so.
+const onSelectSession = async ({ sessionId }) => {
+  if (view.value === 'calendar') {
+    await setView('list')
+    await nextTick()
+  }
+  focusSessionRow(sessionId)
+}
+
+// `?session=<id>` from the Activities calendar (M5-D9): once the entry has loaded, focus the row
+// after the router's #main-content focus (contract section 3.4), then drop the one-shot key. The
+// view drops the key itself, so the next link with a session is a new value even when the router
+// reuses this instance for another activity.
+const requestedSession = computed(() =>
+  typeof route.query.session === 'string' ? route.query.session : '',
+)
+watch(requestedId, () => {
+  listNotice.value = ''
+})
+let handlingSession = false
+watch(
+  [entry, requestedSession],
+  async ([value, requested]) => {
+    if (!value || !requested || handlingSession) return
+    handlingSession = true
+    try {
+      await nextTick()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+      const query = { ...route.query }
+      delete query.session
+      delete query.view
+      await router.replace({ query })
+      await nextTick()
+      focusSessionRow(requested)
+    } finally {
+      handlingSession = false
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -43,14 +158,14 @@ watch(entry, (value) => {
     <div class="shell activity-detail">
       <button class="text-button back-link" type="button" @click="goBack">← Back</button>
 
-      <div v-if="status === 'loading' || status === 'idle'" class="state-panel" role="status">
+      <div v-if="awaitingEntry" class="state-panel" role="status">
         <div>
           <h1>Loading activity details</h1>
           <p>Reading the current activity and session catalogue…</p>
         </div>
       </div>
 
-      <div v-else-if="status === 'error'" class="state-panel" role="alert">
+      <div v-else-if="entryUnavailable" class="state-panel" role="alert">
         <div>
           <h1>Activity details are unavailable</h1>
           <p>{{ errorMessage }}</p>
@@ -59,7 +174,10 @@ watch(entry, (value) => {
       </div>
 
       <article v-else-if="entry" class="activity-detail__card">
-        <header v-motion="entry.activity.id" class="activity-detail__header">
+        <p v-if="freshness === 'cached' && savedAt" class="catalogue-freshness" role="status">
+          Showing results saved {{ formatRelativeTime(savedAt, { now }) }}
+        </p>
+        <header class="activity-detail__header">
           <p class="activity-detail__type">{{ formatActivityType(entry.activity.activityType) }}</p>
           <h1>{{ entry.activity.title }}</h1>
           <p>{{ entry.activity.summary }}</p>
@@ -114,6 +232,17 @@ watch(entry, (value) => {
                 </div>
               </dl>
             </section>
+
+            <p v-if="canEdit" class="staff-edit-link">
+              <RouterLink
+                :to="{
+                  name: 'staff-record-edit',
+                  params: { kind: 'activities', recordId: entry.activity.id },
+                }"
+              >
+                Edit this activity
+              </RouterLink>
+            </p>
           </div>
 
           <aside
@@ -127,7 +256,8 @@ watch(entry, (value) => {
             <p>
               Source:
               <a :href="entry.activity.providerUrl" target="_blank" rel="noopener noreferrer">
-                {{ entry.activity.providerName }}
+                {{ entry.activity.providerName
+                }}<span class="visually-hidden"> (opens in a new tab)</span>
               </a>
             </p>
             <p>Source checked {{ formatCheckedDate(entry.activity.sourceCheckedAt) }}</p>
@@ -135,80 +265,45 @@ watch(entry, (value) => {
         </div>
 
         <section class="activity-detail__sessions" aria-labelledby="sessions-heading">
-          <header>
-            <h2 id="sessions-heading">Sessions</h2>
+          <header class="activity-detail__sessions-header">
+            <h2 id="sessions-heading" ref="sessionsHeading" tabindex="-1">Sessions</h2>
+            <div class="activity-detail__views" role="group" aria-label="Show sessions as">
+              <Chip label="List" :pressed="view === 'list'" @toggle="setView('list')" />
+              <Chip label="Calendar" :pressed="view === 'calendar'" @toggle="setView('calendar')" />
+            </div>
           </header>
+          <p class="activity-detail__sessions-status" role="status">{{ listNotice }}</p>
 
-          <ul v-if="entry.sessions.length" class="activity-detail__session-list">
-            <li v-for="session in entry.sessions" :key="session.id">
-              <div>
-                <p class="activity-detail__session-date">
-                  {{ formatSessionDate(session.startsAt) }}
-                </p>
-                <p>{{ formatSessionTime(session.startsAt, session.endsAt) }}</p>
-                <p>
-                  {{ session.venueName }} · {{ session.address }}, {{ session.suburb }}
-                  {{ session.postcode }}
-                </p>
-                <p v-if="session.participantNotice" class="activity-detail__notice">
-                  {{ session.participantNotice }}
-                </p>
-              </div>
-
-              <div class="activity-detail__availability">
-                <p>
-                  <strong>{{ formatSessionStatus(session.status) }}</strong>
-                </p>
-                <p v-if="formatSessionAvailability(session)">
-                  {{ formatSessionAvailability(session) }}
-                </p>
-
-                <p v-if="session.status === 'cancelled'">
-                  This session is cancelled. Check the provider source for schedule updates.
-                </p>
-                <p v-else-if="session.status === 'full'">
-                  No places are currently available. The provider may offer a waitlist.
-                </p>
-                <p
-                  v-else-if="
-                    session.status === 'scheduled' && session.registrationType === 'drop-in'
-                  "
-                >
-                  Recheck the provider source before travelling.
-                </p>
-                <p
-                  v-else-if="
-                    session.status === 'scheduled' && session.registrationType === 'turnagain'
-                  "
-                >
-                  TurnAgain booking is not available in this release.
-                </p>
-
-                <a
-                  v-if="
-                    session.status !== 'cancelled' &&
-                    session.registrationType === 'provider' &&
-                    session.registrationUrl
-                  "
-                  class="button button--primary"
-                  :href="session.registrationUrl"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {{
-                    session.status === 'full' ? 'Check provider waitlist' : 'Continue at provider'
-                  }}
-                </a>
-              </div>
-            </li>
-          </ul>
+          <template v-if="entry.sessions.length">
+            <SessionCalendarLoader
+              v-if="view === 'calendar'"
+              :events="calendarEvents"
+              :initial-date="calendarDate"
+              skip-target="activity-sessions-end"
+              :heading-level="3"
+              @select-session="onSelectSession"
+              @show-list="showList"
+            />
+            <SessionList
+              v-else
+              :sessions="entry.sessions"
+              :activity="entry.activity"
+              :now="now"
+              :my-bookings="myBookings"
+              :truncated="truncated"
+            />
+          </template>
 
           <div v-else class="state-panel">
             <div>
               <h3>No future session is currently published</h3>
               <p>Use the provider source above to check the latest schedule.</p>
+              <!-- SessionList carries this notice when it renders; a truncated catalogue may have
+                   cut this activity's sessions, so the empty state must not read as definitive. -->
+              <p v-if="truncated">Results incomplete: showing the first 1,000 records.</p>
             </div>
           </div>
+          <span id="activity-sessions-end" tabindex="-1"></span>
         </section>
       </article>
 
@@ -228,6 +323,11 @@ watch(entry, (value) => {
 <style scoped>
 .activity-detail {
   max-width: 72rem;
+}
+
+.staff-edit-link {
+  margin: 0;
+  font-weight: 600;
 }
 
 .activity-detail h1 {
@@ -335,63 +435,28 @@ watch(entry, (value) => {
   padding-top: clamp(2rem, 4vw, 3rem);
 }
 
-.activity-detail .activity-detail__session-list {
-  display: grid;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding: 0;
-  list-style: none;
+.activity-detail__sessions-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
 }
 
-.activity-detail__session-list > li {
-  display: grid;
-  min-width: 0;
-  gap: 1.5rem;
-  border-radius: var(--radius-medium);
-  background: var(--color-surface-muted);
-  padding: clamp(1.25rem, 3vw, 1.75rem);
+.activity-detail__views {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.activity-detail__session-list p {
-  margin: 0.4rem 0 0;
-}
-
-.activity-detail__session-date {
-  color: var(--color-heading);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.3;
-}
-
-.activity-detail__notice {
-  padding-top: 0.5rem;
+.activity-detail__sessions-status {
+  margin: 0.75rem 0 0;
   color: var(--color-text-muted);
-}
-
-.activity-detail__availability {
-  align-self: start;
-  font-size: 0.9375rem;
-}
-
-.activity-detail__availability strong {
-  color: var(--color-heading);
-  font-weight: 600;
-}
-
-.activity-detail__availability .button {
-  margin-top: 1rem;
 }
 
 @media (min-width: 768px) {
   .activity-detail__body {
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
     gap: clamp(3rem, 6vw, 5rem);
-  }
-
-  .activity-detail__session-list > li {
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 0.42fr);
-    gap: 2rem;
   }
 }
 </style>

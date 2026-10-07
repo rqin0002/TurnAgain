@@ -32,14 +32,14 @@ const availabilityLabel = computed(() => formatSessionAvailability(props.nextSes
   <article class="activity-card">
     <div class="activity-card__body">
       <p class="activity-card__type">{{ formatActivityType(activity.activityType) }}</p>
-      <h2>
+      <h3>
         <RouterLink
           class="title-link"
           :to="{ name: 'activity-detail', params: { activityId: activity.id } }"
         >
           {{ activity.title }}
         </RouterLink>
-      </h2>
+      </h3>
       <p class="activity-card__summary">{{ activity.summary }}</p>
 
       <ul class="tag-list" :aria-label="`Suitable items for ${activity.title}`">
@@ -101,7 +101,7 @@ const availabilityLabel = computed(() => formatSessionAvailability(props.nextSes
   font-weight: 600;
 }
 
-.activity-card h2 {
+.activity-card h3 {
   max-width: 32ch;
   margin: 0;
   color: var(--color-heading);
