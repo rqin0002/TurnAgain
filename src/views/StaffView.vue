@@ -1,103 +1,62 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onMounted, watch } from 'vue'
+import { RouterLink, RouterView } from 'vue-router'
 
-import { useServiceCatalogue } from '../features/discovery/composables/useServiceCatalogue.js'
-import ActivitySessionRegister from '../features/staff/components/ActivitySessionRegister.vue'
-import ServiceRegister from '../features/staff/components/ServiceRegister.vue'
-import {
-  normalizeActivitySessionCriteria,
-  normalizeServiceRegisterCriteria,
-  toActivitySessionQuery,
-  toServiceRegisterQuery,
-} from '../features/staff/domain/staffRegisters.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import { useStaffCatalogue } from '@/features/staff/composables/useStaffCatalogue.js'
+import { useStaffNavigation } from '@/features/staff/composables/useStaffNavigation.js'
 
-const route = useRoute()
-const router = useRouter()
-const { status, services, metadata, errorMessage, retry } = useServiceCatalogue()
+/**
+ * The /staff layout (spec 8.1 L977): heading, the sub-navigation and the child route. The parent
+ * route carries the role meta and the children inherit it; `staff-team` narrows it to admins.
+ * The links are paths, not names, because the child routes arrive task by task in milestone 6 and
+ * a RouterLink to an unregistered name throws.
+ */
+const { currentSection, team } = useStaffNavigation()
+const currentFor = (section) => (currentSection.value === section ? 'page' : undefined)
 
-const activeRegister = computed(() => (route.query.view === 'sessions' ? 'sessions' : 'services'))
-const serviceCriteria = computed(() => normalizeServiceRegisterCriteria(route.query))
-// Session URL keys are prefixed; pass them explicitly so service filters cannot
-// leak through the normalizer's component-state aliases (location, page, sort).
-const sessionCriteria = computed(() =>
-  normalizeActivitySessionCriteria({
-    search: route.query.sq,
-    status: route.query.sstatus,
-    location: route.query.slocation,
-    sort: route.query.ssort,
-    page: route.query.spage,
-  }),
+// The layout loads the staff catalogue once per mount and again after an identity change that
+// keeps staff access (spec 8.1 L979); the catalogue itself empties on every epoch change.
+const authStore = useAuthStore()
+const catalogue = useStaffCatalogue()
+onMounted(() => void catalogue.load())
+watch(
+  () => authStore.identityEpoch,
+  () => void catalogue.load(),
 )
-
-const buildWorkspaceQuery = ({ panel = activeRegister.value, service, session } = {}) => ({
-  ...(panel === 'sessions' ? { view: 'sessions' } : {}),
-  ...toServiceRegisterQuery(service ?? serviceCriteria.value),
-  ...toActivitySessionQuery(session ?? sessionCriteria.value),
-})
-
-// URL-backed operational state survives refresh, Back navigation, and a shared
-// staff link without persisting catalogue criteria in a global store.
-const updateServiceCriteria = (nextCriteria) =>
-  router.replace({
-    name: 'staff',
-    query: buildWorkspaceQuery({ panel: 'services', service: nextCriteria }),
-  })
-
-const updateSessionCriteria = (nextCriteria) =>
-  router.replace({
-    name: 'staff',
-    query: buildWorkspaceQuery({ panel: 'sessions', session: nextCriteria }),
-  })
 </script>
 
 <template>
-  <section class="page-section">
+  <div class="page-section">
     <div class="shell staff-page">
-      <header v-motion class="staff-page__intro">
+      <header class="staff-page__intro">
         <p class="eyebrow">TurnAgain / Staff</p>
         <h1 class="page-title">Staff workspace</h1>
-        <p class="staff-page__description">Browse the service catalogue and activity schedule.</p>
+        <p class="staff-page__description">Services, sessions, corrections and the team.</p>
       </header>
 
-      <nav
-        v-navigation-indicator:local
-        class="staff-page__register-nav"
-        aria-label="Staff registers"
-      >
-        <RouterLink
-          :to="{ name: 'staff', query: buildWorkspaceQuery({ panel: 'services' }) }"
-          :aria-current="activeRegister === 'services' ? 'page' : undefined"
+      <nav class="staff-page__register-nav" aria-label="Staff sections">
+        <RouterLink to="/staff" :aria-current="currentFor('overview')">Overview</RouterLink>
+        <RouterLink to="/staff/services" :aria-current="currentFor('services')"
+          >Services</RouterLink
         >
-          Service Register
-        </RouterLink>
-        <RouterLink
-          :to="{ name: 'staff', query: buildWorkspaceQuery({ panel: 'sessions' }) }"
-          :aria-current="activeRegister === 'sessions' ? 'page' : undefined"
+        <RouterLink to="/staff/sessions" :aria-current="currentFor('sessions')"
+          >Sessions</RouterLink
         >
-          Activity Sessions
-        </RouterLink>
-        <span class="staff-page__indicator" data-navigation-indicator aria-hidden="true"></span>
+        <RouterLink to="/staff/corrections" :aria-current="currentFor('corrections')"
+          >Corrections</RouterLink
+        >
+        <RouterLink v-if="team === 'link'" to="/staff/team" :aria-current="currentFor('team')"
+          >Team</RouterLink
+        >
+        <span v-else-if="team === 'disabled'" class="staff-page__nav-disabled" aria-disabled="true"
+          >Team (not enabled in this deployment)</span
+        >
       </nav>
 
-      <ServiceRegister
-        v-if="activeRegister === 'services'"
-        :status="status"
-        :services="services"
-        :metadata="metadata"
-        :error-message="errorMessage"
-        :criteria="serviceCriteria"
-        @retry="retry"
-        @update:criteria="updateServiceCriteria"
-      />
-
-      <ActivitySessionRegister
-        v-else
-        :criteria="sessionCriteria"
-        @update:criteria="updateSessionCriteria"
-      />
+      <RouterView />
     </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
@@ -121,15 +80,16 @@ const updateSessionCriteria = (nextCriteria) =>
 }
 
 .staff-page__register-nav {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 2rem;
+  gap: 0.25rem 1.25rem;
   margin-top: clamp(2rem, 4vw, 3rem);
+  margin-bottom: clamp(1.5rem, 3vw, 2rem);
   border-bottom: 1px solid var(--color-border);
 }
 
-.staff-page__register-nav a {
+.staff-page__register-nav a,
+.staff-page__nav-disabled {
   display: inline-flex;
   min-height: 3.25rem;
   align-items: center;
@@ -137,7 +97,7 @@ const updateSessionCriteria = (nextCriteria) =>
   margin-bottom: -1px;
   padding: 0.75rem 0;
   color: var(--color-text-muted);
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 600;
   text-decoration: none;
 }
@@ -148,31 +108,19 @@ const updateSessionCriteria = (nextCriteria) =>
   color: var(--color-brand);
 }
 
-.staff-page__indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 2px;
-  background: var(--color-brand);
-  opacity: 0;
-  pointer-events: none;
+.staff-page__nav-disabled {
+  font-weight: 400;
+  cursor: default;
 }
 
-.staff-page__register-nav[data-indicator-ready] .staff-page__indicator {
-  opacity: 1;
-}
-
-.staff-page__register-nav[data-indicator-ready] a {
-  border-bottom-color: transparent;
-}
-
-@media (max-width: 420px) {
+@media (min-width: 576px) {
   .staff-page__register-nav {
-    gap: 0.25rem 1.25rem;
+    gap: 0.5rem 2rem;
   }
 
-  .staff-page__register-nav a {
-    font-size: 0.875rem;
+  .staff-page__register-nav a,
+  .staff-page__nav-disabled {
+    font-size: 0.9375rem;
   }
 }
 </style>
