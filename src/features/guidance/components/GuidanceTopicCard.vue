@@ -1,28 +1,14 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
+import { formatCheckedDate } from '../domain/guidancePresentation.js'
+
 defineProps({
   topic: {
     type: Object,
     required: true,
   },
 })
-
-const checkedDateFormatter = new Intl.DateTimeFormat('en-AU', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-  timeZone: 'Australia/Melbourne',
-})
-
-/**
- * Formats an editorial calendar date without allowing the viewer's timezone to
- * move it into the previous or next day.
- *
- * @param {string} value ISO date in YYYY-MM-DD form.
- * @returns {string} A reader-friendly Australian date.
- */
-const formatCheckedDate = (value) => checkedDateFormatter.format(new Date(`${value}T12:00:00Z`))
 </script>
 
 <template>

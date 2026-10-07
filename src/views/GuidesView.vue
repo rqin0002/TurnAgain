@@ -1,9 +1,13 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
 
-import GuidanceTopicCard from '../features/guidance/components/GuidanceTopicCard.vue'
+import GuidanceTopicCard from '@/features/guidance/components/GuidanceTopicCard.vue'
+import { formatCheckedDate } from '@/features/guidance/domain/guidancePresentation.js'
+import { GUIDANCE_TOPICS, WASTE_TERMS_ID } from '@/features/guidance/domain/guidanceTopics.js'
 
 const router = useRouter()
+const guides = GUIDANCE_TOPICS.filter((topic) => topic.id !== WASTE_TERMS_ID)
+const glossary = GUIDANCE_TOPICS.find((topic) => topic.id === WASTE_TERMS_ID)
 
 const goToTopic = async (event, hash) => {
   // Keep modified clicks and opening a topic in a new tab native.
@@ -15,132 +19,21 @@ const goToTopic = async (event, hash) => {
   await router.push({ name: 'guides', hash })
   if (router.currentRoute.value.name !== 'guides' || router.currentRoute.value.hash !== hash) return
 
-  // Match About's section navigation without interrupting the smooth scroll.
-  const heading = topic.querySelector('h3')
+  // Match About's section navigation without interrupting the smooth scroll. A card's heading is
+  // an h3; the glossary section's is an h2.
+  const heading = topic.querySelector('h2, h3')
   if (heading) {
     heading.tabIndex = -1
     heading.focus({ preventScroll: true })
   }
 }
-
-/**
- * Source-backed public guidance for high-risk or commonly misunderstood items.
- *
- * This is deliberately a small editorial dataset, not a second service
- * catalogue. Content stays as plain text so Vue's normal escaping remains the
- * rendering boundary, while time-sensitive decisions remain with the linked
- * government or council source.
- */
-
-/**
- * @typedef {object} GuidanceSource
- * @property {string} title
- * @property {string} organisation
- * @property {string} url
- * @property {string} checkedAt ISO calendar date in YYYY-MM-DD form.
- */
-
-/**
- * @typedef {object} GuidanceTopic
- * @property {string} id
- * @property {string} scope
- * @property {string} title
- * @property {string} summary
- * @property {readonly string[]} steps
- * @property {readonly GuidanceSource[]} sources
- * @property {{ label: string, to: import('vue-router').RouteLocationRaw }} [action]
- */
-
-/** @type {readonly GuidanceTopic[]} */
-const GUIDANCE_TOPICS = [
-  {
-    id: 'electronics-and-batteries',
-    scope: 'Victoria wide safety guidance',
-    title: 'Electronics & batteries',
-    summary:
-      'E-waste and batteries should not go in household bins. Incorrect disposal can cause fires in collection trucks and resource-recovery facilities.',
-    steps: [
-      'Keep the device or battery out of every household bin.',
-      'Use a council or specialist drop-off point that accepts the exact item.',
-      'Confirm accepted device and battery types before travelling.',
-    ],
-    sources: [
-      {
-        title: 'Fire Prevention Program',
-        organisation: 'Victorian Government',
-        url: 'https://www.vic.gov.au/fire-prevention-program',
-        checkedAt: '2026-09-03',
-      },
-    ],
-    action: {
-      label: 'Search for e-waste options',
-      to: { name: 'find-nearby', query: { item: 'e-waste' } },
-    },
-  },
-  {
-    id: 'household-chemicals',
-    scope: 'Victoria wide disposal guidance',
-    title: 'Household chemicals',
-    summary:
-      'Hazardous household chemicals need product-specific handling. Do not place them in household rubbish or pour them down a drain.',
-    steps: [
-      'Read the product label and keep the chemical safely stored until disposal.',
-      'Never mix chemicals during use or storage.',
-      'Use the official disposal list to find the pathway for that exact product.',
-    ],
-    sources: [
-      {
-        title: 'How to dispose of hazardous household chemicals',
-        organisation: 'Department of Energy, Environment and Climate Action',
-        url: 'https://www.environment.vic.gov.au/hazardous-household-chemicals/how-to-dispose-of-hazardous-household-chemicals',
-        checkedAt: '2026-09-03',
-      },
-      {
-        title: 'Safe management of hazardous household chemicals',
-        organisation: 'Department of Energy, Environment and Climate Action',
-        url: 'https://www.environment.vic.gov.au/hazardous-household-chemicals/safe-management-of-hazardous-household-chemicals',
-        checkedAt: '2026-09-03',
-      },
-    ],
-  },
-  {
-    id: 'household-recycling',
-    scope: 'Statewide framework with local delivery',
-    title: 'Household recycling',
-    summary:
-      'Victoria is transitioning to four household streams, but the service available today still depends on the council or collection provider for the property.',
-    steps: [
-      'The four streams are glass, FOGO, mixed recycling and general rubbish.',
-      'Check the local service before relying on a bin colour, collection schedule or accepted-item list.',
-      'For shared or privately collected bins, also check the building-specific rules.',
-    ],
-    sources: [
-      {
-        title: 'Standardising household recycling across Victoria',
-        organisation: 'Victorian Government',
-        url: 'https://www.vic.gov.au/Standardising-household-recycling-across-Victoria',
-        checkedAt: '2026-09-03',
-      },
-      {
-        title: 'Know Your Council',
-        organisation: 'Victorian Government',
-        url: 'https://www.vic.gov.au/know-your-council/',
-        checkedAt: '2026-09-03',
-      },
-    ],
-    action: {
-      label: 'Find recycling options',
-      to: { name: 'find-nearby', query: { action: 'recycle' } },
-    },
-  },
-]
 </script>
 
 <template>
   <article class="guides-page">
     <header class="guides-hero page-section">
       <div class="shell guides-hero__layout">
-        <div v-motion class="guides-hero__content">
+        <div class="guides-hero__content">
           <p class="eyebrow">The practical guide</p>
           <h1>Find a safer next step for your item.</h1>
           <p class="guides-hero__lead">
@@ -179,7 +72,43 @@ const GUIDANCE_TOPICS = [
         </nav>
 
         <div class="guides-grid">
-          <GuidanceTopicCard v-for="topic in GUIDANCE_TOPICS" :key="topic.id" :topic="topic" />
+          <GuidanceTopicCard v-for="topic in guides" :key="topic.id" :topic="topic" />
+        </div>
+      </div>
+    </section>
+
+    <section
+      :id="glossary.id"
+      class="page-section guides-glossary"
+      aria-labelledby="waste-terms-title"
+    >
+      <div class="shell">
+        <div class="guides-heading">
+          <div>
+            <p class="eyebrow">{{ glossary.scope }}</p>
+            <h2 id="waste-terms-title">{{ glossary.title }}</h2>
+            <p class="guides-glossary__summary">{{ glossary.summary }}</p>
+          </div>
+        </div>
+
+        <dl class="guides-glossary__terms">
+          <div v-for="entry in glossary.terms" :key="entry.term">
+            <dt>{{ entry.term }}</dt>
+            <dd>{{ entry.definition }}</dd>
+          </div>
+        </dl>
+
+        <div class="guides-glossary__sources">
+          <p>Official sources</p>
+          <ul>
+            <li v-for="source in glossary.sources" :key="source.url">
+              <a :href="source.url">{{ source.title }} — {{ source.organisation }}</a>
+              <span>
+                Checked
+                <time :datetime="source.checkedAt">{{ formatCheckedDate(source.checkedAt) }}</time>
+              </span>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
@@ -208,6 +137,10 @@ const GUIDANCE_TOPICS = [
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.guides-page section[id] {
+  scroll-margin-top: 2rem;
 }
 
 .guides-hero {
@@ -253,11 +186,6 @@ const GUIDANCE_TOPICS = [
   background: var(--color-surface-muted);
   padding: clamp(1.5rem, 3vw, 2rem);
   text-align: center;
-}
-
-.guides-source-note .eyebrow {
-  margin-bottom: 0.5rem;
-  font-size: 0.8125rem;
 }
 
 .guides-source-note h2 {
@@ -319,5 +247,92 @@ const GUIDANCE_TOPICS = [
   max-width: 60rem;
   gap: 1.5rem;
   margin-inline: auto;
+}
+
+.guides-glossary {
+  background: var(--color-surface-muted);
+}
+
+.guides-glossary__summary {
+  max-width: 43rem;
+  margin: 1rem auto 0;
+  color: var(--color-text-muted);
+  line-height: 1.75;
+}
+
+.guides-glossary__terms {
+  display: grid;
+  max-width: 60rem;
+  gap: 1rem;
+  margin: 0 auto;
+}
+
+.guides-glossary__terms > div {
+  display: grid;
+  gap: 0.35rem;
+  border-radius: var(--radius-medium);
+  background: var(--color-surface);
+  padding: 1.25rem 1.5rem;
+}
+
+.guides-glossary__terms dt {
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.guides-glossary__terms dd {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+.guides-glossary__sources {
+  display: grid;
+  max-width: 60rem;
+  gap: 0.75rem;
+  margin: 2rem auto 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.guides-glossary__sources > p {
+  margin: 0;
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+.guides-glossary__sources ul {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guides-glossary__sources li {
+  display: grid;
+  gap: 0.25rem;
+  line-height: 1.7;
+}
+
+.guides-glossary__sources a {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--color-brand);
+  overflow-wrap: anywhere;
+  text-underline-offset: 0.2em;
+}
+
+.guides-glossary__sources span {
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 768px) {
+  .guides-glossary__terms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>
