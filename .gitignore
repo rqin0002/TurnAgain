@@ -6,7 +6,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
 node_modules
 .DS_Store
 dist
@@ -17,7 +16,10 @@ coverage
 # Local environment and provider material
 .env
 .env.*
-!.env.example
+!.env.development
+!.env.emulator
+!.env.production
+!functions/.env
 .firebase/
 firebase-debug.log*
 *service-account*.json
@@ -26,6 +28,9 @@ firebase-debug.log*
 *credential*.json
 *.pem
 *.key
+docs/
+tests/
+seed/
 
 # Protected local hand-offs and browser database snapshots
 migration-exports/
