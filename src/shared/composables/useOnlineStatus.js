@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 /**
- * Module singleton over `navigator.onLine` and the `online`/`offline` events (spec 11). The flag
+ * Module singleton over `navigator.onLine` and the `online`/`offline` events. The flag
  * is a hint for the banner and never a decision: no request is skipped because it says false and
  * no data is trusted because it says true; the failed request's own code decides what shows.
  */

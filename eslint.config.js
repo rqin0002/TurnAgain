@@ -6,7 +6,7 @@ import pluginOxlint from 'eslint-plugin-oxlint'
 import skipFormatting from 'eslint-config-prettier/flat'
 
 /**
- * Layer boundaries (spec 3.3, 3.4), enforced with two core rules: `no-restricted-imports` for
+ * Layer boundaries, enforced with two core rules: `no-restricted-imports` for
  * static imports and `no-restricted-syntax` for dynamic `import('...')` with a string literal.
  * A specifier built at runtime (`import(name)`) is not a literal and is not checked.
  *
@@ -46,10 +46,10 @@ const RESTRICTIONS = {
     '@/firebase/*',
   ],
   'data-only-firebase': ['firebase', 'firebase/*'],
-  // The shell renders firebaseConfigProblem (spec 12.2, decision M8): the wiring under
+  // The shell renders firebaseConfigProblem: the wiring under
   // @/firebase is allowed there, the SDK is not. A group of its own so the message names it.
   'shell-no-sdk': ['/firebase', '/firebase/*'],
-  // Spec 3.3: repositories never render and components never read (the composable sits between).
+  // Repositories never render and components never read (the composable sits between).
   'data-no-ui': ['vue', 'vue-router', 'pinia', '**/components/**', '**/views/**', '**/stores/**'],
   'components-no-data': ['**/data/**'],
   'no-parent-escape': ['../../**'],
@@ -80,7 +80,7 @@ const RESTRICTIONS = {
   ],
   // `**/src/**` catches every relative depth (functions/lib/x.js -> ../../src/...), `../src/**` would not.
   'functions-no-src': ['**/src/**', '@/**'],
-  // Spec 3.4 and 13.4: the seed imports pure modules, the config object and the Web SDK; never a
+  // The seed imports pure modules, the config object and the Web SDK; never a
   // module that reads import.meta.env (every other src/firebase file, every repository), never a
   // server SDK, never functions/ outside functions/shared. Gitignore semantics: a negation cannot
   // re-include a path whose parent directory an earlier pattern excluded, so src/ and functions/
@@ -235,14 +235,14 @@ export default defineConfig([
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
   {
-    // A classic script, not a module: it runs in <head> before the bundle (spec 10.1). It sits
+    // A classic script, not a module: it runs in <head> before the bundle. It sits
     // after the Vue preset, whose `vue/base/setup` sets `sourceType: 'module'` for every file.
     name: 'app/theme-init-script',
     files: ['public/theme-init.js'],
     languageOptions: { sourceType: 'script', globals: { ...globals.browser } },
   },
   {
-    // Spec 10.2 names the primitive `Chip.vue`; the essential rule would demand a second word.
+    // The shared primitive is named `Chip.vue`; the essential rule would demand a second word.
     name: 'app/shared-component-names',
     files: ['src/shared/components/Chip.vue'],
     rules: { 'vue/multi-word-component-names': ['error', { ignores: ['Chip'] }] },
@@ -314,7 +314,7 @@ export default defineConfig([
     ['functions-no-src'],
   ),
 
-  // the seed (spec 3.4, 13.4): disjoint by construction, no other class matches seed/**
+  // the seed: disjoint by construction, no other class matches seed/**
   boundaries('seed', ['seed/**/*.{js,mjs}'], [], ['seed-pure-imports']),
 
   ...pluginOxlint.buildFromOxlintConfigFile('.oxlintrc.json'),

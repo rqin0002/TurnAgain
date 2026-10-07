@@ -1,5 +1,5 @@
 /**
- * The text normaliser of the discovery feature (spec 6.1): search-only canonicalisation that
+ * The text normaliser of the discovery feature: search-only canonicalisation that
  * makes punctuation, case and diacritics comparable while the catalogue text stays untouched for
  * display. `normalizeForSearch` and `tokenize` are the staff tables' own functions re-exported, so
  * the app has one definition and discovery search cannot drift from table search; singularising

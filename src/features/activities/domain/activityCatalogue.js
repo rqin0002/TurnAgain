@@ -11,7 +11,7 @@ const ACTIVITY_TYPES = new Set(['repair', 'reuse', 'workshop'])
 const ACTIVITY_SORTS = new Set(['soonest', 'title-asc', 'title-desc'])
 const PUBLIC_SESSION_STATUSES = new Set(['scheduled', 'full', 'cancelled'])
 
-/** The List | Calendar control (spec 3.6 `?view=calendar`, M5-D9); the list is the default. */
+/** The List | Calendar control (`?view=calendar`); the list is the default. */
 export const ACTIVITY_VIEWS = Object.freeze(['list', 'calendar'])
 
 const firstValue = (value) => (Array.isArray(value) ? value[0] : value)
@@ -42,7 +42,7 @@ const getActivitySessions = (activityId, sessions, now) =>
     .filter((session) => session?.activityId === activityId && isCurrentOrFuture(session, now))
     .sort((left, right) => toTime(left.startsAt) - toTime(right.startsAt))
 
-/** The categories an activity's `suitableItems` resolve to (spec 6.1: the same matcher). */
+/** The categories an activity's `suitableItems` resolve to (the same matcher). */
 const activityCategories = (activity) =>
   deriveItemCategories({ acceptedItems: activity?.suitableItems ?? [], aliases: [] })
 
@@ -157,8 +157,8 @@ export function buildActivityCatalogue(activities, sessions, criteria = {}, now 
 }
 
 /**
- * The "Repair Cafe Clayton also fixes small appliances, next session ..." rows of Find Nearby
- * (spec 6.1): the activities whose suitable items share a category with the resolved query and
+ * The "Repair Cafe Clayton also fixes small appliances, next session ..." rows of Find Nearby:
+ * the activities whose suitable items share a category with the resolved query and
  * have an upcoming session that is not cancelled, soonest first, at most three. `categoryLabel`
  * is the label of the first shared category in table order; an unresolved query yields nothing.
  *
@@ -243,7 +243,7 @@ export const formatSessionAvailability = (session) => {
 }
 
 /**
- * Sessions carry no title (C7). The UI derives the current activity title from the activities it
+ * Sessions carry no title. The UI derives the current activity title from the activities it
  * has already loaded; "Activity" stands in until the join resolves. Display-only: the value is
  * never written back.
  */

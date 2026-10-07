@@ -1,8 +1,8 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-// The statement of spec 14 E.3 and 10.5. The evidence (axe and Lighthouse reports, screenshots)
-// is milestone 7's docs/ACCESSIBILITY.md; the table below says so rather than claiming it exists.
+// The accessibility statement. The evidence (axe and Lighthouse reports, screenshots) is
+// docs/ACCESSIBILITY.md; the table below says so rather than claiming it exists.
 const tested = [
   {
     method: 'Keyboard only',

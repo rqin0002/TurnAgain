@@ -5,12 +5,12 @@ import { describeError } from '@/shared/domain/errorCopy.js'
 const INVALID_SUMMARY = 'Check the highlighted fields and try again.'
 
 /**
- * One scaffold for the auth forms (spec 9.2, decision M9): reactive values and per-field errors,
+ * One scaffold for the auth forms: reactive values and per-field errors,
  * a form-level summary, a submitting flag, focus on the first invalid control, and the native
  * controls read at submit time because password managers fill them without an input event. The
  * action receives the validator's values (never a password) and the raw values (with it). An
  * AuthError or RepositoryError renders its message in the summary, so `AuthError('offline')` has
- * one surface (C4.15); anything else renders the shared generic line (`describeError`, C8).
+ * one surface; anything else renders the shared generic line (`describeError`).
  * The controls stay enabled while the action runs (a disabled control would drop focus to the
  * body); the guard below refuses a second submit instead. A rejected action moves focus to the
  * form's summary alert, the element marked `data-form-summary` with `tabindex="-1"`.

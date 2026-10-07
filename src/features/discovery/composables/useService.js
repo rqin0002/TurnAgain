@@ -5,14 +5,14 @@ import { useStaleWhileRevalidate } from '@/shared/composables/useStaleWhileReval
 import { fetchService, readCachedServiceCatalogue } from '../data/serviceRepository.js'
 
 /**
- * One published service for Service Detail (spec 6.6 L902, decision M4-D9), on the
- * stale-while-revalidate primitive of spec 11: the persisted catalogue copy paints the record
+ * One published service for Service Detail, on the
+ * stale-while-revalidate primitive: the persisted catalogue copy paints the record
  * at once when it holds the id, and `fetchService` (the catalogue memory cache first, then one
  * `getDoc`) replaces it, so list -> detail -> Back is one read. A copy without the id paints
  * nothing: the loading panel stays while the fetch runs, because a saved copy that predates the
  * record proves nothing about it. `notFound` is the fetch's own answer (`RepositoryError`
  * `not-found`), never an inference from the copy, and it outranks the copy: the saved record is
- * cleared, while a network failure keeps it on screen (spec 11). A new id (the router reuses the
+ * cleared, while a network failure keeps it on screen. A new id (the router reuses the
  * view) starts over as a first load, so nothing of the previous id stays on screen.
  *
  * @param {import('vue').MaybeRefOrGetter<string>} serviceId
@@ -60,7 +60,7 @@ export function useService(
     { flush: 'sync' },
   )
 
-  // The primitive keeps whatever is showing across loads (spec 11). That is right for the same
+  // The primitive keeps whatever is showing across loads. That is right for the same
   // record and wrong for another one: clear the record and the freshness first, so the new id's
   // saved copy may paint, the loading panel shows otherwise, and a failed fetch is an error, not
   // the previous record relabelled as a saved copy.

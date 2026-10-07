@@ -11,8 +11,8 @@ import {
 } from './lib/publicService.js'
 
 /**
- * The public REST API (spec 5.4): GET /services and GET /services/:id, published documents only,
- * public fields only. The SPA never calls it (spec 3.2); it exists for other people's programs.
+ * The public REST API: GET /services and GET /services/:id, published documents only,
+ * public fields only. The SPA never calls it; it exists for other people's programs.
  */
 
 const MEMO_TTL_MS = 5 * 60 * 1000
@@ -46,7 +46,7 @@ async function readPublishedServices() {
 /**
  * Only called when the list read hit READ_CAP. Below the cap the list holds every published
  * service, so a miss there is a 404 without spending a read; at the cap a published service past
- * it can only be found by id. Spec 5.4's 404 is for malformed, missing or unpublished ids only.
+ * it can only be found by id. The 404 is for malformed, missing or unpublished ids only.
  */
 async function readPublishedService(id) {
   const snapshot = await db.collection('services').doc(id).get()

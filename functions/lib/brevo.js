@@ -1,12 +1,12 @@
 import { Buffer } from 'node:buffer'
 
 /**
- * Brevo's transactional email API (spec 5.5, facts F2.1-F2.2) over the global fetch. `sendMail`
+ * Brevo's transactional email API over the global fetch. `sendMail`
  * never throws for a provider outcome: a 2xx is `accepted` (the provider took the request, not
  * "delivered"), a 4xx is `failed` with Brevo's own code and message (never the email body), and a
  * 5xx, a timeout (BREVO_TIMEOUT_MS) or a network error is `unknown`, because the provider may or
  * may not have accepted the request. Base64 lives here, not in functions/shared, so the SPA bundle
- * never needs Buffer (critique C2.3).
+ * never needs Buffer.
  */
 
 export const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email'
@@ -27,7 +27,7 @@ export const attachmentMeta = ({ name, text }) => ({ name, bytes: Buffer.byteLen
 /**
  * The request body. `to` (one message) or `messageVersions` (one version per participant, so no
  * participant sees another address); empty optional parts are left out. The dry run builds the
- * same body and stops before fetch (facts F2.6).
+ * same body and stops before fetch.
  */
 export function buildBrevoPayload({
   from,

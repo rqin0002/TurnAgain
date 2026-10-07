@@ -7,7 +7,7 @@ import FormField from '@/shared/components/FormField.vue'
 import { recordIdFrom } from '../domain/recordDrafts.js'
 
 /**
- * The activity fields (spec 8.2 L985): the view owns the <form>, the summary and the buttons.
+ * The activity fields: the view owns the <form>, the summary and the buttons.
  * Lists take one entry per line. The id appears on a create only and follows the title until the
  * person edits it.
  */

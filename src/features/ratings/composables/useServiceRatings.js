@@ -11,14 +11,14 @@ const runtimeRatingRepository = Object.freeze({ getSummary, getMyRating, saveMyR
 const getSafeErrorMessage = (error) =>
   isRepositoryError(error) ? error.message : GENERIC_RATING_ERROR
 
-/** The code and copy a view renders (StatePanel offline for the connection codes, spec 11). */
+/** The code and copy a view renders (StatePanel offline for the connection codes). */
 const toPrivateError = (error) => ({
   code: isRepositoryError(error) ? error.code : 'unavailable',
   message: getSafeErrorMessage(error),
 })
 
 /**
- * A missing or malformed summary (C3): the listing cannot be rated, and no retry will change that.
+ * A missing or malformed summary: the listing cannot be rated, and no retry will change that.
  * The repository marks it `details.code: 'no-summary'`; its other `not-found`, a missing or
  * unpublished service, is an error with its own message.
  */
@@ -35,10 +35,10 @@ const isValidRepositoryResult = (result) =>
 
 /**
  * Coordinates the public rating summary with the signed-in member's own rating for one service.
- * Reads follow the auth store's `status`, `user` and `identityEpoch` (spec 9.1): private state
+ * Reads follow the auth store's `status`, `user` and `identityEpoch`: private state
  * waits while the store restores, is anonymous when nobody is signed in, and reloads when the
  * identity changes under the same account. Repository work is not cancelled; generation guards
- * keep stale work from changing the UI. Writes go straight to the repository (spec 10.4: no
+ * keep stale work from changing the UI. Writes go straight to the repository (no
  * pending-write queue); the summary a save returns replaces the public one.
  *
  * @param {object} options
@@ -236,7 +236,7 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
         privateErrorMessage.value = privateError.value.message
         privateStatus.value = 'ready'
         if (isUnrateable(error)) {
-          // The save found no summary to update: the listing cannot be rated after all (C3).
+          // The save found no summary to update: the listing cannot be rated after all.
           // The public panel says so and the editor is no longer rendered; no reload changes it.
           ++publicGeneration
           summary.value = null

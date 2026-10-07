@@ -139,7 +139,7 @@ const tryAnotherEmail = () => {
   gap: 0.75rem;
 }
 
-/* Contract breakpoint (spec 10.1): the two actions sit side by side from 576 px. */
+/* Breakpoint: the two actions sit side by side from 576 px. */
 @media (min-width: 576px) {
   .auth-recovery__actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));

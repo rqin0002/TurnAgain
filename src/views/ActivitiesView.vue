@@ -55,7 +55,7 @@ watch([() => route.fullPath, status, () => paged.value.page], () => {
 
 const clearFilters = () => updateCriteria({ search: '', type: '', sort: criteria.value.sort })
 
-// The calendar shows the sessions of the activities the filters keep (spec 7.3 L936).
+// The calendar shows the sessions of the activities the filters keep.
 const calendarSessions = computed(() => catalogue.value.flatMap((row) => row.sessions))
 const calendarEvents = computed(() =>
   toCalendarEvents(
@@ -67,7 +67,7 @@ const calendarEvents = computed(() =>
   ),
 )
 const calendarDate = computed(() => initialCalendarDate(calendarEvents.value, now.value))
-// This page has no session rows: an event opens its activity, which focuses the row (M5-D9).
+// This page has no session rows: an event opens its activity, which focuses the row.
 const openSession = ({ sessionId, activityId }) =>
   router.push({ name: 'activity-detail', params: { activityId }, query: { session: sessionId } })
 

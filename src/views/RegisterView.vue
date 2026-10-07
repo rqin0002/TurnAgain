@@ -38,7 +38,7 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
       redirect: redirectTarget.value ?? null,
     })
     if (outcome === 'registered' && isPageActive) {
-      // The sign-in page reads ?registered=1 (spec 9.2); the store never signs a new account in.
+      // The sign-in page reads ?registered=1; the store never signs a new account in.
       // A 'superseded' registration (another identity signed in from a second tab while the
       // email was sending) navigates nowhere: the store holds that session and the guest-only
       // route handles this page.

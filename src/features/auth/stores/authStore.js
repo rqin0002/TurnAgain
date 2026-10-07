@@ -32,16 +32,16 @@ import {
 import { decideRouteAccess } from '../router/routeAccess.js'
 
 /**
- * The only Pinia store (spec 9.1, 9.3, 9.4; decision M7). One `onAuthStateChanged` listener feeds
+ * The only Pinia store. One `onAuthStateChanged` listener feeds
  * `resolveUser`, the single state machine; navigation, tab visibility and denied repository calls
  * re-validate the profile. The router is handed in by `main.js` (`init({ router })`) and kept in
- * a module variable, never imported, so router -> guard -> store -> router is not a cycle (C1.4).
+ * a module variable, never imported, so router -> guard -> store -> router is not a cycle.
  */
 
 export const READY_TIMEOUT_MS = 8000
 export const PROFILE_CACHE_MS = 60_000
 
-/** RepositoryError.code -> lastError (decision M14). The 8-second race sets 'timeout' itself. */
+/** RepositoryError.code -> lastError. The 8-second race sets 'timeout' itself. */
 export const READ_FAILURES = Object.freeze({
   network: 'offline',
   offline: 'offline',
@@ -62,8 +62,8 @@ const readFailure = (error) => {
   return 'profile-unavailable'
 }
 
-// `profile.uid` is the requested uid: the repository refuses a record that names another one
-// (Astra F4), so the identity is never patched over here.
+// `profile.uid` is the requested uid: the repository refuses a record that names another one,
+// so the identity is never patched over here.
 const toUser = (firebaseUser, profile) =>
   Object.freeze({
     uid: profile.uid,
@@ -100,7 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
   let settleReady = () => undefined
   let readyTimer = null
   /**
-   * The session counter (Astra F1): +1 at the start of every resolution and of `logout()`. Every
+   * The session counter: +1 at the start of every resolution and of `logout()`. Every
    * async entry point captures it and, after each await, stops when it has moved on, so work
    * begun for one identity never writes state, signs out or navigates for the next one.
    */
@@ -108,11 +108,11 @@ export const useAuthStore = defineStore('auth', () => {
   let resolving = null
   let resolvingUid = null
   let lastEvent = { session: 0, uid: null, outcome: 'signed-out' }
-  // What the listener last reported (Astra F2): the SDK notifies identity changes only.
+  // What the listener last reported: the SDK notifies identity changes only.
   let lastEventUid = null
   let listenerEvents = 0
   let revalidating = null
-  // The account register() is creating (A1): `{ email, uid }`, the uid known once createAccount()
+  // The account register() is creating: `{ email, uid }`, the uid known once createAccount()
   // returns; its transient signed-in event is the only event the store ignores.
   let registration = null
   // Why the last 'verification-unsent' outcome could not resend the email; login() rethrows it.
@@ -120,7 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
   let loggingOut = false
   const waiters = []
 
-  /** Every identity change aborts the previous signal so late requests are discarded (spec 9.3). */
+  /** Every identity change aborts the previous signal so late requests are discarded. */
   const bumpEpoch = () => {
     controller.abort()
     controller = new AbortController()
@@ -154,7 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** A protected page whose session ended goes back through the guard (spec 9.5). */
+  /** A protected page whose session ended goes back through the guard. */
   const leaveProtectedRoute = () => {
     const route = router?.currentRoute.value
     if (route?.meta.requiresAuth) {
@@ -163,7 +163,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * The guard's decision, re-run for the page that is showing (Astra F3): a protected route
+   * The guard's decision, re-run for the page that is showing: a protected route
    * entered while the status was 'error' rendered the retry panel, so the role is checked here
    * once the identity is known. The navigation is fired, never awaited; the guard resolves it.
    */
@@ -183,7 +183,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
     })
     readyTimer = setTimeout(() => {
-      // Never signed-out on a timeout: protected routes render the retry panel (spec 9.1, E1).
+      // Never signed-out on a timeout: protected routes render the retry panel.
       if (status.value === 'restoring' || status.value === 'error') {
         status.value = 'error'
         lastError.value = 'timeout'
@@ -193,9 +193,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Refresh the token, then write the Auth email into the profile (spec 9.4). Until the write
+   * Refresh the token, then write the Auth email into the profile. Until the write
    * succeeds the banner stays up and every profile write is refused; Retry runs this again. A
-   * result that lands after the identity moved on changes nothing (Astra F1).
+   * result that lands after the identity moved on changes nothing.
    */
   const syncEmailFor = async (firebaseUser, profile, isCurrent) => {
     emailSyncPending.value = true
@@ -215,14 +215,14 @@ export const useAuthStore = defineStore('auth', () => {
       if (endedSessionReason(error) !== null) {
         throw error
       }
-      // Signed in with the old address on screen until Retry succeeds (Review Focus 2).
+      // Signed in with the old address on screen until Retry succeeds.
       lastError.value = readFailure(error)
       return profile
     }
   }
 
   /**
-   * The state machine of spec 9.1. `isCurrent()` turns false once a newer resolution or a
+   * The state machine. `isCurrent()` turns false once a newer resolution or a
    * logout has started, so a slow resolution never commits, signs out or navigates over it.
    */
   const resolveUser = async (firebaseUser, isCurrent) => {
@@ -249,7 +249,7 @@ export const useAuthStore = defineStore('auth', () => {
           } catch (error) {
             sendFailure = error
           }
-          // signOut() acts on whoever the SDK holds now (Astra F1): never for a newer identity.
+          // signOut() acts on whoever the SDK holds now: never for a newer identity.
           if (!isCurrent()) {
             return 'stale'
           }
@@ -261,7 +261,7 @@ export const useAuthStore = defineStore('auth', () => {
           return 'email-unverified'
         }
         // reload() flips emailVerified locally only; the rules read the token, so refresh it before
-        // the first profile read or write (facts.md 2.1, Review Focus 3).
+        // the first profile read or write.
         await getIdToken(firebaseUser, true)
       }
       if (!isCurrent()) {
@@ -282,7 +282,7 @@ export const useAuthStore = defineStore('auth', () => {
         try {
           profile = await upgradeProfile({ uid: firebaseUser.uid, email: authEmail })
         } catch (error) {
-          // A refused migration is not fatal (C4.2): sign in with the legacy projection and let the
+          // A refused migration is not fatal: sign in with the legacy projection and let the
           // next listener event retry the write.
           if (!isRepositoryError(error) || error.code !== 'permission') {
             throw error
@@ -318,7 +318,7 @@ export const useAuthStore = defineStore('auth', () => {
         leaveProtectedRoute()
         return 'signed-out'
       }
-      // A read failure keeps `user` untouched (spec 9.1); the retry panel takes over.
+      // A read failure keeps `user` untouched; the retry panel takes over.
       status.value = 'error'
       lastError.value = readFailure(error)
       return 'error'
@@ -326,8 +326,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * The identity a running registration created (A1). The SDK reports the new account before
-   * `createAccount()` resolves with its uid (C1.10), so until then it is known by its email.
+   * The identity a running registration created. The SDK reports the new account before
+   * `createAccount()` resolves with its uid, so until then it is known by its email.
    */
   const isRegistrationIdentity = (firebaseUser) =>
     registration !== null &&
@@ -343,13 +343,13 @@ export const useAuthStore = defineStore('auth', () => {
     if (isRegistrationIdentity(firebaseUser)) {
       // The SDK signs the account register() just created in; register() signs it out again. The
       // event moves nothing, not even the session, so that sign-out stays current; every other
-      // identity, including one signed in from a second tab meanwhile, resolves as usual (A1).
+      // identity, including one signed in from a second tab meanwhile, resolves as usual.
       return 'ignored'
     }
     const startedIn = ++session
     const isCurrent = () => startedIn === session
     const uid = firebaseUser?.uid ?? null
-    // A new session never inherits the previous identity's unfinished email sync (Astra F1).
+    // A new session never inherits the previous identity's unfinished email sync.
     emailSyncPending.value = false
     resolvingUid = uid
     const run = resolveUser(firebaseUser, isCurrent)
@@ -392,7 +392,7 @@ export const useAuthStore = defineStore('auth', () => {
       waiters.push({ uid, resolve })
     })
 
-  /** Idempotent; called once from main.js before the router is installed (spec 9.5). */
+  /** Idempotent; called once from main.js before the router is installed. */
   const init = ({ router: appRouter } = {}) => {
     if (appRouter) {
       router = appRouter
@@ -415,7 +415,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if (typeof window !== 'undefined') {
       window.addEventListener(PERMISSION_DENIED_EVENT, (event) => {
-        // The store's own profile writes report through their promise (C4.2).
+        // The store's own profile writes report through their promise.
         if (event.detail?.source !== 'users') {
           void revalidateProfile({ reason: 'permission-denied' })
         }
@@ -424,7 +424,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Re-runs the resolution for the current SDK user and re-arms the timeout (spec 9.1). Before
+   * Re-runs the resolution for the current SDK user and re-arms the timeout. Before
    * the first listener event the SDK is still reloading the persisted user and `currentUser()` is
    * null whoever is signed in, so Retry only waits again: resolving that null would sign a member
    * on a slow link out and park them on the sign-in page when their real event lands.
@@ -441,11 +441,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * Re-read users/{uid} and reconcile (spec 9.3). Waits for a running resolution first (Review
-   * Focus 3); a 'navigation' re-check is skipped for 60 s after a read, while every other reason
-   * re-reads, 'staff-navigation' included (a staff or admin route, decision M6-DA4); the Auth
-   * user is reloaded before comparing emails (facts.md 1e); a failed read keeps status and user
-   * (Review Focus 1); a result that lands after the identity moved on changes nothing (Astra F1).
+   * Re-read users/{uid} and reconcile. Waits for a running resolution first; a 'navigation'
+   * re-check is skipped for 60 s after a read, while every other reason re-reads,
+   * 'staff-navigation' included (a staff or admin route); the Auth user is reloaded before
+   * comparing emails; a failed read keeps status and user; a result that lands after the identity
+   * moved on changes nothing.
    */
   const revalidateProfile = async ({ reason = 'manual' } = {}) => {
     if (resolving !== null) {
@@ -504,7 +504,7 @@ export const useAuthStore = defineStore('auth', () => {
           bumpEpoch()
         }
         if (roleChanged) {
-          // The page stays mounted; only a route the new role may not see is left (decision M7).
+          // The page stays mounted; only a route the new role may not see is left.
           enforceRouteAccess()
         }
         if (!emailSyncPending.value) {
@@ -536,7 +536,7 @@ export const useAuthStore = defineStore('auth', () => {
     return run
   }
 
-  /** Resolves with the user once the resolution has committed the profile (spec 9.1). */
+  /** Resolves with the user once the resolution has committed the profile. */
   const login = async ({ email, password }) => {
     const sinceSession = session
     const eventsBefore = listenerEvents
@@ -544,7 +544,7 @@ export const useAuthStore = defineStore('auth', () => {
     const firebaseUser = await signIn(email, password)
     // The SDK reports identity changes only: signing in as the uid of the last listener event (a
     // failed profile read left the Auth session in place) fires no event, so the resolution runs
-    // from here (Astra F2). Any other sign-in waits for the listener's resolution.
+    // from here. Any other sign-in waits for the listener's resolution.
     const sameIdentity = listenerEvents === eventsBefore && firebaseUser.uid === uidBefore
     let outcome = sameIdentity
       ? await handleAuthEvent(firebaseUser)
@@ -553,7 +553,7 @@ export const useAuthStore = defineStore('auth', () => {
       // This run was superseded. While the newest resolution is still this uid's (the SDK fired
       // its own event after all, or a retry is running) it owns the outcome; once another
       // identity, B or null, has taken over, no event for this uid is coming and this sign-in
-      // ends with nothing rather than waiting forever (A2).
+      // ends with nothing rather than waiting forever.
       const takeover = resolutionFor(firebaseUser.uid, sinceSession)
       outcome = takeover === null ? 'stale' : await takeover
     }
@@ -574,7 +574,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * `reason` becomes the `?reason=` query the sign-in page renders (spec 9.1). The SDK delivers
+   * `reason` becomes the `?reason=` query the sign-in page renders. The SDK delivers
    * the null listener event before `signOut()` resolves; `loggingOut` keeps `resolveUser` from
    * issuing its own `replace` so the one below is the only navigation. The session counter moves
    * first, so anything still running for the identity that is leaving stops at its next await.
@@ -597,7 +597,7 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * Creates the account, sends the verification email and signs out; never a silent sign-in.
    * Resolves 'registered', or 'superseded' when another identity took over while the email was
-   * sending (a sign-in from a second tab): that identity is left signed in and untouched (A1).
+   * sending (a sign-in from a second tab): that identity is left signed in and untouched.
    */
   const register = async ({ email, password, displayName, redirect = null }) => {
     const startedIn = session
@@ -622,7 +622,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** "Send the verification email again": a sign-in attempt does exactly that (C4.12). */
+  /** "Send the verification email again": a sign-in attempt does exactly that. */
   const resendVerification = async ({ email, password }) => {
     try {
       const signedIn = await login({ email, password })
@@ -669,7 +669,7 @@ export const useAuthStore = defineStore('auth', () => {
     ) {
       return
     }
-    // The store's own write: updated in place, no epoch bump (spec 9.1).
+    // The store's own write: updated in place, no epoch bump.
     user.value = toUser(firebaseUser, profile)
     profileReadAt.value = Date.now()
   }
@@ -683,7 +683,7 @@ export const useAuthStore = defineStore('auth', () => {
         applyProfile(profile)
       }
     } catch (error) {
-      // A denied own write is not fed back through the window event (C4.2); re-read here.
+      // A denied own write is not fed back through the window event; re-read here.
       if (startedIn === session && isRepositoryError(error) && error.code === 'permission') {
         void revalidateProfile({ reason: 'write-denied' })
       }

@@ -1,7 +1,7 @@
 /**
  * The one line every surface shows for a failure it cannot name, and the reader of the two error
- * classes' user-facing messages (pre-flight C8). Duck-typed on `name`, so a view or a component,
- * which never imports a data layer (spec 3.3: `views-no-data`, `components-no-data`), renders an
+ * classes' user-facing messages. Duck-typed on `name`, so a view or a component,
+ * which never imports a data layer (`views-no-data`, `components-no-data`), renders an
  * AuthError or a RepositoryError without knowing either class.
  */
 
@@ -19,7 +19,7 @@ export function describeError(error) {
     : GENERIC_FAILURE
 }
 
-/** The codes that get the connection wording (spec 10.2). */
+/** The codes that get the connection wording. */
 export const CONNECTION_ERROR_CODES = Object.freeze(['offline', 'network'])
 
 export const isConnectionError = (error) => CONNECTION_ERROR_CODES.includes(error?.code)

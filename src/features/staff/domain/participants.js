@@ -2,11 +2,11 @@ import { LIVE_BOOKING_STATUSES } from '@/features/bookings/domain/bookingRules.j
 import { formatDate, formatTime } from '@/shared/domain/formatDate.js'
 
 /**
- * The participants of one session on the staff session page (spec 8.4, L997): the table columns
- * (every cell's text is also the export's text, M6-D6), the waitlist position the promotion
- * follows (earliest `waitlistedAt`, then the booking id, exactly the Q10 order), the selection
- * modes, the recipient summary above Send, the "recent promotion" window of M6-D9 and the
- * promotion copy. Bookings are the M5 `projectBooking` shape. Pure.
+ * The participants of one session on the staff session page: the table columns (every cell's
+ * text is also the export's text), the waitlist position the promotion follows (earliest
+ * `waitlistedAt`, then the booking id), the selection modes, the recipient summary above Send,
+ * the "recent promotion" window and the promotion copy. Bookings are the `projectBooking` shape.
+ * Pure.
  */
 
 const STATUS_OPTIONS = Object.freeze([
@@ -105,7 +105,7 @@ const waitlistedTime = (booking) => {
   return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY
 }
 
-/** Position 1, 2, ... of each waitlisted booking: earliest `waitlistedAt`, then id (Q10). */
+/** Position 1, 2, ... of each waitlisted booking: earliest `waitlistedAt`, then id. */
 export function waitlistPositions(bookings) {
   const queue = bookings
     .filter((booking) => booking.status === 'waitlisted')
@@ -129,7 +129,7 @@ export const liveParticipants = (bookings) => bookings.filter(isLiveParticipant)
 
 /**
  * The ids a selection button picks, from every live booking of the session (never only the page
- * or the filtered rows, U12).
+ * or the filtered rows).
  *
  * @param {'all' | 'confirmed' | 'waitlisted'} mode
  */
@@ -139,14 +139,14 @@ export function selectIds(bookings, mode) {
     .map((booking) => booking.id)
 }
 
-/** The live count line beside the selection buttons (drafter addition; U12 "says so"). */
+/** The live count line beside the selection buttons. */
 export function selectionCountText(count, liveCount) {
   return count > 0 && count === liveCount
     ? `All ${count} participants selected`
     : `${count} selected`
 }
 
-/** The summary above Send (L997): the sentence and every selected name, in selection order. */
+/** The summary above Send: the sentence and every selected name, in selection order. */
 export function recipientSummary(selectedBookings, liveCount) {
   const count = selectedBookings.length
   return {
@@ -160,7 +160,7 @@ export function recipientSummary(selectedBookings, liveCount) {
   }
 }
 
-/** How long a promoted row keeps "Send promotion email" after a lost answer (M6-D9). */
+/** How long a promoted row keeps "Send promotion email" after a lost answer. */
 export const RECENT_PROMOTION_MS = 10 * 60 * 1000
 
 /** Confirmed bookings promoted within the window (either side of the device clock). */
@@ -173,7 +173,7 @@ export function recentPromotions(bookings, now) {
   })
 }
 
-/** The promotion line (L997 "explains ... in words"; L773 for the email). */
+/** The promotion line, which explains each outcome in words. */
 export const PROMOTION_MESSAGES = Object.freeze({
   promoted: (reference) => `Promoted ${reference}`,
   'no-free-place': 'There is no free place in this session now. The session has been reloaded.',

@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the public REST API (spec 5.4): the field whitelist that makes the
+ * Pure helpers for the public REST API: the field whitelist that makes the
  * "published only, public fields only" guarantee true, the query grammar, word matching and
  * paging. No Firebase import, so the root Vitest suite tests it without an emulator.
  */
@@ -35,7 +35,7 @@ const compact = (object) =>
 const GEO_PRECISIONS = Object.freeze(['venue', 'area'])
 
 /**
- * `source` carries exactly organisation, url and checkedAt (spec 4.2); anything else is dropped,
+ * `source` carries exactly organisation, url and checkedAt; anything else is dropped,
  * and a source with none of them is omitted rather than published as `{}`, as `publicGeo` does.
  */
 const publicSource = (source) => {
@@ -48,7 +48,7 @@ const publicSource = (source) => {
   return Object.keys(projected).length > 0 ? projected : undefined
 }
 
-/** `geo` is null or exactly latitude, longitude, precision, sourceUrl, checkedAt (spec 4.2). */
+/** `geo` is null or exactly latitude, longitude, precision, sourceUrl, checkedAt. */
 const publicGeo = (geo) => {
   if (geo === null) return null
   if (!geo || typeof geo !== 'object') return undefined
@@ -93,7 +93,7 @@ const PROJECTIONS = Object.freeze({
   source: publicSource,
 })
 
-/** The public whitelist (spec 5.4), derived from the projectors so the two cannot drift. */
+/** The public whitelist, derived from the projectors so the two cannot drift. */
 export const PUBLIC_FIELDS = Object.freeze(['id', ...Object.keys(PROJECTIONS), 'updatedAt'])
 
 /** The public projection of a stored service: whitelisted keys only, nested shapes fixed, `updatedAt` as ISO. */
@@ -143,7 +143,7 @@ const positiveInt = (raw, fallback) => {
 }
 
 /**
- * The query grammar of spec 5.4. Repeated scalar keys take their first value; `action` may repeat.
+ * The query grammar. Repeated scalar keys take their first value; `action` may repeat.
  * @returns {{ ok: true, value: { q: string, actions: string[], sort: string, page: number, pageSize: number } } | { ok: false, fields: Record<string, string> }}
  */
 export function parseApiQuery(query = {}) {
@@ -197,7 +197,7 @@ export function selectServices(records, { q, actions, sort }) {
   return [...selected].sort(byName(sort === 'name-desc' ? -1 : 1))
 }
 
-/** The list envelope of spec 5.4; a page past the end is empty, never clamped, so clients can detect it. */
+/** The list envelope; a page past the end is empty, never clamped, so clients can detect it. */
 export function pageServices(records, { page, pageSize }) {
   const total = records.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))

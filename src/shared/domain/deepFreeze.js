@@ -1,5 +1,5 @@
 /**
- * Freezes a value and everything reachable from it (spec 3.3: domain data is immutable). Plain
+ * Freezes a value and everything reachable from it (domain data is immutable). Plain
  * objects and arrays only; a value that is already frozen is not walked again, so a shared or
  * cyclic reference terminates the walk. Returns the same reference for chaining.
  *

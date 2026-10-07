@@ -4,10 +4,10 @@ import { RouterLink } from 'vue-router'
 import { formatDate } from '@/shared/domain/formatDate.js'
 
 /**
- * "Repair Cafe Clayton also fixes small appliances, next session 12 Oct 2026" (spec 6.1 L864):
- * the activities whose suitable items share a category with the query, from T1's
+ * "Repair Cafe Clayton also fixes small appliances, next session 12 Oct 2026":
+ * the activities whose suitable items share a category with the query, from
  * `selectRelatedActivities` (at most three, each with an upcoming session). The view owns
- * `useActivityCatalogue` and passes the rows down (spec 3.4 L1413); this component imports no
+ * `useActivityCatalogue` and passes the rows down; this component imports no
  * activities composable or data module.
  */
 const props = defineProps({

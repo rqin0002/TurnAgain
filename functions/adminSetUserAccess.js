@@ -11,16 +11,16 @@ import { isLiveAdminAllowed } from './lib/params.js'
 import { assertEnum, assertId, assertNonNegativeInt, requestData } from './lib/validate.js'
 
 /**
- * adminSetUserAccess (spec 5.7: C2, A7, R2, R8, R14, R19, R20, R23). An admin changes another
+ * adminSetUserAccess. An admin changes another
  * account's role or status; a call with neither is a Check. The transition is serialised per
  * target uid by a lease in accessLocks/{uid}. Firestore writes are fenced by the lease inside
  * their own transactions; Auth writes cannot be fenced, so they run only while the lease is
  * believed held (re-checked immediately before and after each) and never after it is known to be
  * lost. The reconcile sets Auth `disabled` from the profile. The role lives in users/{uid} only:
- * no custom claims (E3).
+ * no custom claims.
  */
 
-/** Longer than the 60 s timeoutSeconds, so a takeover happens only after a stall (spec 5.7 step 1). */
+/** Longer than the 60 s timeoutSeconds, so a takeover happens only after a stall (step 1). */
 export const LOCK_LEASE_MS = 90_000
 
 const ADMIN_ROLES = ['admin']
@@ -64,7 +64,7 @@ const tokensRevokedSince = (user, updatedAt) =>
 /** The step-4 signal that the lease was lost after an Auth write: the one re-acquire attempt. */
 class LostAfterAuthWrite extends Error {}
 
-/** A failure the reconcile repaired keeps its code and says so (R20); a raw error becomes internal. */
+/** A failure the reconcile repaired keeps its code and says so; a raw error becomes internal. */
 function reconciled(error, state) {
   const extra = { reconciled: true, status: state.status, authDisabled: state.authDisabled }
   if (error instanceof HttpsError) {
@@ -102,7 +102,7 @@ export async function handleAdminSetUserAccess(
   if (!(await userRef.get()).exists) throw new HttpsError('not-found', 'User not found.')
 
   const holderId = newHolderId()
-  // The last states this execution saw, for a needs-recovery answer (R20).
+  // The last states this execution saw, for a needs-recovery answer.
   const known = { status: null, authDisabled: null }
   let authCalled = false
 
@@ -187,7 +187,7 @@ export async function handleAdminSetUserAccess(
     }
   }
 
-  // R20: after an Auth call, reconcile before giving up; a failing reconcile needs a Check.
+  // After an Auth call, reconcile before giving up; a failing reconcile needs a Check.
   const reconcileOrRecover = async () => {
     try {
       return await reconcile()

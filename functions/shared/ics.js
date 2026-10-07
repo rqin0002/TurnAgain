@@ -1,5 +1,5 @@
 /**
- * iCalendar files (RFC 5545; spec 5.11, decision M5-D7). Pure: the booking email, the session
+ * iCalendar files (RFC 5545). Pure: the booking email, the session
  * broadcast and the SPA's "Add to calendar" Blob build their files here. Times are written in UTC
  * (`Z`), so no VTIMEZONE is needed; lines end in CRLF and fold at 75 octets counted in UTF-8 bytes;
  * TEXT values escape backslash, semicolon, comma and newline. `stamp` (DTSTAMP) is passed in by
@@ -178,7 +178,7 @@ export function buildBookingIcs(booking, { stamp }) {
 }
 
 /**
- * session.ics for the staff broadcast (spec 5.5): METHOD:PUBLISH with the sender as organizer; a
+ * session.ics for the staff broadcast: METHOD:PUBLISH with the sender as organizer; a
  * cancelled session publishes STATUS:CANCELLED with SEQUENCE:1, so a calendar that imported the
  * first file retracts the event. `session` holds ISO instants.
  */

@@ -8,7 +8,7 @@ import FormField from '@/shared/components/FormField.vue'
 import { BOOKING_MESSAGES } from '../domain/bookingMessages.js'
 import { BOOKING_LIMITS, validateBookingInput } from '../domain/bookingValidation.js'
 
-// The review form (spec 7.5 items 1-7, B.1). It validates, then emits the cleaned values; the
+// The review form. It validates, then emits the cleaned values; the
 // view owns the transaction. `submitting` comes back from the view, and AppButton swallows a
 // click while it is busy, so a double click submits once. The page's retry submits the current
 // values through the exposed `submit()`.
@@ -121,8 +121,8 @@ defineExpose({ submit: onSubmit })
     </section>
 
     <!-- FormField stacks its label above the control; a checkbox reads control first, so this one
-    is built by hand with the same wiring (label for, aria-invalid, aria-describedby; R-5c.35). The
-    alert is mounted empty and only its text changes (M5-D17). -->
+    is built by hand with the same wiring (label for, aria-invalid, aria-describedby). The
+    alert is mounted empty and only its text changes. -->
     <div class="booking-form__acknowledge">
       <div class="booking-form__check">
         <input

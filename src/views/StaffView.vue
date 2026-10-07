@@ -7,16 +7,15 @@ import { useStaffCatalogue } from '@/features/staff/composables/useStaffCatalogu
 import { useStaffNavigation } from '@/features/staff/composables/useStaffNavigation.js'
 
 /**
- * The /staff layout (spec 8.1 L977): heading, the sub-navigation and the child route. The parent
+ * The /staff layout: heading, the sub-navigation and the child route. The parent
  * route carries the role meta and the children inherit it; `staff-team` narrows it to admins.
- * The links are paths, not names, because the child routes arrive task by task in milestone 6 and
- * a RouterLink to an unregistered name throws.
+ * The links are paths, not names, because a RouterLink to an unregistered name throws.
  */
 const { currentSection, team } = useStaffNavigation()
 const currentFor = (section) => (currentSection.value === section ? 'page' : undefined)
 
 // The layout loads the staff catalogue once per mount and again after an identity change that
-// keeps staff access (spec 8.1 L979); the catalogue itself empties on every epoch change.
+// keeps staff access; the catalogue itself empties on every epoch change.
 const authStore = useAuthStore()
 const catalogue = useStaffCatalogue()
 onMounted(() => void catalogue.load())

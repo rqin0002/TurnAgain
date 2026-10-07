@@ -11,9 +11,9 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The session vocabulary (spec 4.2, 4.5, C7): no `activityTitle` (the UI joins activities), no
+ * The session vocabulary: no `activityTitle` (the UI joins activities), no
  * `geo` (venue text only). `projectSession` tolerates the legacy `activityTitle` key on the six
- * live documents until the milestone 5 migration removes it, and defaults the fields the seed
+ * live documents until the migration removes it, and defaults the fields the seed
  * adds later (`revision`, `cancellationNoticeAt`).
  */
 
@@ -43,7 +43,7 @@ const REQUIRED_KEYS = new Set([
 ])
 const OPTIONAL_KEYS = new Set(['cancellationNoticeAt', 'revision'])
 export const SESSION_KEYS = Object.freeze([...REQUIRED_KEYS, ...OPTIONAL_KEYS].sort())
-// Tolerated on read only (legacy key on the live documents, removed by the M5 migration).
+// Tolerated on read only (legacy key on the live documents, removed by the migration).
 const LEGACY_KEYS = new Set(['activityTitle'])
 const ALLOWED_KEYS = new Set([...SESSION_KEYS, ...LEGACY_KEYS])
 
@@ -68,7 +68,7 @@ const hasValidRegistration = (session) =>
   (session.registrationType === 'provider' && isHttpsUrl(session.registrationUrl)) ||
   (session.registrationType !== 'provider' && session.registrationUrl === null)
 
-/** `full` is derived from the counters (spec 4.2); cancelled and completed are stated. */
+/** `full` is derived from the counters; cancelled and completed are stated. */
 export const hasConsistentSessionStatus = (session) =>
   !hasKnownCapacity(session) ||
   session.status === 'cancelled' ||
@@ -143,7 +143,7 @@ export function projectSession(documentId, candidate) {
   ) {
     return null
   }
-  // The legacy key is discarded on purpose (C7): sessions carry no title.
+  // The legacy key is discarded on purpose: sessions carry no title.
   const record = { ...candidate }
   delete record.activityTitle
   return {

@@ -6,7 +6,7 @@ import { downloadTextFile } from '../composables/downloadFile.js'
 import { buildCsvExport, buildJsonExport, exportFileName } from '../domain/tableExport.js'
 
 /**
- * Export CSV and Export JSON beside a table's count (spec 8.3 L993, R4): both files carry the
+ * Export CSV and Export JSON beside a table's count: both files carry the
  * same labels and exactly the rows the table holds after its filters and sort (`result.allRows`,
  * every page), as the cell text the screen shows. A truncated read names both files
  * `-incomplete` and marks the JSON. No PDF.
@@ -60,7 +60,7 @@ const offer = (extension) => {
 
 /**
  * Empties the status line first and writes a failure one tick later, so a second failure in a row
- * is a new text change that the polite `role="status"` line announces again (M6-D22).
+ * is a new text change that the polite `role="status"` line announces again.
  */
 const exportAs = async (extension) => {
   const offered = offer(extension)

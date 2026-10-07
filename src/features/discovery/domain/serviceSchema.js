@@ -15,7 +15,7 @@ import {
 import { ITEM_CATEGORY_IDS, deriveItemCategories } from './itemCategories.js'
 
 /**
- * The service vocabulary, once, next to its projector (spec 4.2, 4.5); the rules mirror it.
+ * The service vocabulary, once, next to its projector; the rules mirror it.
  * `projectService` skips a malformed document (returns null) instead of failing the page and
  * fills defaults for the optional fields the eight live documents do not carry yet.
  */
@@ -68,7 +68,7 @@ const isCoordinate = (latitude, longitude) =>
   Number.isFinite(longitude) &&
   Math.abs(longitude) <= 180
 
-/** null, or a located point with its provenance (spec 4.2). */
+/** null, or a located point with its provenance. */
 export function isServiceGeo(geo) {
   return (
     geo === null ||
@@ -84,7 +84,7 @@ export function isServiceGeo(geo) {
 const optionalList = (value, maximumEntries, maximumLength) =>
   value === undefined || isStringList(value, { minimumEntries: 0, maximumEntries, maximumLength })
 
-// The maxima are the rules' (spec 4.4 `isValidService`: `isStringList(d.acceptedItems, 40, 100)`,
+// The maxima are the rules' (`isValidService`: `isStringList(d.acceptedItems, 40, 100)`,
 // `(d.aliases, 20, 100)`, `(d.searchAreas, 20, 100)`, `d.summary.size() <= 600`), checked on every
 // entry where the rules check the first. The one-entry minimum and the non-null suburb and
 // postcode stay stricter than the rules on purpose: the seed and the forms write the intersection.
@@ -140,7 +140,7 @@ export function validateService(candidate) {
   return { isValid: Object.keys(errors).length === 0, errors }
 }
 
-/** A validated public record with ISO timestamps and defaults, or null (skip-and-count, spec 4.5). */
+/** A validated public record with ISO timestamps and defaults, or null (skip-and-count). */
 export function projectService(documentId, candidate) {
   if (
     !ID_PATTERN.test(documentId) ||
@@ -154,8 +154,8 @@ export function projectService(documentId, candidate) {
     source: { ...candidate.source },
     address: candidate.address ?? null,
     geo: candidate.geo ?? null,
-    // Hybrid (spec 6.1): a declared list is kept; an absent or empty one is derived from the
-    // accepted items and aliases, so pre-M4 documents and envelopes still get category matches.
+    // Hybrid: a declared list is kept; an absent or empty one is derived from the
+    // accepted items and aliases, so documents written before the field existed and envelopes still get category matches.
     itemCategories: candidate.itemCategories?.length
       ? [...candidate.itemCategories]
       : deriveItemCategories(candidate),
@@ -170,7 +170,7 @@ export function projectService(documentId, candidate) {
   }
 }
 
-/** `catalogues/current` (spec 4.2), HEAD shape. */
+/** `catalogues/current`, HEAD shape. */
 export function projectCatalogueMetadata(candidate) {
   if (
     !isPlainObject(candidate) ||

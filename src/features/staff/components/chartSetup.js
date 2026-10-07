@@ -1,4 +1,4 @@
-// The only module that imports chart.js (spec 3.4 L235, M6-D20): it registers exactly the pieces the
+// The only module that imports chart.js: it registers exactly the pieces the
 // two Overview bar charts use, so the lazy chunk carries no unused controller, element or plugin.
 import {
   BarController,

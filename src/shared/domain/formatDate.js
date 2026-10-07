@@ -1,7 +1,7 @@
 /**
- * Date and time formatting for Melbourne (spec 7.2). The Melbourne instant formatters live in
+ * Date and time formatting for Melbourne. The Melbourne instant formatters live in
  * functions/shared/melbourneTime.js so the SPA, the email functions and the seed share one
- * implementation (decision M5-D8); this module keeps the SPA's import path and its export names,
+ * implementation; this module keeps the SPA's import path and its export names,
  * and adds the calendar-date formatter, which formats a date without a time zone.
  */
 

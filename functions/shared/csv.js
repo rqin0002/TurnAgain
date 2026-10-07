@@ -1,9 +1,9 @@
 /**
- * CSV for spreadsheets (spec 5.11): a UTF-8 BOM so Excel reads the accents, CRLF row ends
+ * CSV for spreadsheets: a UTF-8 BOM so Excel reads the accents, CRLF row ends
  * (RFC 4180) including after the last row, a quoted cell whenever it holds a quote, a comma or a
  * line break, and a leading apostrophe on any cell that starts with = + - @, a tab, a carriage
- * return or a line feed (the OWASP CSV-injection triggers; the full-width forms are not added,
- * decision M6-D6), so a spreadsheet never evaluates a participant's name as a formula. Pure: the
+ * return or a line feed (the OWASP CSV-injection triggers; the full-width forms are not added),
+ * so a spreadsheet never evaluates a participant's name as a formula. Pure: the
  * staff copy of the session broadcast and the SPA's Export CSV both use it.
  */
 

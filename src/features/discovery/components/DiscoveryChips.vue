@@ -8,7 +8,7 @@ import { FIND_NEARBY_ACTIONS, FIND_NEARBY_RADII } from '../domain/findNearbyQuer
 import { formatActionType } from '../domain/servicePresentation.js'
 
 /**
- * The refinement rows of Find nearby (spec 6.4 L884, decision M6-D24): the toolbar row holds the
+ * The refinement rows of Find nearby: the toolbar row holds the
  * action chips with counts and, at its right end, the one Map | List button (a real button whose
  * label names the other view: "Map" in list view, "List" in map view; shown only while the view
  * says a search has results); then the location chip with the radius and sort as native selects
@@ -18,7 +18,7 @@ import { formatActionType } from '../domain/servicePresentation.js'
 const props = defineProps({
   actionTypes: { type: Array, default: () => [] },
   counts: { type: Object, default: () => ({}) },
-  /** The effective radius (T3 `effectiveRadius`): 2 | 5 | 10 | 20 | 0. */
+  /** The effective radius (`effectiveRadius`): 2 | 5 | 10 | 20 | 0. */
   radius: { type: Number, default: 10 },
   viewportApplied: { type: Boolean, default: false },
   sort: { type: String, default: 'name-asc' },
@@ -110,7 +110,7 @@ const toggleView = () => emit('update:view', isMapView.value ? 'list' : 'map')
     </div>
 
     <div class="discovery-chips__row">
-      <!-- A real toggle (FW-R6): the pressed chip clears the origin, so its pressed state means
+      <!-- A real toggle: the pressed chip clears the origin, so its pressed state means
            what it announces; the unpressed chip asks for the location. -->
       <Chip
         :label="locationLabel"

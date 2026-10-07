@@ -8,11 +8,11 @@ import { isLiveAdminAllowed } from './lib/params.js'
 import { assertId, requestData } from './lib/validate.js'
 
 /**
- * promoteNextBooking (spec 5.6, C4; decisions M6-D9, M6-D10). Staff or admin only. The whole
+ * promoteNextBooking. Staff or admin only. The whole
  * decision runs in one Admin transaction on the session document, so two concurrent promotions
  * serialise: the second re-runs against the updated counters and either promotes the next person
  * or is refused with `no-free-place`. The earliest `waitlistedAt` wins and the document id breaks a
- * tie (Q10, the committed composite index). The writes match the member counter write of the rules
+ * tie (the committed composite index). The writes match the member counter write of the rules
  * (status re-derived from the counters; `revision` and `cancellationNoticeAt` never written), so
  * every later member write on the session still passes the validator. It binds no secret: the
  * staff page asks sendBookingEmail for the `promoted` email afterwards.
@@ -21,7 +21,7 @@ import { assertId, requestData } from './lib/validate.js'
 const STAFF_ROLES = ['staff', 'admin']
 const OPEN_STATUSES = ['scheduled', 'full']
 
-// The refusal code travels in details.code, where the client branches (spec 5.9; ruling PR0-5).
+// The refusal code travels in details.code, where the client branches.
 const refused = (code, message) => new HttpsError('failed-precondition', message, { code })
 
 export async function handlePromoteNextBooking(

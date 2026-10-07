@@ -7,13 +7,13 @@ import DataTable from '@/shared/components/DataTable.vue'
 import { ROLE_LABELS, STATUS_LABELS, TEAM_MESSAGES, accessLine, isRowBusy } from '../domain/team.js'
 
 /**
- * The Team table (spec 8.7 L1009): DataTable over the profiles, with each row's actions from its
+ * The Team table: DataTable over the profiles, with each row's actions from its
  * TeamRow (team.js). The caller's own row reads "That's you" and has no control. Disable asks
  * first in a native <dialog>; Cancel returns focus to the Disable button that opened it; the
  * confirm follows the pending row's busy state (the automatic Check may reach that row while the
  * dialog is open, and useTeam drops an action on a busy row), so a busy row keeps the dialog open
  * with its status line saying why. Each row's status lines are mounted with the row and only their
- * text changes (M6-D22). A row action disables its own control while the row is busy (and Disable
+ * text changes. A row action disables its own control while the row is busy (and Disable
  * and Enable swap), so the action moves focus to that row's status lines (tabindex -1), never
  * leaving it on <body>. When the outcome takes the acted row off the rendered page, out of the
  * filtered rows (a Disable under status=active, a role change under a role filter) or onto another
@@ -56,7 +56,7 @@ const setStatusLines = (uid, element) => {
 }
 /** The row the last action touched: the notice follows it out of the filtered rows. */
 const lastActedUid = ref(null)
-/** Emits a row action, then keeps focus on that row's status lines (M6-D22). */
+/** Emits a row action, then keeps focus on that row's status lines. */
 const act = (uid, name, ...args) => {
   lastActedUid.value = uid
   emit(name, uid, ...args)
@@ -93,7 +93,7 @@ const hiddenText = computed(() => {
 watch(
   hiddenRow,
   (row, previous) => {
-    // The acted row left with the focus on its status lines: the notice takes it (M6-D22).
+    // The acted row left with the focus on its status lines: the notice takes it.
     if (row && !previous) notice.value?.focus()
   },
   { flush: 'post' },
@@ -107,7 +107,7 @@ let confirmedUid = null
 const pendingName = computed(() => pending.value?.displayName ?? '')
 const pendingBusy = computed(() => (pending.value ? busy(pending.value) : false))
 watch(pendingBusy, (busyNow) => {
-  // The confirm turns disabled under the focus: the dialog's status line takes it (M6-D22).
+  // The confirm turns disabled under the focus: the dialog's status line takes it.
   if (busyNow && dialog.value?.open) dialogStatus.value?.focus()
 })
 

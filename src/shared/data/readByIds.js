@@ -5,7 +5,7 @@ import { isValidId } from '@/shared/domain/catalogueValidation.js'
 import { isAbortError, throwIfAborted } from './RepositoryError.js'
 
 /**
- * Reads documents by id in `documentId() in` chunks (Q6, spec 7.7 D6) with per-chunk tolerance:
+ * Reads documents by id in `documentId() in` chunks with per-chunk tolerance:
  * a chunk whose read fails puts its ids in `failedIds` and the loop goes on, so one failed chunk
  * never hides the sessions the others returned. Ids are deduplicated and invalid ones dropped;
  * a document the projector refuses is skipped and counted; an id that is in neither `records`
@@ -41,7 +41,7 @@ export async function readByIds(
         query(collectionReference, where(documentId(), 'in', chunk), limit(chunk.length)),
       )
     } catch (error) {
-      // D6 tolerates a failed read, not a fault in this code: an error without a Firestore code
+      // A failed read is tolerated, not a fault in this code: an error without a Firestore code
       // is a programming error and propagates.
       if (isAbortError(error) || typeof error?.code !== 'string') {
         throw error

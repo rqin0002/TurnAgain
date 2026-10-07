@@ -1,13 +1,12 @@
 /**
- * No-op prediction for the three programmatic map moves (spec 6.4 L882, decisions R18 and R21,
- * amended by M4-D1). Pure: the functions take a map *interface*, the subset of a Leaflet 1.9.4
+ * No-op prediction for the three programmatic map moves. Pure: the functions take a map *interface*, the subset of a Leaflet 1.9.4
  * Map that `NearbyMap.vue` passes through unchanged (`getCenter`, `getZoom`, `getSize`,
  * `project`, `unproject`, `getBoundsZoom`, `latLngToContainerPoint`, `distance`), so they are
  * tested with hand-built numbers and never import `leaflet` (`boundaries/domain-pure`).
  * Bounds are plain `{ south, west, north, east }`; points are `{ x, y }`; latlngs `{ lat, lng }`.
  *
- * Under M4-D1 a `setView`/`fitBounds` at an unchanged view still fires one synchronous `moveend`
- * (facts F1), which the component classifies as the programmatic move's own; these predicates let
+ * Under the programmatic-flag protocol of `NearbyMap.vue`, a `setView`/`fitBounds` at an
+ * unchanged view still fires one synchronous `moveend`, which the component classifies as the programmatic move's own; these predicates let
  * it skip the call entirely so nothing is emitted. `panInside` is the one truly silent call.
  */
 

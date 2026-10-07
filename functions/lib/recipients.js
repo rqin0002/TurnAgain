@@ -1,5 +1,5 @@
 /**
- * The reserved-domain guard of spec 5.5 ("Undeliverable addresses"): addresses under the reserved
+ * The reserved-domain guard for undeliverable addresses: addresses under the reserved
  * top-level names never route, so neither email function ever hands one to Brevo and no bounce
  * reaches the free account. Runs only when the call is not a dry run, so the emulator's `.test`
  * demo accounts still get `dry-run`.

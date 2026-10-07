@@ -15,9 +15,9 @@ import {
 import { recipientSummary } from '../domain/participants.js'
 
 /**
- * "Email participants" on the staff session page (spec 8.4, L997): subject and message prefilled,
+ * "Email participants" on the staff session page: subject and message prefilled,
  * the copy and attachment boxes, the calendar-file note, the recipient summary with every selected
- * name above Send (wherever those people sit in the table, U12), an in-page confirm, the result
+ * name above Send (wherever those people sit in the table), an in-page confirm, the result
  * banner, Retry or Check status and New send by availability, and the previous emails of this
  * session. Without functions in this build the whole form is the capability notice.
  */
@@ -31,7 +31,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['participants-changed', 'settled'])
 
-// The banner line takes focus as a send starts (Send now and Retry unmount at once, M6-D22).
+// The banner line takes focus as a send starts (Send now and Retry unmount at once).
 const bannerLine = ref(null)
 const email = useParticipantEmail({
   sessionId: () => props.sessionId,
@@ -64,7 +64,7 @@ const {
 const summary = computed(() => recipientSummary(props.selectedBookings, props.liveCount))
 const locked = computed(() => state.value === 'confirming' || state.value === 'sending')
 const composing = computed(() => ['composing', 'no-participants'].includes(state.value))
-// The zero-selection rule (L997): with nobody selected, Send needs "Send me a copy". Other
+// The zero-selection rule: with nobody selected, Send needs "Send me a copy". Other
 // checks run on Send, so the person sees which field to fix.
 const needsRecipient = computed(() => summary.value.count === 0 && !copyToSender.value)
 const recipientHint = computed(
@@ -92,7 +92,7 @@ const back = async () => {
   email.cancelConfirm()
   await nextTick()
   // Back from a confirm opened after a settled send leaves Send disabled, and focusing a disabled
-  // button would drop the keyboard to <body> (M6-D22): the control that opened the confirm takes
+  // button would drop the keyboard to <body>: the control that opened the confirm takes
   // it (the main New send is mounted again), else the banner line.
   const target =
     [sendButton.value?.$el, opener, newSendButton.value?.$el].find(

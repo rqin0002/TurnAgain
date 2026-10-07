@@ -4,9 +4,9 @@ import { matchService, resolveItemQuery } from './itemCategories.js'
 import { normalizeForSearch } from './textNormalization.js'
 
 /**
- * The catalogue search (spec 6.1): item-aware matching through `itemCategories.js`, the action
+ * The catalogue search: item-aware matching through `itemCategories.js`, the action
  * chips as an OR filter, and a stable name sort. No location criterion: a typed place becomes an
- * origin with a radius (spec 6.2), never a text filter. `nearest` and `highest-rated` are applied
+ * origin with a radius, never a text filter. `nearest` and `highest-rated` are applied
  * by the results composable on top of the name order.
  */
 
@@ -74,8 +74,8 @@ export function countServicesByAction(services) {
 }
 
 /**
- * One entry per service the item matches, in input order, with the match the card label renders
- * (D4); an empty item explains nothing. The seed's dry run counts these per kind.
+ * One entry per service the item matches, in input order, with the match the card label renders;
+ * an empty item explains nothing. The seed's dry run counts these per kind.
  *
  * @returns {Array<{ id: string, kind: 'direct' | 'category', matchedTerms: string[], categoryLabel: string | null }>}
  */
@@ -93,7 +93,7 @@ export function explainMatches(services, item) {
 }
 
 /**
- * The D4 split: user-selected chips are applied before this call and are never relaxed; only
+ * The action-hint split: user-selected chips are applied before this call and are never relaxed; only
  * the verb-derived hint may be. With a hint, the hinted services are the primary block; when
  * none carries the hinted action, the primary block is empty and every service becomes an
  * "other option" below it.

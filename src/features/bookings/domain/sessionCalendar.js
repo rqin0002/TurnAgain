@@ -13,21 +13,21 @@ import {
 } from './bookingRules.js'
 
 /**
- * Sessions as FullCalendar events (spec 7.3 L936, D7, D8). Pure: the component passes the
+ * Sessions as FullCalendar events. Pure: the component passes the
  * result to `@fullcalendar/vue3`, which this module never imports (domain-pure bans it). Titles
  * carry the meaning ("10:00 am, 3 left"); the tone classes only style it. A calendar of several
- * activities names the activity too ("10:00 am, Repair Cafe Clayton, 3 left", ruling R-5c.37),
+ * activities names the activity too ("10:00 am, Repair Cafe Clayton, 3 left"),
  * so its events are not identical to a screen reader or in the list view. `start` and `end` stay
  * full ISO instants, so the calendar's `timeZone: 'Australia/Melbourne'` places a session after
- * midnight on its Melbourne day (C1.5b).
+ * midnight on its Melbourne day.
  */
 
 // The started, full and limited tests are bookingRules.js's, so an event agrees with its row: a
 // waitlist holding WAITLIST_LIMIT reads "Waitlist full", as the row's "The waitlist is full" does.
 const describeEvent = (session, booking, now) => {
-  // The organiser's cancel leaves the member's booking live (spec 7.7 L956), so it comes first.
+  // The organiser's cancel leaves the member's booking live, so it comes first.
   if (session.status === 'cancelled') return { suffix: 'Cancelled', tone: 'cancelled' }
-  // A waitlist place is not a booked place: the title says which one the member holds (SR4).
+  // A waitlist place is not a booked place: the title says which one the member holds.
   if (booking) {
     return booking.status === 'waitlisted'
       ? { suffix: 'On waitlist', tone: 'booked' }
@@ -89,7 +89,7 @@ export function toCalendarEvents(
 }
 
 /**
- * The Melbourne day of the first event that has not started yet, else of `now` (spec 7.3). It
+ * The Melbourne day of the first event that has not started yet, else of `now`. It
  * takes toCalendarEvents' output, so it never opens on a month whose only session the calendar
  * leaves out, and it shares the rows' started test, so an event starting now has started.
  *

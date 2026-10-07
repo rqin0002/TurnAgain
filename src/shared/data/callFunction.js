@@ -3,7 +3,7 @@ import { capabilities, getFunctionsClient } from '@/firebase/firebaseFunctionsCl
 import { RepositoryError, toRepositoryError } from './RepositoryError.js'
 
 /**
- * The one wrapper every repository uses for a callable (spec 5.9). Gating comes from
+ * The one wrapper every repository uses for a callable. Gating comes from
  * configuration (`capabilities.functions`), never from an error; the Functions SDK loads lazily
  * so public pages never download it.
  *

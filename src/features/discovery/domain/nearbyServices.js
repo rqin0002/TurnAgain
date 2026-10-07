@@ -1,9 +1,9 @@
 import { isCalendarDate, isHttpsUrl } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * Geo maths for the results pipeline (spec 6.4): coordinate checks, the haversine distance, the
+ * Geo maths for the results pipeline: coordinate checks, the haversine distance, the
  * radius filter and the viewport filter. A `venue` geo is a published address; an `area` geo is
- * a postcode centroid (M4-D5), measured and plotted at that point but never routed to. A service
+ * a postcode centroid, measured and plotted at that point but never routed to. A service
  * with `geo: null` is the only one counted as missing a map position.
  */
 
@@ -30,7 +30,7 @@ export function isVenueGeo(geo) {
   return hasGeoShape(geo, ['venue'])
 }
 
-/** The five geo keys with `precision` venue or area: measurable and plottable (M4-D5). */
+/** The five geo keys with `precision` venue or area: measurable and plottable. */
 export function isMappableGeo(geo) {
   return hasGeoShape(geo, ['venue', 'area'])
 }

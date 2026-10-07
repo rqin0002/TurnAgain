@@ -2,9 +2,9 @@ import { compareText } from '@/shared/domain/tableQuery.js'
 import { formatDate } from '@/shared/domain/formatDate.js'
 
 /**
- * The numbers behind the Overview's two charts (spec 8.6 L1005). Pure, and never Chart.js: each
+ * The numbers behind the Overview's two charts. Pure, and never Chart.js: each
  * result is the labels, one value list per series and the same numbers as table rows, so the
- * "View as table" alternative and the canvas can never disagree (spec 10.5; charts are never the
+ * "View as table" alternative and the canvas can never disagree (charts are never the
  * only way to read a number).
  *
  * @typedef {{ labels: string[], series: Array<{ key: string, label: string, values: number[] }>, rows: Array<Record<string, string | number>> }} ChartData

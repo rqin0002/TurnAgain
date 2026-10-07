@@ -28,12 +28,12 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { isValidId } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * Create and edit a service, an activity or a session (spec 8.2 L985, B.1): the record comes from
+ * Create and edit a service, an activity or a session: the record comes from
  * the staff catalogue (edit) or a blank draft (create; `?activity=` preselects a session's
  * activity), the form is one of three explicit templates, and the states are loading, not-found,
  * editing, saving, saved (the banner takes focus), conflict (the draft stays until Reload, which
- * then lists each changed field with "Use mine", M6-D4) and error. A create that succeeds becomes
- * the record's edit page. Nothing is ever removed (C4): archive and cancel are register actions.
+ * then lists each changed field with "Use mine") and error. A create that succeeds becomes
+ * the record's edit page. Nothing is ever removed: archive and cancel are register actions.
  */
 const props = defineProps({
   kind: { type: String, required: true },
@@ -72,7 +72,7 @@ const route = useRoute()
 const router = useRouter()
 const config = computed(() => KINDS[props.kind])
 const isNew = computed(() => props.recordId === '')
-// CP-R5: one instance serves successive records and a page can stay open past Melbourne midnight,
+// One instance serves successive records and a page can stay open past Melbourne midnight,
 // so each save reads the clock; the source badge measures against the last reading.
 const now = shallowRef(new Date())
 const {
@@ -85,7 +85,7 @@ const {
   () => props.kind,
   () => props.recordId,
 )
-// Task 11 (M6-D3): `?correction=` is applied only with an open correction of this very service.
+// `?correction=` is applied only with an open correction of this very service.
 const { notice: correctionNotice, saveWith } = useCorrectionBinding({
   kind: () => props.kind,
   recordId: () => props.recordId,
@@ -108,17 +108,17 @@ const form = useRecordForm({
   save: (values) => saveWith((correctionId) => save(values, { isNew: isNew.value, correctionId })),
   fetchLatest: async () => config.value.toDraft(await fetchLatest()),
   fieldOf: (field) => draftFieldOf(props.kind, field),
-  // M6-D8 after a conflict Reload: a session that gained bookings keeps its time, venue and
+  // After a conflict Reload, a session that gained bookings keeps its time, venue and
   // activity, so "Use mine" cannot put the stale ones back.
   lockedFields: (latest) =>
     props.kind === 'sessions' && hasBookings(latest) ? SESSION_LOCKED_FIELDS : [],
 })
 const { formRef, draft, errors, summary, state, message, conflictFields, submitting } = form
-// M6-D8: a session with bookings keeps its time, venue and activity.
+// A session with bookings keeps its time, venue and activity.
 const locked = computed(() => props.kind === 'sessions' && hasBookings(draft.value))
 
 // An edit starts from the catalogue's record once it is there; a later catalogue refresh (a save
-// elsewhere, an identity change) never resets the draft (E7). A create starts blank.
+// elsewhere, an identity change) never resets the draft. A create starts blank.
 let loadedFromRecord = isNew.value
 watch(
   record,
@@ -131,7 +131,7 @@ watch(
   { immediate: true },
 )
 // History to another record (or between a create and an edit page) keeps this instance, because
-// the staff RouterView is unkeyed (R-6c.15): the form starts over from that page's record, after
+// the staff RouterView is unkeyed: the form starts over from that page's record, after
 // useRecordForm has asked about unsaved changes. The replace that follows a create keeps its saved
 // draft; onSubmit hands it the stored record.
 watch(
@@ -158,10 +158,16 @@ const alertText = computed(() => {
   return ''
 })
 
-// M6-D22: Reload and Use mine remove themselves, so focus moves on to what they leave behind.
+// Reload and Use mine remove themselves, so focus moves on to what they leave behind.
 const pageHeading = ref(null)
 const changesSection = ref(null)
 const changesHeading = ref(null)
+// Try again leaves with its error panel once the reload starts, so focus moves first to the heading
+// that stays mounted over the loading state.
+const retryCatalogue = () => {
+  pageHeading.value?.focus()
+  return catalogue.reload()
+}
 const onReload = async () => {
   await form.reload()
   // A failed fetch keeps the conflict, its Reload and the focus on it; the alert says why.
@@ -189,10 +195,30 @@ const onUseMine = async (field) => {
   }
 }
 
+// A refused save turns Save disabled under the focus, and a failed one re-enables the
+// fieldset after the browser has already moved the focus off the field that submitted with Enter;
+// either way the focus would fall to <body>. An invalid draft already focuses its first field.
+const conflictActions = ref(null)
+const refocusAfterUnsavedSubmit = async (invoker) => {
+  if (state.value === 'conflict') {
+    await nextTick()
+    conflictActions.value?.querySelector('button')?.focus()
+  } else if (state.value === 'error') {
+    await nextTick()
+    if (document.activeElement && document.activeElement !== document.body) return
+    const returnable = invoker?.isConnected && invoker !== document.body
+    ;(returnable ? invoker : formRef.value?.querySelector('button[type="submit"]'))?.focus()
+  }
+}
+
 const banner = ref(null)
 const onSubmit = async () => {
+  const invoker = document.activeElement
   const saved = await form.submit()
-  if (!saved) return
+  if (!saved) {
+    await refocusAfterUnsavedSubmit(invoker)
+    return
+  }
   if (isNew.value) {
     await router.replace({
       name: 'staff-record-edit',
@@ -222,7 +248,7 @@ const onSubmit = async () => {
       variant="error"
       title="The record could not be loaded"
       :error="catalogue.error.value"
-      @retry="catalogue.reload()"
+      @retry="retryCatalogue"
     />
     <div v-else-if="recordState === 'not-found'" class="record-missing">
       <StatePanel
@@ -254,7 +280,7 @@ const onSubmit = async () => {
         </template>
       </div>
 
-      <div v-if="state === 'conflict'" class="record-conflict">
+      <div v-if="state === 'conflict'" ref="conflictActions" class="record-conflict">
         <AppButton variant="secondary" @click="onReload">Reload</AppButton>
       </div>
       <section

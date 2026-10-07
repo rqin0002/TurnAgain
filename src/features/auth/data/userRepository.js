@@ -12,11 +12,11 @@ import {
 } from '../domain/profileSchema.js'
 
 /**
- * users/{uid} on Firestore Lite (spec 9.2, 9.4, 9.6; rules 4.4). Plain async functions; every
+ * users/{uid} on Firestore Lite. Plain async functions; every
  * write runs inside `runTransaction` so `revision` is read and written as `current + 1` in one
- * round trip (the rules refuse anything else, L595) and `updatedAt` is always `serverTimestamp()`.
+ * round trip (the rules refuse anything else) and `updatedAt` is always `serverTimestamp()`.
  * Every error is a RepositoryError; a denied call dispatches `turnagain:permission-denied` with
- * `detail.source = 'users'` so the auth store can tell its own denials from everyone else's (C4.2).
+ * `detail.source = 'users'` so the auth store can tell its own denials from everyone else's.
  */
 
 const SOURCE = 'users'
@@ -64,7 +64,7 @@ const requireServiceId = (serviceId) => {
 
 /**
  * The projection of a stored record, bound to the uid that was asked for: a document at
- * users/{A} whose `uid` field says B is malformed (Astra F4), never an identity to trust, so the
+ * users/{A} whose `uid` field says B is malformed, never an identity to trust, so the
  * role it carries is never returned and the store never writes saved services under the wrong uid.
  */
 const project = (data, expectedUid) => {
@@ -75,7 +75,7 @@ const project = (data, expectedUid) => {
   return profile
 }
 
-// The rules read `resource.data.get('revision', 0)`; a legacy document counts from 0 (R15).
+// The rules read `resource.data.get('revision', 0)`; a legacy document counts from 0.
 const currentRevision = (data) => (Number.isInteger(data.revision) ? data.revision : 0)
 
 const savedIds = (data) => (Array.isArray(data.savedServiceIds) ? data.savedServiceIds : [])
@@ -93,7 +93,7 @@ const writeProfile = (uid, buildUpdate) =>
       throw missing()
     }
     const data = snapshot.data()
-    // Bound to the requested uid before anything is built from the record (Astra F4).
+    // Bound to the requested uid before anything is built from the record.
     const current = project(data, uid)
     const update = buildUpdate(data)
     if (update === null) {
@@ -124,7 +124,7 @@ export async function fetchProfile(uid) {
 }
 
 /**
- * First verified sign-in (spec 9.1): role member, status active, revision 1, no saved services,
+ * First verified sign-in: role member, status active, revision 1, no saved services,
  * both timestamps `request.time`. Create-if-absent: a profile that already exists (another tab
  * won, or an admin provisioned it) is returned untouched and never replaced.
  */
@@ -147,7 +147,7 @@ export async function createProfile({ uid, email, displayName }) {
 }
 
 /**
- * Legacy migration (L595, R9, R15): one owner write that adds `revision: (existing ?? 0) + 1`,
+ * Legacy migration: one owner write that adds `revision: (existing ?? 0) + 1`,
  * keeps an existing `savedServiceIds` or initialises it to `[]`, and syncs `email` to the token
  * email. `profile.email` is the Auth user's email, not the stored one.
  */
@@ -162,14 +162,14 @@ export async function upgradeProfile({ uid, email }) {
   )
 }
 
-/** The email-sync branch (spec 9.4): `email`, `revision`, `updatedAt` and nothing else. */
+/** The email-sync branch: `email`, `revision`, `updatedAt` and nothing else. */
 export async function syncEmail(uid, email) {
   requireUid(uid)
   requireEmail(email)
   return guarded(() => writeProfile(uid, () => ({ email: normalizeEmail(email) })))
 }
 
-/** Owner edit under the active-profile branch (spec 9.6); the rules bound the list at 100. */
+/** Owner edit under the active-profile branch; the rules bound the list at 100. */
 export async function saveService(uid, serviceId) {
   requireUid(uid)
   requireServiceId(serviceId)

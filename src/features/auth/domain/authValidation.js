@@ -1,9 +1,9 @@
 import { normalizeEmail } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * Pure validators for the auth forms (spec 9.2, B.1). Passwords are measured exactly as typed and
- * never returned; every email is normalised once (`normalizeEmail` lives in shared/domain, spec
- * 4.5). Display name 1–50, password 8–128 (decision M9). The display name is measured in UTF-16
+ * Pure validators for the auth forms. Passwords are measured exactly as typed and
+ * never returned; every email is normalised once (`normalizeEmail` lives in shared/domain).
+ * Display name 1–50, password 8–128. The display name is measured in UTF-16
  * code units (`length`), as the rules' `size()` and profileSchema measure it, so a name this
  * validator accepts is one createProfile can store.
  */
@@ -13,7 +13,7 @@ const EMAIL_MAX_LENGTH = 254
 export const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_MAX_LENGTH = 128
 
-/** Shown under the password field before submit (spec 9.2). */
+/** Shown under the password field before submit. */
 export const PASSWORD_RULE = `At least ${PASSWORD_MIN_LENGTH} characters.`
 
 const DISPLAY_NAME_PATTERN = /^[\p{L}\p{M}][\p{L}\p{M} .'’-]*$/u
@@ -124,7 +124,7 @@ export function validatePasswordResetInput(input = {}) {
   return emailOnly(input)
 }
 
-/** The change-email form of the account page (spec 9.4). */
+/** The change-email form of the account page. */
 export function validateEmailChangeInput(input = {}) {
   return emailOnly(input)
 }

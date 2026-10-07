@@ -14,11 +14,10 @@ import { projectActivity } from '../domain/activitySchema.js'
 import { PUBLIC_SESSION_STATUSES, projectSession } from '../domain/sessionSchema.js'
 
 /**
- * Activity and session reads (Q4, Q5, Q7; the by-id session reader Q6 is bookingRepository's,
- * M5-D4). Public reads share a five-minute module cache and persist the last successful read
- * under CACHE_KEYS.activities (published activities and public-status sessions, spec 11); the
- * staff reads live in staff/data/staffRepository.js and are never cached (spec 11). Plain
- * exports, no factory. Malformed documents are skipped and counted, never fatal (spec 4.5).
+ * Activity and session reads (the by-id session reader is bookingRepository's). Public reads share a five-minute module cache and persist the last successful read
+ * under CACHE_KEYS.activities (published activities and public-status sessions); the
+ * staff reads live in staff/data/staffRepository.js and are never cached. Plain
+ * exports, no factory. Malformed documents are skipped and counted, never fatal.
  */
 
 const CACHE_TTL_MS = 5 * 60 * 1000
@@ -28,7 +27,7 @@ export function clearActivityCache() {
   publicCache = null
 }
 
-/** The persisted copy of the last successful public read, or null (spec 11, cached paint). */
+/** The persisted copy of the last successful public read, or null (the cached paint). */
 export function readCachedActivityCatalogue() {
   const hit = readCache(CACHE_KEYS.activities)
   return hit && Array.isArray(hit.value?.activities) && Array.isArray(hit.value?.sessions)
@@ -81,7 +80,7 @@ const readCatalogue = async ({ activitiesQuery, sessionsQuery, signal }) => {
   }
 }
 
-/** Published activities and their public sessions (Q4, Q5). */
+/** Published activities and their public sessions. */
 export async function fetchPublicActivityCatalogue({ signal, force = false } = {}) {
   const cached = force ? null : cachedPublic()
   if (cached) {
@@ -101,7 +100,7 @@ export async function fetchPublicActivityCatalogue({ signal, force = false } = {
   }
 }
 
-/** Public sessions only (the Activities calendar, spec 7.3). */
+/** Public sessions only (the Activities calendar). */
 export async function fetchPublicSessions({ signal } = {}) {
   try {
     throwIfAborted(signal)
@@ -143,7 +142,7 @@ export async function fetchActivity(activityId, { signal } = {}) {
   }
 }
 
-/** One session by id in any status the rules allow the caller to read (Q7). */
+/** One session by id in any status the rules allow the caller to read. */
 export async function fetchSession(sessionId, { signal } = {}) {
   if (!isValidId(sessionId)) {
     throw new RepositoryError('not-found')

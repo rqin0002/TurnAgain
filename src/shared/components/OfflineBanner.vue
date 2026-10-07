@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
-/** "Back online" stays up this long after the connection returns (spec 11). */
+/** "Back online" stays up this long after the connection returns. */
 const BACK_ONLINE_MS = 5000
 
 const props = defineProps({

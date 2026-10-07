@@ -8,7 +8,7 @@ import { useCorrectionReport } from '../composables/useCorrectionReport.js'
 import { CORRECTION_FIELDS, CORRECTION_FIELD_LABELS } from '../domain/correctionValidation.js'
 
 /**
- * "Something wrong with this listing?" on Service Detail (spec 8.5, 6.6): Farah tells staff what
+ * "Something wrong with this listing?" on Service Detail: Farah tells staff what
  * changed; staff check the source before the listing changes. The honeypot `website` sits in a
  * visually hidden, aria-hidden wrapper that keyboard users never reach. Both live lines are
  * mounted from the start and hold text only.

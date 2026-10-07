@@ -1,9 +1,9 @@
 /**
- * The one persisted cache (spec 11, E2): public catalogue data under `turnagain:v1:*` keys in an
+ * The one persisted cache: public catalogue data under `turnagain:v1:*` keys in an
  * envelope `{ v, savedAt, value }`. Every call is wrapped in try/catch because private mode, a
  * blocked storage and thumbnail capture all throw or lose data, and the page must render the same
  * without storage. Timestamps are stored as ISO strings (a Firestore Timestamp would otherwise
- * stringify to `{ seconds, nanoseconds }` and break the cached paint, Review Focus 5).
+ * stringify to `{ seconds, nanoseconds }` and break the cached paint).
  */
 
 export const CACHE_VERSION = 1

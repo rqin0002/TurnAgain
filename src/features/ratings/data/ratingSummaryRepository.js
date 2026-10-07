@@ -9,7 +9,7 @@ import { projectRatingSummary } from '../domain/rankServices.js'
 const CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CONCURRENT_READS = 4
 
-/** id -> { at, summary }; public data, so a plain module cache is enough (spec 10.4). */
+/** id -> { at, summary }; public data, so a plain module cache is enough. */
 const cache = new Map()
 /** id -> number of local writes; a read that started before a write must not overwrite it. */
 const writeVersions = new Map()
@@ -20,7 +20,7 @@ const isPlainRecord = (value) =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
 /**
- * The persisted summaries by service id (spec 11, `turnagain:v1:ratingSummaries`), or null.
+ * The persisted summaries by service id (`turnagain:v1:ratingSummaries`), or null.
  * A restored entry is a saved copy, not a fresh read: the composable shows it as
  * `freshness: 'cached'` with the stored `savedAt`, and it never enters the five-minute memory
  * cache above, so the next read for that id still goes to Firestore.
@@ -116,8 +116,8 @@ const readSummary = async (serviceId) => {
 const CONFIRMED_GONE = new Set(['missing', 'invalid'])
 
 /**
- * Public rating summaries for a list of services (Q3), individually read, at most four in flight,
- * cached for five minutes. A missing or malformed summary is a failure, never a zero (C3), and
+ * Public rating summaries for a list of services, individually read, at most four in flight,
+ * cached for five minutes. A missing or malformed summary is a failure, never a zero, and
  * every failure says why: `missing` (the server answered that no summary exists), `invalid` (a
  * summary that does not project) or `transport` (the read itself failed: offline, unreachable,
  * unavailable). Only a transport failure leaves the persisted copy of that id alone; the other

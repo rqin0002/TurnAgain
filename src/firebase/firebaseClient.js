@@ -6,9 +6,8 @@ import { useEmulators } from './emulators.js'
 const config = useEmulators ? EMULATOR_CONFIG : FIREBASE_CONFIG
 
 /**
- * Empty when the selected configuration is complete. Never throws at import (spec 12.2): a
- * problem is logged once here and the app shell renders it (StatePanel, milestone 3) instead of
- * a blank page.
+ * Empty when the selected configuration is complete. Never throws at import: a problem is
+ * logged once here and the app shell renders it (StatePanel) instead of a blank page.
  */
 export const firebaseConfigProblem = (() => {
   const missing = missingConfigFields(config)

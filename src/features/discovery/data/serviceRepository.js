@@ -13,10 +13,10 @@ import { isValidId } from '@/shared/domain/catalogueValidation.js'
 import { projectCatalogueMetadata, projectService } from '../domain/serviceSchema.js'
 
 /**
- * Public catalogue reads (Q1, Q3). One module-level cache for five minutes, shared by the list
- * and the detail page so list -> detail -> Back is one read (spec 6.6). Plain exports, no factory.
+ * Public catalogue reads. One module-level cache for five minutes, shared by the list
+ * and the detail page so list -> detail -> Back is one read. Plain exports, no factory.
  * A successful read is also persisted under CACHE_KEYS.services (the public projection of the
- * published services, spec 11) so the next visit can paint it before the fetch; the composable
+ * published services) so the next visit can paint it before the fetch; the composable
  * decides when to show it.
  */
 
@@ -27,7 +27,7 @@ export function clearServiceCache() {
   catalogueCache = null
 }
 
-/** The persisted copy of the last successful public read, or null (spec 11, cached paint). */
+/** The persisted copy of the last successful public read, or null (the cached paint). */
 export function readCachedServiceCatalogue() {
   const hit = readCache(CACHE_KEYS.services)
   return hit && Array.isArray(hit.value?.services) ? hit : null
@@ -85,7 +85,7 @@ export async function fetchServiceCatalogue({ signal, force = false } = {}) {
   }
 }
 
-/** One published service by id: the catalogue cache first, then `getDoc` (Q3). */
+/** One published service by id: the catalogue cache first, then `getDoc`. */
 export async function fetchService(serviceId, { signal } = {}) {
   if (!isValidId(serviceId)) {
     throw new RepositoryError('not-found')

@@ -25,7 +25,7 @@ import { formatCheckedDate } from '@/features/discovery/domain/servicePresentati
 const route = useRoute()
 const router = useRouter()
 const { goBack } = useBackNavigation({ name: 'activities' })
-// The staff-only Edit link (spec 8.1 L975); the route meta and the rules guard the form itself.
+// The staff-only Edit link; the route meta and the rules guard the form itself.
 const authStore = useAuthStore()
 const canEdit = computed(() => authStore.canAccess(['staff', 'admin']))
 const {
@@ -41,7 +41,7 @@ const {
   revalidating,
   retry,
 } = useActivityCatalogue()
-// "You're booked, TA-..." on a row (spec 7.3): the member's bookings, loaded only when signed in.
+// "You're booked, TA-..." on a row: the member's bookings, loaded only when signed in.
 const { bookings: myBookings } = useMyBookings({ withSessions: false })
 
 const requestedId = computed(() => {
@@ -111,7 +111,7 @@ const focusSessionRow = (sessionId) => {
   row.focus({ preventScroll: true })
 }
 
-// D8 (spec 7.3 L936): an event opens its row in the list; a row that is not there is said so.
+// An event opens its row in the list; a row that is not there is said so.
 const onSelectSession = async ({ sessionId }) => {
   if (view.value === 'calendar') {
     await setView('list')
@@ -120,8 +120,8 @@ const onSelectSession = async ({ sessionId }) => {
   focusSessionRow(sessionId)
 }
 
-// `?session=<id>` from the Activities calendar (M5-D9): once the entry has loaded, focus the row
-// after the router's #main-content focus (contract section 3.4), then drop the one-shot key. The
+// `?session=<id>` from the Activities calendar: once the entry has loaded, focus the row
+// after the router's #main-content focus, then drop the one-shot key. The
 // view drops the key itself, so the next link with a session is a new value even when the router
 // reuses this instance for another activity.
 const requestedSession = computed(() =>

@@ -3,7 +3,7 @@ import { normalizePagination } from '@/shared/domain/pagination.js'
 import { validateSearchInput } from './searchValidation.js'
 
 /**
- * The `/find-nearby` URL contract, one serialiser (spec 6.3). `parseFindNearbyQuery` is the only
+ * The `/find-nearby` URL contract, one serialiser. `parseFindNearbyQuery` is the only
  * reader of the route query and `toFindNearbyQuery` the only writer; the in-memory state below is
  * the single truth every discovery composable and component works from. Invalid values are
  * dropped in memory (the form shows the field error), nothing ever redirects, coordinates never
@@ -68,7 +68,7 @@ export function parseFindNearbyQuery(query = {}) {
   }
 }
 
-/** The query for a state, keys in contract order, defaults omitted, every value a string. */
+/** The query for a state, keys in the URL contract's order, defaults omitted, every value a string. */
 export function toFindNearbyQuery(state) {
   const query = {}
   if (state.item) query.item = state.item
@@ -115,10 +115,9 @@ const DEVICE_FAILURES = Object.freeze(['denied', 'timeout', 'unavailable', 'unsu
 
 /**
  * The URL after the origin status is known: `near=me` goes when the permission is denied or the
- * device cannot locate (M4-D7), read from the origin status or, when a typed place kept the
- * origin `ready`, from the device's own answer (`deviceStatus`, Astra round 1 P2 #4); and
- * `sort=nearest` survives only while an origin exists or is being acquired (the invariant of
- * spec 6.3). The page is not touched here.
+ * device cannot locate, read from the origin status or, when a typed place kept the
+ * origin `ready`, from the device's own answer (`deviceStatus`); and
+ * `sort=nearest` survives only while an origin exists or is being acquired. The page is not touched here.
  */
 export function canonicalizeFindNearbyState(state, { originStatus, deviceStatus = null }) {
   const next = { ...state, actionTypes: [...state.actionTypes], errors: { ...state.errors } }

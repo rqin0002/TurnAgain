@@ -7,7 +7,7 @@ import { formatDate } from '@/shared/domain/formatDate.js'
 import { daysSinceChecked, isStaleSource } from './registerColumns.js'
 
 /**
- * The Overview's "Needs attention" panel (spec 8.6 L1005, R11, R17): ordered groups of the
+ * The Overview's "Needs attention" panel: ordered groups of the
  * records a staff member should act on, each with its count, up to five item links and a deep
  * link into the register that lists them all. Pure: the catalogue's lists and `now` in, groups
  * out. A cancelled session leaves its group only when `cancellationNoticeAt` is set (an email log
@@ -139,7 +139,7 @@ export function buildAttentionList({ services, activities, sessions, corrections
         label: service.name,
         to: `/staff/services/${service.id}/edit`,
       }),
-      viewAll: '/staff/services?sort=checked:asc',
+      viewAll: '/staff/services?sort=checked:asc&status=published',
     }),
     group({
       id: 'services-without-geo',
@@ -152,14 +152,14 @@ export function buildAttentionList({ services, activities, sessions, corrections
         label: service.name,
         to: `/staff/services/${service.id}/edit`,
       }),
-      viewAll: '/staff/services?onmap=no',
+      viewAll: '/staff/services?onmap=no&status=published',
     }),
   ]
   return groups.filter((entry) => entry.count > 0)
 }
 
 /**
- * The three staff tiles (spec 8.6): open corrections, upcoming TurnAgain sessions and the
+ * The three staff tiles: open corrections, upcoming TurnAgain sessions and the
  * participant emails sent in the last 30 days.
  */
 export function overviewTiles({ corrections, sessions, emailLogs, now }) {

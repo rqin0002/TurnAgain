@@ -10,11 +10,11 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The stored vocabulary of a correction (spec 4.2, 4.5, 8.5), the client mirror of the rules'
+ * The stored vocabulary of a correction, the client mirror of the rules'
  * `isValidCorrection`. Lengths are UTF-16 code units (`.length`), which is what the rules'
- * `string.size()` counts (contract section 3 T1, rehearsal R3). A message and a resolution note
+ * `string.size()` counts. A message and a resolution note
  * may hold tab, line feed and carriage return (`hasNoControlChars`); the service name is one line
- * (`isSingleLineText`). Task 11 appends the public form's input validation. Pure.
+ * (`isSingleLineText`). The public form's input validation follows. Pure.
  */
 
 export const CORRECTION_FIELDS = Object.freeze([
@@ -94,7 +94,7 @@ export function validateCorrection(candidate) {
   return { isValid: Object.keys(errors).length === 0, errors }
 }
 
-/** A stored correction with ISO instants, or null (skip and count, spec 4.5). */
+/** A stored correction with ISO instants, or null (skip and count). */
 export function projectCorrection(id, candidate) {
   if (!isValidId(id) || !validateCorrection(candidate).isValid) {
     return null
@@ -116,7 +116,7 @@ export function projectCorrection(id, candidate) {
   }
 }
 
-/** What the public form offers for `field` (spec 8.5), in the order of CORRECTION_FIELDS. */
+/** What the public form offers for `field`, in the order of CORRECTION_FIELDS. */
 export const CORRECTION_FIELD_LABELS = Object.freeze({
   address: 'Address or location',
   hours: 'Opening hours',
@@ -126,7 +126,7 @@ export const CORRECTION_FIELD_LABELS = Object.freeze({
   other: 'Something else',
 })
 
-/** The public form's error copy (contract T11). */
+/** The public form's error copy. */
 export const CORRECTION_INPUT_MESSAGES = Object.freeze({
   field: 'Choose what is wrong.',
   messageShort: 'Tell us in at least 10 characters.',
@@ -143,7 +143,7 @@ const correctionMessageError = (text) => {
 }
 
 /**
- * The public form's input (spec 8.5, B.1): `field` one of the six values; `message` with CRLF and
+ * The public form's input: `field` one of the six values; `message` with CRLF and
  * CR made LF, trimmed, 10-1,000 UTF-16 units (the rules' `size()`) and no control character but
  * a line feed; `reporterEmail` optional, lower-cased, the rules' address shape. `website` is the
  * honeypot: a person never sees it, so any text there marks the submission as spam, which the
@@ -173,7 +173,7 @@ export function validateCorrectionInput({ field, message, reporterEmail, website
 }
 
 /**
- * The new correction document without its two timestamps (drafter addition): the repository adds
+ * The new correction document without its two timestamps: the repository adds
  * `createdAt` and `updatedAt` as server timestamps, and tests/api builds the same document, so the
  * rules are proven against exactly what the browser writes.
  */

@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { toBookingsChartData } from '../domain/chartData.js'
 import ChartCanvas from './ChartCanvas.vue'
 
-// Grouped bars Booked / Waitlist / Capacity for the next eight TurnAgain sessions (spec 8.6).
+// Grouped bars Booked / Waitlist / Capacity for the next eight TurnAgain sessions.
 const props = defineProps({
   sessions: { type: Array, required: true },
   activitiesById: { type: Map, required: true },

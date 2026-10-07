@@ -1,5 +1,5 @@
 <script setup>
-// A pressable filter or option: a real <button> with aria-pressed (spec 10.2), so the pressed
+// A pressable filter or option: a real <button> with aria-pressed, so the pressed
 // state is announced and the 44 px target is the button itself.
 defineProps({
   label: { type: String, required: true },

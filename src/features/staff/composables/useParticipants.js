@@ -14,8 +14,8 @@ import {
 const STAFF_ROLES = Object.freeze(['staff', 'admin'])
 
 /**
- * One session's participants and the staff member's selection (spec 8.4, R4, U12). The bookings
- * are read with the identity signal, held in memory only (spec 11) and dropped on an identity
+ * One session's participants and the staff member's selection. The bookings
+ * are read with the identity signal, held in memory only and dropped on an identity
  * change. The selection belongs to the session, not to the table: a filter or a page change never
  * changes it, the select buttons pick from every live booking, and a reload drops the ids that
  * are no longer confirmed or waitlisted.

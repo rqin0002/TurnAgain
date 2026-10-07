@@ -3,9 +3,9 @@ import { RouterLink } from 'vue-router'
 
 import AppButton from '@/shared/components/AppButton.vue'
 
-// The "Needs attention" panel (spec 8.6 L1005): each group of attention.js with its count, up to
+// The "Needs attention" panel: each group of attention.js with its count, up to
 // five item links and View all; past sessions offer Mark completed in place. When any list the
-// groups were built from was cut at 1,000 records the heading says so (C8).
+// groups were built from was cut at 1,000 records the heading says so.
 defineProps({
   groups: { type: Array, required: true },
   truncated: { type: Boolean, default: false },

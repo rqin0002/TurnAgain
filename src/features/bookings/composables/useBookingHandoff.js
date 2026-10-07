@@ -3,11 +3,10 @@ import { shallowRef } from 'vue'
 import { useAuthStore } from '@/features/auth/stores/authStore.js'
 
 /**
- * The confirmation hand-off (spec 7.6 L950, D5): the review leaves the transaction's outcome here
+ * The confirmation hand-off: the review leaves the transaction's outcome here
  * for exactly one consumption by the confirmation page. It lives in memory only (never Firestore,
  * storage or the URL), so a refresh or a later visit never shows the waitlist position again. A
- * value set under another identity, or for another booking, is cleared without being returned
- * (N6).
+ * value set under another identity, or for another booking, is cleared without being returned.
  */
 const handoff = shallowRef(null)
 

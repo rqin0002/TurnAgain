@@ -8,7 +8,7 @@ import { fetchTeamUser, listUsers, setUserAccess } from '../data/teamRepository.
 import { initialTeamRow, isRowBusy, reduceTeamRow } from '../domain/team.js'
 
 /**
- * The Team tab (spec 8.7 L1009, R19, R20, R25): lists every profile, then Checks the rows one
+ * The Team tab: lists every profile, then Checks the rows one
  * after another (never the caller's own row, which the function refuses), so each row shows its
  * profile status and its sign-in state; runs a row's Apply, Disable, Enable, Check and Retry
  * through the state machine of team.js. A revision mismatch, a lost lease or a reconciled failure
@@ -16,8 +16,8 @@ import { initialTeamRow, isRowBusy, reduceTeamRow } from '../domain/team.js'
  * conflict) one silent re-Check follows under the kept notice; `in-progress` re-Checks after
  * `retryAfterMs`. Memory only: an identity
  * change aborts the reads, clears the rows and the timers, and loads again for an admin. Reads
- * take the identity signal; the callable does not (a write is not cancelled by navigation, E7).
- * Loads on mount only when `isStaffFunctionsEnabled()` (Task 6, the StaffView sub-navigation's own
+ * take the identity signal; the callable does not (a write is not cancelled by navigation).
+ * Loads on mount only when `isStaffFunctionsEnabled()` (the StaffView sub-navigation's own
  * getter) is true.
  */
 export function useTeam() {
@@ -142,7 +142,7 @@ export function useTeam() {
       status.value = 'error'
       return
     }
-    // One Check at a time keeps the tab inside the function's three instances (R25).
+    // One Check at a time keeps the tab inside the function's three instances.
     for (const row of rows.value) {
       if (run !== generation) return
       if (!row.self) await check(row.uid)

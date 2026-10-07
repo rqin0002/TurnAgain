@@ -9,11 +9,11 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The records the staff side holds (spec 8.1, contract section 2.1): the public projectors' shapes
- * with the stored `revision ?? 0`, because the rules' `isStaffUpdate` steps from the stored value
- * (`before.get('revision', 0) + 1`, R1) and the projectors' `?? 1` default would make a legacy
+ * The records the staff side holds: the public projectors' shapes with the stored
+ * `revision ?? 0`, because the rules' `isStaffUpdate` steps from the stored value
+ * (`before.get('revision', 0) + 1`) and the projectors' `?? 1` default would make a legacy
  * record's first save a conflict. A session also says whether the stored document carries
- * `cancellationNoticeAt`, so its first save can add the key (R16). Pure.
+ * `cancellationNoticeAt`, so its first save can add the key. Pure.
  */
 
 export const STAFF_KINDS = Object.freeze(['services', 'activities', 'sessions'])
@@ -82,7 +82,7 @@ const EMAIL_LOG_KEYS = new Set([
   'sentAt',
 ])
 
-/** One "Previous emails" row (Q12), or null when the stored row is not the nine-key shape. */
+/** One "Previous emails" row, or null when the stored row is not the nine-key shape. */
 export function projectEmailLog(id, data) {
   if (
     !isValidId(id) ||

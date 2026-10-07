@@ -18,9 +18,9 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { useTableState } from '@/shared/composables/useTableState.js'
 
 /**
- * The Service Register (spec 8.3, D.3, E.4): every service in any status from the staff
+ * The Service Register: every service in any status from the staff
  * catalogue, filtered, sorted and paged in the URL (`useTableState`), exported as the rows on
- * screen. A failed refresh keeps the register this session loaded (spec 11) and says so.
+ * screen. A failed refresh keeps the register this session loaded and says so.
  */
 const catalogue = useStaffCatalogue()
 const { state, result, totalCount, setFilter, clearFilters, setSort, setPage } = useTableState(
@@ -48,7 +48,7 @@ onMounted(() => {
 onBeforeUnmount(() => window.clearInterval(clock))
 const staleDays = (row) =>
   isStaleSource(row, now.value) ? daysSinceChecked(row.source.checkedAt, now.value) : null
-// Archive and Restore (spec 8.2, C4): one row at a time, the result in a mounted status line that
+// Archive and Restore: one row at a time, the result in a mounted status line that
 // takes focus once the change settles (the row's button is swapped by then).
 const statusLine = ref(null)
 const {
@@ -56,11 +56,20 @@ const {
   message: statusMessage,
   setStatus,
 } = useRecordStatus({ focusTarget: statusLine })
+// Try again leaves with its error panel once the reload starts, so focus moves first to the heading
+// that stays mounted over the loading state.
+const heading = ref(null)
+const retry = () => {
+  heading.value?.focus()
+  return catalogue.reload()
+}
 </script>
 
 <template>
   <section class="staff-section" aria-labelledby="staff-services-heading">
-    <h2 id="staff-services-heading" class="section-title" tabindex="-1">Service register</h2>
+    <h2 id="staff-services-heading" ref="heading" class="section-title" tabindex="-1">
+      Service register
+    </h2>
     <p class="staff-section__lead">
       <RouterLink class="button button--primary" to="/staff/services/new">New service</RouterLink>
     </p>
@@ -71,7 +80,7 @@ const {
       variant="error"
       title="The service register could not be loaded"
       :error="catalogue.error.value"
-      @retry="catalogue.reload()"
+      @retry="retry"
     />
     <template v-else>
       <p class="staff-section__notice" role="status">{{ refreshNotice }}</p>

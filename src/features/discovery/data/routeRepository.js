@@ -3,7 +3,7 @@ import { RepositoryError, isAbortError, throwIfAborted } from '@/shared/data/Rep
 import { isCoordinate } from '../domain/nearbyServices.js'
 
 /**
- * The OSRM fetch (spec 6.5, M4-D11): FOSSGIS's routed-{foot|bike|car} servers, from the browser,
+ * The OSRM fetch: FOSSGIS's routed-{foot|bike|car} servers, from the browser,
  * no key. The policy is one request per second and attribution, so a module-level gate refuses a
  * second request inside the window, a module-level memo (memory only, never storage) answers a
  * repeat without a request, and every fetch carries an 8 s timeout. Every failure maps to

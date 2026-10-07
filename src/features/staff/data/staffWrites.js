@@ -16,14 +16,14 @@ import { RepositoryError, toRepositoryError } from '@/shared/data/RepositoryErro
 import { COLLECTION_OF_KIND } from '../domain/staffRecords.js'
 
 /**
- * The staff content writes (spec 8.1 L981, 4.4 R1/R13, C3, C4), built on a Firestore Lite `db`
+ * The staff content writes, built on a Firestore Lite `db`
  * the caller passes, so the app hands in its singleton (staffRepository.js) and tests/api hands in
  * an emulator client signed in as staff (the bookingTransactions.js pattern). Every update carries
  * the content fields, `revision: loaded + 1` and `updatedAt`, never a counter; a create writes
  * `revision: 1` and both stamps; a new service writes its zero rating summary in the same batch
- * (C3). Nothing is ever deleted (C4). A refused write is classified by re-reading the record
- * (R13): a stored revision that moved is a conflict, an invalid record is invalid-data, anything
- * else stays permission. Writes never take the identity signal (E7): a sent write cannot be
+ * Nothing is ever deleted. A refused write is classified by re-reading the record:
+ * a stored revision that moved is a conflict, an invalid record is invalid-data, anything
+ * else stays permission. Writes never take the identity signal: a sent write cannot be
  * recalled, so its result is never discarded.
  */
 
@@ -123,7 +123,7 @@ const contentOf = (kind, record) => {
 
 /**
  * A session update also drops the legacy title and adds the notice key when the stored session
- * lacks it (R16, R22, R24). Once the key exists only the email function and "Mark participants
+ * lacks it. Once the key exists only the email function and "Mark participants
  * notified" set it, so an update never sends it.
  */
 const sessionUpdateExtras = (noticeFieldStored) => ({
@@ -175,12 +175,12 @@ const asStored = (kind, record, { isNew }) => {
 }
 
 /**
- * R13: a refused write (`mapped.code === 'permission'`; toRepositoryError has already fired the
- * permission-denied event, which re-validates the profile, N1) is re-read. A stored revision other
+ * A refused write (`mapped.code === 'permission'`; toRepositoryError has already fired the
+ * permission-denied event, which re-validates the profile) is re-read. A stored revision other
  * than the loaded one is a conflict; so are a session's counters moved by a booking since the load
  * (member writes leave the revision alone, so the status the form derived may be stale); a create
  * whose id now exists is a duplicate; a save bound to a correction (`correctionId`) that is no
- * longer open is `correction-not-open` (M6-D3: once another window has applied or dismissed it,
+ * longer open is `correction-not-open` (once another window has applied or dismissed it,
  * the rules refuse the whole batch); a record the client validators refuse is invalid-data with
  * the field reasons; anything else stays as mapped. A re-read that fails returns `mapped`.
  */
@@ -268,7 +268,7 @@ const transact = async (db, kind, record, { isNew = false } = {}, run) => {
   }
 }
 
-/** M6-D4: a create checks the id before the batch, so a collision is never "changed elsewhere". */
+/** A create checks the id before the batch, so a collision is never "changed elsewhere". */
 const assertNewId = async (db, kind, id) => {
   let snapshot
   try {
@@ -288,8 +288,8 @@ const createFields = () => ({
 })
 
 /**
- * A service create (with the zero summary, C3) or update; with `correctionId`, the same batch marks
- * that correction applied (spec 8.2 L985, M6-D3: the caller has checked it is open and about this
+ * A service create (with the zero summary) or update; with `correctionId`, the same batch marks
+ * that correction applied (the caller has checked it is open and about this
  * service). If another window handles the correction first, the rules refuse the whole batch and
  * the refusal reads conflict `correction-not-open`; the caller then saves without it.
  */
@@ -331,7 +331,7 @@ export async function writeService(
   return { id: record.id, revision }
 }
 
-/** An activity create or update: one document (sessions carry no title, C7). */
+/** An activity create or update: one document (sessions carry no title). */
 export async function writeActivity(db, record, { isNew = false } = {}) {
   if (isNew) await assertNewId(db, 'activities', record.id)
   const ref = doc(db, 'activities', record.id)
@@ -353,9 +353,9 @@ export async function writeActivity(db, record, { isNew = false } = {}) {
 
 /**
  * A session create (scheduled, counters 0/0 or null/null, no notice yet) or content update. The
- * counters are never sent on an update (invariant 3); the status is re-derived from the loaded
+ * counters are never sent on an update; the status is re-derived from the loaded
  * counters and the new capacity while the session is open, and kept when cancelled or completed.
- * A member's booking moves the counters without the revision (rules lines 1007-1020), so the
+ * A member's booking moves the counters without the revision, so the
  * rules alone cannot tell that the loaded counters are stale: the update runs in a transaction
  * that reads the stored session first and refuses the edit as `counters-moved` when either
  * counter differs from the loaded one, before anything is written. The same read decides the
@@ -407,7 +407,7 @@ const invalidTransition = () =>
     details: { code: 'invalid-transition' },
   })
 
-/** "Mark participants notified" (spec 8.4, R11): a cancelled session whose notice is unset. */
+/** "Mark participants notified": a cancelled session whose notice is unset. */
 export async function writeParticipantsNotified(db, session) {
   if (session.status !== 'cancelled' || session.cancellationNoticeAt !== null) {
     throw invalidTransition()
@@ -425,7 +425,7 @@ export async function writeParticipantsNotified(db, session) {
 }
 
 /**
- * Archive or restore a service or activity, cancel or complete a session (spec 8.2, C4). The
+ * Archive or restore a service or activity, cancel or complete a session. The
  * whole content goes with the status, so a legacy document that lacks optional keys meets the
  * rules' exact key list on its first status change. The loaded record's notice flag is safe here:
  * only an open session changes status, and the email function stamps the notice of a cancelled one.
@@ -448,19 +448,19 @@ export async function writeRecordStatus(db, kind, record, status) {
   return { id: record.id, revision }
 }
 
-/** The refusal copy of a triage that came too late (contract T11). */
+/** The refusal copy of a triage that came too late. */
 export const CORRECTION_HANDLED_MESSAGE = 'This correction was already handled.'
 
 const CORRECTION_OUTCOMES = Object.freeze(['applied', 'dismissed'])
 
 /**
- * Staff triage of one open correction (spec 8.5; rules L575-579 with M6-D3's open-only clause):
+ * Staff triage of one open correction (the rules accept an open correction only):
  * `status` applied or dismissed, an optional note, `resolvedBy` the signed-in uid and both
  * instants from the server, written as a one-update batch like every other staff write. The rules
  * refuse a correction that is no longer open; that refusal is re-read so it reads as "already
  * handled" (`conflict` `not-open`) rather than as lost access. The re-read runs after
  * `toRepositoryError`, which has already raised the permission-denied event, so a real downgrade
- * still re-validates the profile (N1).
+ * still re-validates the profile.
  *
  * @returns {Promise<{ id: string, status: 'applied' | 'dismissed' }>}
  */

@@ -16,14 +16,14 @@ import { normalizeEmail } from '@/shared/domain/catalogueValidation.js'
 import { toAuthError } from './AuthError.js'
 
 /**
- * Plain wrappers over Firebase Auth (spec 9.2, decision M6): one function per SDK call, every
+ * Plain wrappers over Firebase Auth: one function per SDK call, every
  * rejection mapped to AuthError, no profile logic (that is userRepository.js and the store),
  * no factory.
  */
 
 /**
  * A reset request never reveals whether an account exists: the emulator rejects an unknown
- * address (facts.md 1f) while production resolves, so both answer the same way here.
+ * address while production resolves, so both answer the same way here.
  */
 const SILENT_RESET_CODES = new Set([
   'auth/user-not-found',
@@ -32,10 +32,10 @@ const SILENT_RESET_CODES = new Set([
 ])
 
 /**
- * Verification links return to the sign-in page with `?verified=1` (spec 9.2). The origin is the
+ * Verification links return to the sign-in page with `?verified=1`. The origin is the
  * running site's: localhost and the emulator are authorised by default; `turnagain.pages.dev` is
- * added to the Auth authorised domains when Pages exists (docs/DEPLOYMENT.md, spec 12.3). When the
- * registration had one, the link also carries its already-resolved `redirect` (spec 7.4).
+ * added to the Auth authorised domains when Pages exists (docs/DEPLOYMENT.md). When the
+ * registration had one, the link also carries its already-resolved `redirect`.
  */
 const continueSettings = (redirect = null) => {
   if (typeof window === 'undefined') return undefined
@@ -98,7 +98,7 @@ const removeNamelessAccount = async (user, email, password) => {
 }
 
 /**
- * Creates the account and folds `updateProfile` (spec 9.1); the SDK signs the new user in. When
+ * Creates the account and folds `updateProfile`; the SDK signs the new user in. When
  * the name cannot be stored the registration fails as a whole: the nameless account is signed
  * out and removed (removeNamelessAccount) so its profile is never created as 'Member', and the
  * caller sees the name failure's code whether or not the removal succeeds.
@@ -133,7 +133,7 @@ export function requestPasswordReset(email) {
   })
 }
 
-/** `verifyBeforeUpdateEmail` (spec 9.4): the Auth email changes when the link is opened. */
+/** `verifyBeforeUpdateEmail`: the Auth email changes when the link is opened. */
 export function requestEmailChange(user, newEmail) {
   return guarded(() => verifyBeforeUpdateEmail(user, normalizeEmail(newEmail)))
 }
@@ -146,7 +146,7 @@ export function reloadUser(user) {
   })
 }
 
-/** `force` refreshes the ID token so the rules see new claims (facts.md 2.1). */
+/** `force` refreshes the ID token so the rules see new claims. */
 export function getIdToken(user, force = false) {
   return guarded(() => user.getIdToken(force))
 }
@@ -155,7 +155,7 @@ export function currentUser() {
   return firebaseAuth.currentUser
 }
 
-/** The single auth subscription (spec 9.1); returns the SDK's unsubscribe function. */
+/** The single auth subscription; returns the SDK's unsubscribe function. */
 export function onAuthChanged(callback) {
   return onAuthStateChanged(firebaseAuth, callback)
 }

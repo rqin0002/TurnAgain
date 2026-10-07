@@ -3,10 +3,10 @@ import { shallowRef } from 'vue'
 import { CACHE_KEYS, clearCache, readCache, writeCache } from '@/shared/data/localCache.js'
 
 /**
- * The last search (spec 11, `turnagain:v1:lastSearch`): `item`, `location`, `actionTypes` and a
+ * The last search (`turnagain:v1:lastSearch`): `item`, `location`, `actionTypes` and a
  * `sort` other than nearest, nothing else, so Home can prefill the form. Never `near`, never
  * coordinates, never the view, the follow flag or the page. A composable so no view imports
- * `shared/data` directly (spec 3.3).
+ * `shared/data` directly.
  */
 
 const LAST_SEARCH_SORTS = ['name-asc', 'name-desc', 'highest-rated']

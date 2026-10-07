@@ -5,7 +5,7 @@ import { distanceKm, isCoordinate, isVenueGeo } from '../domain/nearbyServices.j
 import { estimateTrip } from '../domain/trip.js'
 
 /**
- * The trip state of Service Detail (spec 6.5, D1): `estimate` is the straight-line fallback for
+ * The trip state of Service Detail: `estimate` is the straight-line fallback for
  * a venue (never for an `area` record), `request(mode)` asks FOSSGIS once per click, and the
  * status says what the panel renders: `ready` with a route (or, for public transport, the links
  * alone), `estimated` after a refusal or a failed fetch (the estimate plus the links, with
@@ -40,7 +40,7 @@ export function useTripRoute({ origin, destination, serviceId, loader = getRoute
   }
 
   // The rate gate's wait outlives a reset: a mode change must not re-enable Directions before the
-  // window the router asked for has passed (decision M4-D11).
+  // window the router asked for has passed.
   const reset = () => {
     cancelPending()
     status.value = 'idle'

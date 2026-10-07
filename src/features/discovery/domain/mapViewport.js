@@ -1,5 +1,5 @@
 /**
- * The viewport reducer (spec 6.4, D2, M4-D1): `mapBounds` follows every `moveend`, while
+ * The viewport reducer: `mapBounds` follows every `moveend`, while
  * `appliedViewport`, the filter the results pipeline uses, changes only on "Search this area" or
  * on a user move with "Update as map moves" on. A programmatic move never applies and never
  * offers "Search this area". Pure: the component reports the events, the view dispatches them.
@@ -25,7 +25,7 @@ export function boundsEqual(left, right, toleranceDeg = 1e-6) {
 const KM_PER_DEGREE = 111.32
 
 /**
- * The box a radius choice frames: the dashed ring around the origin (FW-R4). A flat
+ * The box a radius choice frames: the dashed ring around the origin. A flat
  * approximation, fine at Victorian latitudes for 2 to 20 km.
  *
  * @returns {{ south: number, west: number, north: number, east: number }}

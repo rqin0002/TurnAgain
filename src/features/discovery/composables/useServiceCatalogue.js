@@ -5,8 +5,8 @@ import { useStaleWhileRevalidate } from '@/shared/composables/useStaleWhileReval
 import { fetchServiceCatalogue, readCachedServiceCatalogue } from '../data/serviceRepository.js'
 
 /**
- * Owns the asynchronous lifecycle for the public service catalogue, stale-while-revalidate
- * (spec 11): a persisted copy paints first with `freshness: 'cached'`, the fetch replaces it with
+ * Owns the asynchronous lifecycle for the public service catalogue, stale-while-revalidate:
+ * a persisted copy paints first with `freshness: 'cached'`, the fetch replaces it with
  * `'fresh'`, and a failed fetch keeps whatever is showing (the view says "Showing results saved
  * {relative time}"). Nothing is cleared when a load starts; the error panel is for a failure
  * with nothing to show. The load state itself is useStaleWhileRevalidate's.

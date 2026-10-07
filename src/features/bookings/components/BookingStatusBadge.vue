@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import { BOOKING_MESSAGES } from '../domain/bookingMessages.js'
 
-// A booking's status, and its session's when that matters (spec 7.7 L956), as words.
+// A booking's status, and its session's when that matters, as words.
 const props = defineProps({
   status: {
     type: String,

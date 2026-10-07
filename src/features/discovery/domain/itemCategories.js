@@ -3,12 +3,12 @@ import { deepFreeze } from '@/shared/domain/deepFreeze.js'
 import { singularize, tokenize } from './textNormalization.js'
 
 /**
- * The twelve item categories (spec 6.1, 13.4) and the item-aware matcher behind "repair
+ * The twelve item categories and the item-aware matcher behind "repair
  * microwave". Matching is whole-word or whole-phrase only: a term matches a contiguous run of
  * canonical tokens, never a substring, so "environment" never matches "iron". Both sides are
  * canonicalised with `canonical` (tokenised, then singularised token by token).
  *
- * `label` is the lowercase display phrase the D4 card label renders verbatim ("May take small
+ * `label` is the lowercase display phrase the card's match label renders verbatim ("May take small
  * appliances (based on category)"). `terms` are the words or phrases that resolve a query or a
  * catalogue entry to the category; `broadMatches` lists the other categories whose services may
  * also take this category's items (one level, used by `matchService`).
@@ -402,7 +402,7 @@ export const ITEM_CATEGORIES = deepFreeze([
 
 export const ITEM_CATEGORY_IDS = Object.freeze(ITEM_CATEGORIES.map((category) => category.id))
 
-/** The verb phrases that set `actionHint`, in the order spec 6.1 lists them. */
+/** The verb phrases that set `actionHint`. */
 export const ACTION_VERBS = deepFreeze({
   repair: ['repair', 'fix', 'mend'],
   recycle: ['recycle', 'dispose', 'drop off'],
@@ -412,8 +412,8 @@ export const ACTION_VERBS = deepFreeze({
 const ACTION_ORDER = Object.freeze(['repair', 'recycle', 'reuse'])
 
 /**
- * Question phrasing removed as whole spans before term matching (FW-R1): bare "can" and "top"
- * stay item terms (M4-D23), so "can I fix my toaster" must lose "can i" as a phrase rather than
+ * Question phrasing removed as whole spans before term matching: bare "can" and "top"
+ * stay item terms, so "can I fix my toaster" must lose "can i" as a phrase rather than
  * resolve "can" to household recycling.
  */
 const QUESTION_PHRASES = Object.freeze([
@@ -431,7 +431,7 @@ const QUESTION_PHRASES = Object.freeze([
 ])
 
 /**
- * Words dropped from the item only where no term consumed them (FW-R1), so "my old tools" finds
+ * Words dropped from the item only where no term consumed them, so "my old tools" finds
  * what "tools" finds while the term "bric a brac" keeps its "a".
  */
 const FILLER_WORDS = new Set(
@@ -507,7 +507,7 @@ export function categoryLabel(id) {
 
 /**
  * The query, resolved: canonical tokens, the first verb phrase as `actionHint` (its span
- * removed), then every question phrase removed ("can i", "where do i", FW-R1). The categories are
+ * removed), then every question phrase removed ("can i", "where do i"). The categories are
  * those whose terms match whole-token contiguous runs of what remains (multi-word terms first; a
  * consumed span never matches a second term). `itemTokens` is what remains less the filler words
  * no term consumed ("my", "old"; the term "bric a brac" keeps its "a"), and `residual` the item
@@ -556,7 +556,7 @@ export function resolveItemQuery(text) {
 const stringList = (value) =>
   Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []
 
-/** The categories a service's `acceptedItems` and `aliases` resolve to (not its name, spec 6.1). */
+/** The categories a service's `acceptedItems` and `aliases` resolve to (not its name). */
 export function deriveItemCategories(service) {
   const entries = [...stringList(service?.acceptedItems), ...stringList(service?.aliases)]
   return inTableOrder(entries.flatMap((entry) => resolveItemQuery(entry).categoryIds))
@@ -571,7 +571,7 @@ const serviceText = (service) =>
  * How a service matches a resolved query: `direct` when every item token appears as a whole
  * canonical token of its name, accepted items or aliases (AND semantics); else `category` when
  * its `itemCategories` intersect the query's categories or one level of their `broadMatches`;
- * else null. The label is always a query category, as the status line counts it (FW-R2): the
+ * else null. The label is always a query category, as the status line counts it: the
  * first query category the service carries, else the first whose `broadMatches` hold one of the
  * service's categories, both in table order.
  *

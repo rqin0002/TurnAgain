@@ -15,7 +15,7 @@ import { buildAttentionList, overviewTiles } from '@/features/staff/domain/atten
 import { aggregateRatingSummaries } from '@/features/staff/domain/chartData.js'
 import StatePanel from '@/shared/components/StatePanel.vue'
 
-// The operations Overview (spec 8.6 L1005, F.1 #3 and #4): the composition root over the staff
+// The operations Overview: the composition root over the staff
 // catalogue the layout loads. It calls the ratings composable for the published services and
 // hands the summaries down (a staff component never imports a ratings composable), and loads the
 // role counts for administrators on mount and after an identity change.
@@ -93,7 +93,7 @@ const retryRatings = () => {
 }
 
 // The used Mark completed button turns busy and then leaves the list with its session, so focus
-// moves to the mounted status line that announces the result (M6-D22), never to <body>.
+// moves to the mounted status line that announces the result, never to <body>.
 const statusLine = ref(null)
 const markCompleted = async (sessionId) => {
   const session = sessions.value.find((entry) => entry.id === sessionId)
@@ -152,7 +152,7 @@ watch(
         </div>
       </dl>
 
-      <!-- Mounted with the Overview; only its text changes (M6-D22). -->
+      <!-- Mounted with the Overview; only its text changes. -->
       <p ref="statusLine" class="staff-overview__status" role="status" tabindex="-1">
         {{ statusMessage }}
       </p>

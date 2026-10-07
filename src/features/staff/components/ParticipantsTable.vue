@@ -8,12 +8,13 @@ import DataTable from '@/shared/components/DataTable.vue'
 import { isLiveParticipant } from '../domain/participants.js'
 
 /**
- * The participants of one session (spec 8.4) on the shared DataTable: one named native checkbox
+ * The participants of one session on the shared DataTable: one named native checkbox
  * per confirmed or waitlisted row (APG checkbox pattern; a cancelled row has none), the status as
  * a badge, user-typed text with `dir="auto"`, and on a recently promoted row "Send promotion
  * email" (or "Send again" after a failure) with that row's email line, only in a build with
- * functions (`emailEnabled`, decided from configuration, A6). The selection itself lives in the
- * page's useParticipants; this component only reports toggles.
+ * functions (`emailEnabled`, decided from configuration). The email line is focusable and
+ * carries `data-email-line`, so the page can move focus to it when the button leaves.
+ * The selection itself lives in the page's useParticipants; this component only reports toggles.
  */
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -84,9 +85,13 @@ const emailLabel = (row) =>
           >{{ emailLabel(row)
           }}<span class="visually-hidden"> to {{ row.contactName }}</span></AppButton
         >
-        <span class="participants-table__email-line" role="status">{{
-          emailState(row)?.message ?? ''
-        }}</span>
+        <span
+          class="participants-table__email-line"
+          role="status"
+          tabindex="-1"
+          :data-email-line="row.id"
+          >{{ emailState(row)?.message ?? '' }}</span
+        >
       </div>
     </template>
   </DataTable>

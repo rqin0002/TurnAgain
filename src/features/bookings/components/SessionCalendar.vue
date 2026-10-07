@@ -10,13 +10,13 @@ import enAuLocale from '@fullcalendar/vue3/locales/en-au'
 import classicThemePlugin from '@fullcalendar/vue3/themes/classic'
 import { computed } from 'vue'
 
-// The sessions calendar (spec 7.3 L936, M5-D9): FullCalendar v7 in its own lazy chunk (the views
+// The sessions calendar: FullCalendar v7 in its own lazy chunk (the views
 // mount it through SessionCalendarLoader, which says when the chunk is loading or failed), never
 // the only way to a session (the List view, "Skip calendar" and a text legend sit beside it).
 // Events come from toCalendarEvents; their titles carry the meaning, the legend says what each
 // title word means, and the tone classes only colour them. The month title's heading level
 // follows the page's outline. A click or Enter on an event emits the session; the page decides
-// where it goes (D8).
+// where it goes.
 const props = defineProps({
   events: { type: Array, required: true },
   initialDate: { type: String, required: true },

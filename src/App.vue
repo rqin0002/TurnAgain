@@ -14,7 +14,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const { online } = useOnlineStatus()
 
-// The header underline is an explicit effect (spec 10.3): it glides after every navigation or
+// The header underline is an explicit effect: it glides after every navigation or
 // sign-in state change (the link set changes) and is placed without a glide on a resize, where
 // the link has not changed, only its layout.
 const navigation = ref(null)
@@ -31,12 +31,12 @@ onMounted(() => {
 })
 onBeforeUnmount(() => window.removeEventListener('resize', placeIndicator))
 
-// The Sign in / Account slot renders once the first resolution has settled (spec 10.5).
+// The Sign in / Account slot renders once the first resolution has settled.
 const sessionKnown = computed(() => authStore.status !== 'restoring')
 const canAccessStaff = computed(() => authStore.canAccess(['staff', 'admin']))
 
-// A protected page renders the retry panel instead of its view when the first resolution failed
-// (spec 9.1); the guard let the navigation through for exactly this (decision M8).
+// A protected page renders the retry panel instead of its view when the first resolution failed;
+// the guard let the navigation through for exactly this.
 const showAuthErrorPanel = computed(
   () => route.meta.requiresAuth === true && authStore.status === 'error',
 )
@@ -77,7 +77,7 @@ const lastSearchPath = ref('/find-nearby')
 const lastActivitiesPath = ref('/activities')
 const lastStaffPath = ref('/staff')
 // A new identity (another account, a role change, a downgrade) never inherits the previous one's
-// staff page or filters (N8).
+// staff page or filters.
 watch(
   () => authStore.identityEpoch,
   () => {
@@ -212,8 +212,8 @@ watch(
 </template>
 
 <style scoped>
-/* Mobile first (spec 10.1): the menu button and the stacked list are the default; the inline
-   navigation appears at the 992 px contract breakpoint. */
+/* Mobile first: the menu button and the stacked list are the default; the inline
+   navigation appears at the 992 px breakpoint. */
 .app-header {
   position: relative;
   z-index: 10;

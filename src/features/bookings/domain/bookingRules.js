@@ -1,7 +1,7 @@
 import { hasKnownCapacity } from '@/features/activities/domain/sessionSchema.js'
 
 /**
- * The booking rules (spec 7.1, 7.9, section 4 invariant 4): pure decisions over projected
+ * The booking rules: pure decisions over projected
  * sessions and bookings (ISO instants), shared by the review, the transaction, the session rows
  * and My Bookings. The transaction turns a refusal reason into a RepositoryError; this module
  * never imports a data layer (domain-pure).
@@ -15,7 +15,7 @@ export const LIVE_BOOKING_STATUSES = Object.freeze(['confirmed', 'waitlisted'])
 export const REFERENCE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 export const REFERENCE_PATTERN = /^TA-[A-HJ-NP-Z2-9]{6}$/u
 
-/** "TA-7K3M9X" from six random bytes (spec 4.2 L274); the byte source is injectable for tests. */
+/** "TA-7K3M9X" from six random bytes; the byte source is injectable for tests. */
 export function generateReference({
   getRandomValues = (array) => globalThis.crypto.getRandomValues(array),
 } = {}) {
@@ -27,7 +27,7 @@ export function generateReference({
   return `TA-${code}`
 }
 
-/** The one place the `{uid}_{sessionId}` document id is built (spec 4.2 L265). */
+/** The one place the `{uid}_{sessionId}` document id is built. */
 export const bookingIdFor = (uid, sessionId) => `${uid}_${sessionId}`
 
 export const isLiveBooking = (booking) => LIVE_BOOKING_STATUSES.includes(booking?.status)
@@ -44,8 +44,8 @@ export const CLOSED_REASONS = Object.freeze([
 export const hasStarted = (session, now) => !(Date.parse(session?.startsAt) > now.getTime())
 
 /*
- * The availability rules of spec 7.3 L934, stated once for the session row and the calendar so
- * the two never disagree. Full or queued (M5-D10): a seat freed while anyone waits stays reserved
+ * The availability rules, stated once for the session row and the calendar so the two never
+ * disagree. Full or queued: a seat freed while anyone waits stays reserved
  * for the waitlist until staff promote, so no remaining places show then.
  */
 export const isFullOrQueued = (session) =>
@@ -71,7 +71,7 @@ export function bookabilityOf(session, now) {
 const INTENTS = new Set(['book', 'waitlist'])
 
 /**
- * The outcome the transaction commits (spec 4.4 bookingFitsSession): a seat only while one is
+ * The outcome the transaction commits (the rules' bookingFitsSession): a seat only while one is
  * free and nobody waits; otherwise the waitlist (at most 10), and only when the person asked for
  * it, so a `book` intent that meets a full or queued session is refused as `session-filled`.
  *
@@ -103,7 +103,7 @@ export function findOverlap(session, bookings) {
   )
 }
 
-/** A member may cancel a live booking until the session starts (spec 7.9, rules L509-515). */
+/** A member may cancel a live booking until the session starts. */
 export function canCancel(booking, session, now) {
   return (
     isLiveBooking(booking) &&
@@ -114,8 +114,8 @@ export function canCancel(booking, session, now) {
 }
 
 /**
- * Spec 7.9: started -> no member cancel, contact us; a session that has ended is past, not
- * started (spec 7.7: Upcoming until endsAt), even while its status is still `scheduled`.
+ * Started -> no member cancel, contact us; a session that has ended is past, not started
+ * (Upcoming until endsAt), even while its status is still `scheduled`.
  */
 export function isCancelClosedByStart(booking, session, now) {
   return (
@@ -131,9 +131,9 @@ const placesLabel = (remaining) =>
   remaining === 1 ? 'Only 1 place left' : `Only ${remaining} places left`
 
 /**
- * One row's action (spec 7.3, M5-D10). Remaining places are never shown while anyone waits: a
- * freed seat stays reserved for the waitlist until staff promote (milestone 6). The organiser's
- * cancel comes before the member's own booking: it leaves that booking live (spec 7.7 L956), and
+ * One row's action. Remaining places are never shown while anyone waits: a freed seat stays
+ * reserved for the waitlist until staff promote. The organiser's cancel comes before the
+ * member's own booking: it leaves that booking live, and
  * "You're booked" on a cancelled session would send the member to it.
  *
  * @returns {{ action: 'book' | 'waitlist' | 'booked' | 'none' | 'external', tone: 'open' | 'limited' | 'waitlist' | 'booked' | 'closed' | 'cancelled' | 'external', label: string }}
@@ -177,7 +177,7 @@ const byStart = (left, right) =>
   left.booking.id.localeCompare(right.booking.id)
 
 /**
- * My Bookings (spec 7.7, D6): a booking whose session did not load is `unconfirmed`, never
+ * My Bookings: a booking whose session did not load is `unconfirmed`, never
  * cancelled. Upcoming = live, snapshot `endsAt` still ahead, session not known to be cancelled,
  * soonest first; everything else is Past and cancelled, latest first.
  *
@@ -202,6 +202,6 @@ export function splitBookings(bookings, sessionsById, now) {
   }
 }
 
-/** The booking review path the sign-in page recognises (spec 7.4 L940). */
+/** The booking review path the sign-in page recognises. */
 export const isBookingReviewPath = (path) =>
   typeof path === 'string' && /^\/activities\/[^/]+\/book\//u.test(path)

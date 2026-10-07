@@ -5,7 +5,7 @@ import AppButton from '@/shared/components/AppButton.vue'
 
 import { loadSessionCalendar } from './sessionCalendarChunk.js'
 
-// Mounts the lazy SessionCalendar for both pages (spec 7.3, M5-D9). The status line is mounted
+// Mounts the lazy SessionCalendar for both pages. The status line is mounted
 // before its text changes and says when the chunk is loading or failed; a failed first load
 // (FullCalendar is not yet cached and the connection dropped) offers a fresh load or the List
 // view, which shows the same sessions. Nothing is preloaded, so a visitor who never opens the

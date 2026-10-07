@@ -1,5 +1,5 @@
 <script setup>
-// A session's availability as words (spec 7.3): the tone only styles it, the label carries it.
+// A session's availability as words: the tone only styles it, the label carries it.
 defineProps({
   tone: {
     type: String,

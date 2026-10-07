@@ -12,7 +12,7 @@ import { GEO_PRECISION_HELP, recordIdFrom } from '../domain/recordDrafts.js'
 import { STALE_SOURCE_DAYS, daysSinceChecked, staleSourceLabel } from '../domain/registerColumns.js'
 
 /**
- * The service fields (spec 8.2 L985): the view owns the <form>, the summary and the buttons. One
+ * The service fields: the view owns the <form>, the summary and the buttons. One
  * entry per line in every list; "Mark checked today" sets the Melbourne day of the press; the
  * source badge says, against `now`, how stale it is past 180 days; "Show on map" reveals the
  * coordinates and their provenance with the precision help text. The id appears on a create only
@@ -50,10 +50,10 @@ const staleDays = computed(() => {
   const days = daysSinceChecked(draft.value.sourceCheckedAt, props.now)
   return days !== null && days > STALE_SOURCE_DAYS ? days : null
 })
-// The page's alert summary, mounted before any message, announces a group's error (M6-D22); the
+// The page's alert summary, mounted before any message, announces a group's error; the
 // group's own line is the description its fieldset points at.
 const groupError = (name) => (props.errors[name] ? `service-${name}-error` : undefined)
-// CP-R5: the press reads the clock, so a page left open past midnight stamps the day it is pressed.
+// The press reads the clock, so a page left open past midnight stamps the day it is pressed.
 const markCheckedToday = () => update({ sourceCheckedAt: melbourneDayKey(new Date()) })
 const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.slice(1)}`
 </script>

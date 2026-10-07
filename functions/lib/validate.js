@@ -1,7 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https'
 
 /**
- * Input checks for the callables (spec 5.1, 5.3 step 5). Each assertion returns the value or
+ * Input checks for the callables. Each assertion returns the value or
  * throws `invalid-argument` with `details.fields` naming the field and one reason: 'required'
  * (undefined, null or the empty string) or 'invalid' (present but malformed). The client maps the
  * code and the fields, never the message.
@@ -62,7 +62,7 @@ export function assertUuid(value, field) {
 }
 
 /**
- * A whole number from 0 (spec 5.7 `expectedRevision`: a legacy profile without `revision` sends
+ * A whole number from 0 (`expectedRevision`: a legacy profile without `revision` sends
  * 0, as the rules read `get('revision', 0)`). Text, fractions and unsafe integers are invalid.
  */
 export function assertNonNegativeInt(value, field) {

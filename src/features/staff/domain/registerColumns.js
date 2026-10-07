@@ -13,10 +13,9 @@ import { formatDate, formatTimeRange } from '@/shared/domain/formatDate.js'
 import { compareText } from '@/shared/domain/tableQuery.js'
 
 /**
- * The column specs of the two registers (spec 8.3 L991, contract section 2.2). Each column's
- * `text(row)` is what the cell shows and what the CSV and JSON carry (M6-D6), so the export equals
- * the screen; `value(row)` is what it sorts on. Every data column has a sort and its own filter
- * (D.3). Pure.
+ * The column specs of the two registers. Each column's `text(row)` is what the cell shows and
+ * what the CSV and JSON carry, so the export equals the screen; `value(row)` is what it sorts
+ * on. Every data column has a sort and its own filter. Pure.
  */
 
 const DAY_MS = 86_400_000
@@ -38,7 +37,6 @@ export const isStaleSource = (service, now) => {
   return days !== null && days > STALE_SOURCE_DAYS
 }
 
-/** Spec 8.2 L985 copy. */
 export const staleSourceLabel = (days) => `Stale: last checked ${days} days ago`
 
 const optionLabel = (options, value) =>
@@ -237,13 +235,13 @@ export const SESSION_COLUMNS = Object.freeze([
 
 export const SESSION_DEFAULT_SORT = Object.freeze({ key: 'date', direction: 'asc' })
 
-/** Session rows with the joined activity title ("Activity" when unknown, invariant 12). */
+/** Session rows with the joined activity title ("Activity" when unknown). */
 export const toSessionRows = (sessions, activities) => withActivityTitles(sessions, activities)
 
 const ACTIVITY_STATUS_LABELS = Object.freeze({ published: 'Published', archived: 'Archived' })
 const OPEN_STATUSES = Object.freeze(['scheduled', 'full'])
 
-/** The Activities section of the Sessions page (spec 8.1): one entry per activity, by title. */
+/** The Activities section of the Sessions page: one entry per activity, by title. */
 export function summariseActivities(activities, sessions, now) {
   const nowMs = now instanceof Date ? now.getTime() : Date.parse(now)
   const list = Array.isArray(sessions) ? sessions : []

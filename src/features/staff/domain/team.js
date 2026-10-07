@@ -8,7 +8,7 @@ import {
 import { formatDate } from '@/shared/domain/formatDate.js'
 
 /**
- * The Team tab's pure half (spec 8.7 L1009, R19, R20, R25): the projection of a users/{uid}
+ * The Team tab's pure half: the projection of a users/{uid}
  * document for the table, the columns, the copy and the per-row state machine that turns each
  * adminSetUserAccess outcome into what the row shows. The composable runs the calls; this module
  * only decides. A row's `revision` is the stored `revision ?? 0`, the value the function compares
@@ -18,7 +18,7 @@ import { formatDate } from '@/shared/domain/formatDate.js'
 export const ROLE_LABELS = Object.freeze({ member: 'Member', staff: 'Staff', admin: 'Admin' })
 export const STATUS_LABELS = Object.freeze({ active: 'Active', disabled: 'Disabled' })
 
-/** Spec L1009's copy, verbatim where the spec quotes it. */
+/** The Team tab's copy. */
 export const TEAM_MESSAGES = Object.freeze({
   revisionMismatch: 'This account changed since you loaded it; review and try again',
   liveAdminDisabled: 'Admin changes against the live project are disabled in development mode',
@@ -63,7 +63,7 @@ export function projectTeamUser(id, data) {
 const joinedText = (user) =>
   user.createdAt ? formatDate(user.createdAt, { dateStyle: 'medium' }) : ''
 
-/** The Team table's columns (section 2.2 shape); `joined` is the Melbourne date of `createdAt`. */
+/** The Team table's columns; `joined` is the Melbourne date of `createdAt`. */
 export const TEAM_COLUMNS = Object.freeze([
   Object.freeze({
     key: 'name',
@@ -118,9 +118,9 @@ export const TEAM_COLUMNS = Object.freeze([
 export const TEAM_DEFAULT_SORT = Object.freeze({ key: 'joined', direction: 'desc' })
 
 /**
- * "Profile: active; sign-in: enabled": the two observed states a Check reports (R19). A
- * `needs-recovery` answer may carry `authDisabled: null` (the function never read Auth, Task 3
- * ruling R-6a.9): the line then says "unknown" rather than an older observation.
+ * "Profile: active; sign-in: enabled": the two observed states a Check reports. A
+ * `needs-recovery` answer may carry `authDisabled: null` (the function never read Auth): the
+ * line then says "unknown" rather than an older observation.
  */
 export const accessLine = ({ status, authDisabled }) =>
   `Profile: ${status}; sign-in: ${authDisabled === null ? 'unknown' : authDisabled ? 'disabled' : 'enabled'}`
@@ -155,7 +155,7 @@ const observed = (details) =>
     : null
 
 /**
- * The row after one failed call, by the error's code and `details.code` (spec L1009). A branch
+ * The row after one failed call, by the error's code and `details.code`. A branch
  * that reloads the row drops `access` unless the answer observed the states itself: after a
  * conflict the account may have been disabled by another admin, so the earlier
  * "sign-in: enabled" is no evidence (useTeam re-Checks once after the reload).

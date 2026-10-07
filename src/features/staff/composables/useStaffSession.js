@@ -10,15 +10,18 @@ const NOTIFY_CONFLICT =
   'This session changed in another window. It has been reloaded; check it and try again.'
 
 /**
- * One session of the staff catalogue for the session page (spec 8.4): the record, its activity
- * and title (invariant 12: "Activity" when the activity is unknown), the page state, whether
- * Promote next is offered (L997, plus an open status) and "Mark participants notified" (R11: a
+ * One session of the staff catalogue for the session page: the record, its activity
+ * and title ("Activity" when the activity is unknown), the page state, whether
+ * Promote next is offered (an open status and a start still ahead, since the callable
+ * refuses a started session with `session-not-open`) and "Mark participants notified" (a
  * cancelled session whose `cancellationNoticeAt` is still null). `functionsEnabled` comes from
- * configuration, never from an error (A6).
+ * configuration, never from an error. `now` is the page's clock, so a page left open past
+ * the start takes Promote next away.
  *
  * @param {import('vue').MaybeRefOrGetter<string>} sessionId
+ * @param {{ now?: () => Date }} [options]
  */
-export function useStaffSession(sessionId) {
+export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
   const catalogue = useStaffCatalogue()
   const functionsEnabled = isStaffFunctionsEnabled()
 
@@ -42,6 +45,7 @@ export function useStaffSession(sessionId) {
       current !== null &&
       current.registrationType === 'turnagain' &&
       OPEN_STATUSES.includes(current.status) &&
+      Date.parse(current.startsAt) > now().getTime() &&
       current.waitlistCount > 0 &&
       current.bookedCount < current.capacity
     )

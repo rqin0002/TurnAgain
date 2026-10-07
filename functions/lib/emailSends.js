@@ -6,8 +6,8 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { melbourneDayKey, nextMelbourneMidnight } from '../shared/melbourneTime.js'
 
 /**
- * The email-send records of spec 5.5 (decision M5-D6, Part 0 section 3.5): the create-only
- * `emailSends` document is the only idempotency lock (Brevo has none, facts F2.5). The pure helpers
+ * The email-send records: the create-only
+ * `emailSends` document is the only idempotency lock (Brevo has none). The pure helpers
  * come first and are unit-tested; the four transaction helpers take the Admin `db` as their first
  * argument and are exercised against the emulator by tests/api.
  */
@@ -22,7 +22,7 @@ export const SESSION_PARTS = Object.freeze(['participants', 'copy'])
 const SENDS = 'emailSends'
 const BOOKINGS = 'bookings'
 
-/** The statuses after which a resend may create the next attempt (spec L954: Resend for these). */
+/** The statuses after which a resend may create the next attempt (Resend is offered for these). */
 const RESENDABLE = Object.freeze(['failed', 'unknown'])
 
 export const bookingSeriesKey = ({ bookingId, kind, updatedAtMs }) =>
@@ -84,7 +84,7 @@ export function countAttemptsToday(attempts, now) {
 }
 
 /**
- * Whether `resend: true` may create the next attempt (spec 5.5, M5-D6). The daily cap is checked
+ * Whether `resend: true` may create the next attempt. The daily cap is checked
  * first, so a person who has used three attempts today is told so at once rather than after a
  * further 60-second wait.
  */
@@ -121,7 +121,7 @@ function nextResendMillis(record, attempts, now) {
   return toMillis((latestAttempt(attempts) ?? record).createdAt) + RESEND_INTERVAL_MS
 }
 
-/** The callable's response (Part 0 section 3.6): every key present, null where nothing applies. */
+/** The callable's response: every key present, null where nothing applies. */
 export function toBookingSendResult(record, attempts, now) {
   const status = deriveStatus(record, now)
   const createdAt = toMillis(record.createdAt)
@@ -161,7 +161,7 @@ function resendRefusal({ code, retryAfterMs }) {
 }
 
 /**
- * Claims the next attempt of a booking email series in one Admin transaction (spec 5.5 order:
+ * Claims the next attempt of a booking email series in one Admin transaction (in order:
  * the send key, then the create-only record). The transaction first re-reads the booking: one
  * whose `updatedAt` moved since the caller's read (a cancel that committed in between) is refused
  * `kind-mismatch`, and a vanished one `not-found`, so no email goes out for a booking that has
@@ -255,7 +255,7 @@ export function sessionContentHash({
 }
 
 /**
- * The broadcast's one status (spec 5.5): `dry-run` on a dry run; while a sub-send is in flight,
+ * The broadcast's one status: `dry-run` on a dry run; while a sub-send is in flight,
  * `sending`; the copy's status when the participants were skipped; the participants' status when
  * no copy was requested; the common status when both agree; `partial` when they differ. When
  * nobody could be sent anything (participants skipped and no copy, or both skipped) it is `failed`.

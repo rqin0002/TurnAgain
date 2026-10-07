@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import { toRatingsChartData } from '../domain/chartData.js'
 import ChartCanvas from './ChartCanvas.vue'
 
-// Stacked bars of the five-bucket histogram for up to eight rated services (spec 8.6). The
+// Stacked bars of the five-bucket histogram for up to eight rated services. The
 // summaries arrive as a prop: the view calls the ratings composable, a staff component never does.
 const props = defineProps({
   services: { type: Array, required: true },

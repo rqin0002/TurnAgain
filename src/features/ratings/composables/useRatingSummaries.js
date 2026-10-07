@@ -3,8 +3,8 @@ import { onBeforeUnmount, shallowRef, toValue, watch } from 'vue'
 import { fetchRatingSummaries, readCachedRatingSummaries } from '../data/ratingSummaryRepository.js'
 
 /**
- * Rating summaries for the services a page shows (spec 6.4, 10.4); the view passes them down.
- * Stale-while-revalidate (spec 11): the persisted summaries for the requested ids paint first
+ * Rating summaries for the services a page shows; the view passes them down.
+ * Stale-while-revalidate: the persisted summaries for the requested ids paint first
  * with `freshness: 'cached'`, and the read replaces them. What a failed id shows depends on why
  * it failed: a transport failure (offline, unreachable) keeps the saved copy, while a summary the
  * server confirmed missing or invalid is removed and the id stays in `failedIds`, the incomplete
@@ -19,8 +19,8 @@ import { fetchRatingSummaries, readCachedRatingSummaries } from '../data/ratingS
  * transport failure or a failed read keeps it, and `savedAt` dates the oldest summary shown.
  *
  * Two ways to name the ids (exactly one): `services` (records, as Home passes them: a change
- * resets everything) or `ids` (the discovery candidate set, spec 6.4 D3: a change prunes only
- * the ids that left, so a pan in follow mode never blanks the summaries, M4-D10).
+ * resets everything) or `ids` (the discovery candidate set: a change prunes only
+ * the ids that left, so a pan in follow mode never blanks the summaries).
  *
  * @param {object} options
  * @param {import('vue').MaybeRefOrGetter<object[]>} [options.services]
@@ -73,7 +73,7 @@ export function useRatingSummaries({
     invalidate()
     clear()
   }
-  /** Keeps the summaries of the ids still listed and drops the ones that left (M4-D10). */
+  /** Keeps the summaries of the ids still listed and drops the ones that left. */
   const dropDeparted = (keep) => {
     const kept = new Set(keep)
     summariesById.value = Object.fromEntries(

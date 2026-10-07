@@ -18,7 +18,7 @@ const REFUSAL_CODES = Object.freeze([
 ])
 
 /**
- * Promote next and the promoted email (spec 5.6, 8.4, decision M6-D9). `promote` ignores a second
+ * Promote next and the promoted email. `promote` ignores a second
  * press while one is in flight (`state` turns `promoting` before the first await). A success says
  * "Promoted TA-XXXXXX" and asks for "A place is now yours" at once; a refusal says why in words;
  * any other failure keeps the error's own copy. After every outcome `onSettled` runs, so the page

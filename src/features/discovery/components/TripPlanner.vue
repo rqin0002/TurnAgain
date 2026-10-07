@@ -8,7 +8,7 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { TRIP_MODES, buildGoogleMapsUrl, buildPtvUrl, formatTrip } from '../domain/trip.js'
 
 /**
- * The trip panel of Service Detail (spec 6.5 L898, decision D1): the travel modes as one native
+ * The trip panel of Service Detail: the travel modes as one native
  * radio group (one Tab stop, the arrow keys move the choice, as every browser does for radios
  * sharing a name), the From line, one Directions request per click (the composable gates it to one request per
  * second), the route sentence or the straight-line estimate with the Google Maps and PTV links,
@@ -66,7 +66,7 @@ watch(
   },
 )
 
-// The rate gate's wait (decision M4-D11): the button re-enables once the window has passed.
+// The rate gate's wait: the button re-enables once the window has passed.
 const waiting = ref(false)
 let waitTimer
 watch(
@@ -116,7 +116,7 @@ const showsOfflinePanel = computed(
   () => props.status === 'offline' && selectedMode.value !== 'transit',
 )
 // The one status line stays mounted, so the route sentence and the offline notice are announced
-// when they arrive; a line inserted together with its text is not reliably read (FW-R7).
+// when they arrive; a line inserted together with its text is not reliably read.
 const liveLine = computed(() =>
   showsOfflinePanel.value ? 'Directions need a connection.' : resultLine.value,
 )
@@ -316,7 +316,7 @@ const submitTypedPlace = () => {
   outline-offset: -3px;
 }
 
-/* From 576 px the modes join into one pill (ruling R8): the end segments carry its curve, so the
+/* From 576 px the modes join into one pill: the end segments carry its curve, so the
    group needs no overflow clip. */
 @media (min-width: 576px) {
   .trip-planner__modes {
@@ -367,7 +367,7 @@ const submitTypedPlace = () => {
   font-weight: 600;
 }
 
-/* A place error echoes the typed text (decision M4-D22): it takes its direction from its text. */
+/* A place error echoes the typed text: it takes its direction from its text. */
 .trip-planner__error,
 .trip-planner :deep(.form-field__error) {
   unicode-bidi: plaintext;

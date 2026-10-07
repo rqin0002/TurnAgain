@@ -1,7 +1,7 @@
 import { normalizeForSearch } from './textNormalization.js'
 
 /**
- * The typed-origin lookup (spec 6.2): a suburb name, a postcode or both become a point from the
+ * The typed-origin lookup: a suburb name, a postcode or both become a point from the
  * Vicmap places table (`./vicPlaces.json`, built once by `npm run seed -- --build-places`,
  * CC BY 4.0). The table is a lazy chunk, so `resolveTypedOrigin` is async; `resolveTypedOriginIn`
  * is the pure core the tests and the seed call with a table in hand (Node needs an import
@@ -106,7 +106,7 @@ export function resolveTypedOriginIn(table, text) {
   return rowPoint(latitude, longitude, label, 'suburb')
 }
 
-/** The spec's signature, over the lazily loaded table. */
+/** The public signature, over the lazily loaded table. */
 export async function resolveTypedOrigin(text) {
   return resolveTypedOriginIn(await loadPlaces(), text)
 }

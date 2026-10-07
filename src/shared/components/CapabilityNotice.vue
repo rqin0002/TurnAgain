@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from 'vue'
 
-// Stands in for a callable-backed control when the build was made without Cloud Functions
-// (spec 5.9, 8.7). The caller reads `capabilities.functions` from
+// Stands in for a callable-backed control when the build was made without Cloud Functions.
+// The caller reads `capabilities.functions` from
 // @/firebase/firebaseFunctionsClient.js and passes it as `enabled`; the notice is decided from
 // that configuration and never inferred from an error.
 const props = defineProps({

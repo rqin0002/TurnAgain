@@ -13,7 +13,7 @@ function productionCsp() {
   try {
     headers = readFileSync(fileURLToPath(new URL('./public/_headers', import.meta.url)), 'utf8')
   } catch (error) {
-    // The file is the security policy of the deployed site (spec 12.6): a tree without it is
+    // The file is the security policy of the deployed site: a tree without it is
     // broken, and a dev server that quietly ran without a CSP would hide that.
     throw new Error('[turnagain] public/_headers is missing or unreadable: ' + error.message, {
       cause: error,
@@ -27,7 +27,7 @@ function productionCsp() {
 
 /**
  * Loopback origins the running mode actually connects to. Development mode runs callables on the
- * local Functions emulator while Auth and Firestore stay live (spec 12.2), so the allowance
+ * local Functions emulator while Auth and Firestore stay live, so the allowance
  * follows the loaded VITE_* variables, not the mode name. Ports match firebase.json and
  * EMULATOR_PORTS in src/firebase/firebaseConfig.js.
  */
@@ -44,7 +44,7 @@ function emulatorOrigins(mode) {
 }
 
 /**
- * Dev-only CSP (spec 12.2, 12.6): the production policy plus exactly what the Vite dev server
+ * Dev-only CSP: the production policy plus exactly what the Vite dev server
  * needs (injected <style> elements, the HMR websocket) and the loopback emulator origins the
  * mode's env selects. `upgrade-insecure-requests` is dropped because everything is plain http
  * locally. Production keeps `style-src 'self'`; this plugin never runs in a build.
@@ -90,7 +90,7 @@ function devCsp(mode) {
   }
 }
 
-// Rulings R17 and M5-D14: the emulator walks preview the build:emulator bundle under the
+// The emulator walks preview the build:emulator bundle under the
 // production policy, so only connect-src widens, and only to the Auth, Firestore and Functions
 // emulators that bundle talks to (the booking email line calls sendBookingEmail on the Functions
 // emulator). The mode name selects this because the preview serves a bundle already built for that
@@ -104,12 +104,12 @@ const PREVIEW_EMULATOR_ORIGINS = [
   .join(' ')
 
 /**
- * Preview CSP (decision M4-D18): `npm run build && npm run preview` serves the production policy
+ * Preview CSP: `npm run build && npm run preview` serves the production policy
  * of public/_headers with only `upgrade-insecure-requests` removed (preview is plain http), so
  * the map's pins, popups, origin circle and route polyline are exercised under `style-src 'self'`
- * before milestone 5's check on the deployed site. The dev plugin above is untouched. In
+ * before the site is deployed. The dev plugin above is untouched. In
  * `--mode emulator` the Auth, Firestore and Functions emulator origins are added to `connect-src`
- * and nothing else (rulings R17, M5-D14).
+ * and nothing else.
  */
 export function previewCsp() {
   return {
@@ -157,8 +157,7 @@ export default defineConfig(({ command, mode }) => ({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      // Pure modules shared with the Cloud Functions package (spec 3.4, A8); the directory
-      // is created by milestone 2b with its first module.
+      // Pure modules shared with the Cloud Functions package.
       '@shared': fileURLToPath(new URL('./functions/shared', import.meta.url)),
     },
   },

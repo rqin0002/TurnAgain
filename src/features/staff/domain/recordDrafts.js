@@ -16,9 +16,9 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The three staff forms' drafts (spec 8.2 L985, B.1): every text field a string, every list one
- * entry per line, numbers as strings, a session's date and times in Melbourne wall time. The
- * validators check every B.1 type the spec names (required and length, pattern, list bounds with
+ * The three staff forms' drafts: every text field a string, every list one entry per line,
+ * numbers as strings, a session's date and times in Melbourne wall time. The validators check
+ * every field type (required and length, pattern, list bounds with
  * every element checked, numeric range, cross-field) against the bounds the rules and the schema
  * modules hold, and turn a valid draft into the record the writers store. Pure.
  */
@@ -28,7 +28,7 @@ export const GEO_PRECISION_HELP =
 export const SESSION_LOCK_MESSAGE =
   'This session has bookings, so its time, venue and activity are locked. To change them, cancel this session, create a new one and email the participants.'
 
-// Victoria's bounding box (contract decision): a pin outside it is a typing or source error.
+// Victoria's bounding box: a pin outside it is a typing or source error.
 const VICTORIA = Object.freeze({ south: -39.2, north: -33.9, west: 140.9, east: 150.0 })
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/u
 const HOUR_MS = 3_600_000
@@ -454,7 +454,7 @@ export function toSessionDraft(record) {
     bookedCount: record.bookedCount,
     waitlistCount: record.waitlistCount,
     cancellationNoticeAt: record.cancellationNoticeAt,
-    // The instants as stored, which a locked session saves unchanged (R-6c.14): the wall time
+    // The instants as stored, which a locked session saves unchanged: the wall time
     // above drops seconds, and in the hour daylight saving repeats it names two instants.
     storedStartsAt: record.startsAt,
     storedEndsAt: record.endsAt,
@@ -463,13 +463,13 @@ export function toSessionDraft(record) {
   }
 }
 
-/** Places taken or waited for: a session with any is locked (M6-D8). */
+/** Places taken or waited for: a session with any is locked. */
 export const hasBookings = (session) =>
   (Number.isInteger(session?.bookedCount) ? session.bookedCount : 0) +
     (Number.isInteger(session?.waitlistCount) ? session.waitlistCount : 0) >
   0
 
-/** The session draft fields the lock covers (M6-D8): the activity, the date and times, the venue. */
+/** The session draft fields the lock covers: the activity, the date and times, the venue. */
 export const SESSION_LOCKED_FIELDS = Object.freeze([
   'activityId',
   'date',
@@ -484,11 +484,11 @@ export const SESSION_LOCKED_FIELDS = Object.freeze([
 const isWholeNumber = (value) => /^\d{1,5}$/u.test(text(value))
 
 /**
- * `locked` (M6-D8): the activity, date, times and venue stay as loaded, so the checks that could
+ * `locked`: the activity, date, times and venue stay as loaded, so the checks that could
  * refuse an existing booked session (a start now in the past) do not run on them, and its start
- * and end are the stored instants, never rebuilt from the wall time (R-6c.14). A session's
- * registration type is fixed once it exists: the counters of a TurnAgain session cannot become
- * the null counters of a provider one (the rules' counter equality) (drafter ruling).
+ * and end are the stored instants, never rebuilt from the wall time. A session's registration
+ * type is fixed once it exists: the counters of a TurnAgain session cannot become the null
+ * counters of a provider one (the rules' counter equality).
  */
 export function validateSessionDraft(
   draft,

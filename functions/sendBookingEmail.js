@@ -22,7 +22,7 @@ import {
 import { bookingIcsFileName, buildBookingIcs } from './shared/ics.js'
 
 /**
- * sendBookingEmail (spec 5.2, 5.5; decision M5-D6). Order: authenticate (spec 5.3) -> validate ->
+ * sendBookingEmail. Order: authenticate -> validate ->
  * read the booking and check the kind -> decide the dry run -> unless dry run, refuse an
  * undeliverable address with no record -> claim the attempt (create-only record; the claim's
  * transaction refuses a booking whose updatedAt moved since the read, and creates a resend only
@@ -56,7 +56,7 @@ const notFound = () => new HttpsError('not-found', 'Booking not found.')
 
 const precondition = (code, message) => new HttpsError('failed-precondition', message, { code })
 
-/** Spec 5.5 "Authorisation of the kind", plus the promoted-booking refusal of M5-D6. */
+/** Authorisation of the kind, plus the promoted-booking refusal. */
 function checkKind(kind, booking, caller) {
   if (kind === 'promoted') {
     if (!STAFF_ROLES.includes(caller.role)) throw notYours()
@@ -119,7 +119,7 @@ export async function handleSendBookingEmail(request) {
     attachment: files.map(toBrevoAttachment),
     tags: ['booking', kind],
   }
-  // The dry run builds the same request body as a real send and stops before fetch (facts F2.6).
+  // The dry run builds the same request body as a real send and stops before fetch.
   buildBrevoPayload(message)
 
   const claim = await claimBookingAttempt(db, {

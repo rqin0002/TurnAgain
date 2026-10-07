@@ -1,6 +1,6 @@
 /**
  * Theme vocabulary shared by public/theme-init.js (which inlines the same validator because it
- * runs before any module loads) and useTheme() (spec 10.1). Pure: no imports.
+ * runs before any module loads) and useTheme(). Pure: no imports.
  */
 
 export const THEMES = Object.freeze(['system', 'light', 'dark'])

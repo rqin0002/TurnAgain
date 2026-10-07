@@ -22,13 +22,13 @@ import { isBookingId, projectBooking } from '../domain/bookingValidation.js'
 import { cancelBookingTx, createBookingTx } from './bookingTransactions.js'
 
 /**
- * The bookings feature's only data module (spec 7.1, M5-D4): the two transactions wired to the
- * app's Lite and Auth singletons, the member's own reads (Q8, the booking by id), the session
+ * The bookings feature's only data module: the two transactions wired to the app's Lite and
+ * Auth singletons, the member's own reads (their bookings, the booking by id), the session
  * and activity reads the booking pages need (projected with the activities domain, never through
  * activityRepository), and the email callable. Every failure is a RepositoryError.
  */
 
-/** A refused commit on a session this close to its start (device clock) reads as started (N11). */
+/** A refused commit on a session this close to its start (device clock) reads as started. */
 export const CLOCK_SKEW_MS = 5 * 60 * 1000
 
 const startsWithinSkew = (error) => {
@@ -36,13 +36,13 @@ const startsWithinSkew = (error) => {
   return Number.isFinite(startsAt) && Math.abs(startsAt - Date.now()) <= CLOCK_SKEW_MS
 }
 
-// Lite gave up after its retries (C2.4e): `aborted` maps to conflict/aborted and a commit
+// Lite gave up after its retries: `aborted` maps to conflict/aborted and a commit
 // precondition to unavailable; for a create both mean another booking won the place.
 const isExhaustedRetry = (error) =>
   (error?.code === 'conflict' && error.details?.code === 'aborted') ||
   (error?.code === 'unavailable' && error.cause?.code === 'failed-precondition')
 
-/** Spec 7.6 L948, without `myBookings` (the overlap check runs in useBookingReview first). */
+/** Creates the booking, without `myBookings` (the overlap check runs in useBookingReview first). */
 export async function createBooking({ sessionId, uid, contactName, itemDescription, intent }) {
   try {
     return await createBookingTx(firestoreLite, firebaseAuth, {
@@ -60,7 +60,7 @@ export async function createBooking({ sessionId, uid, contactName, itemDescripti
       })
     }
     // createBookingTx leaves the event to this decision: a rules refusal that is not a session
-    // that has just started is a lost access, so the profile is re-checked (spec 9.3).
+    // that has just started is a lost access, so the profile is re-checked.
     if (error?.code === 'permission' && error.cause?.code === 'permission-denied') {
       notifyPermissionDenied()
     }
@@ -75,10 +75,10 @@ export async function createBooking({ sessionId, uid, contactName, itemDescripti
 }
 
 /**
- * cancelBookingTx leaves a rules refusal to this decision (spec 7.9, N11): a session within the
+ * cancelBookingTx leaves a rules refusal to this decision: a session within the
  * clock skew of its start reads as closed(started) with the cancel sentence; a commit refused
  * after every read passed is a lost counter race; only a refused booking read is a lost access,
- * and only that re-checks the profile (spec 9.3).
+ * and only that re-checks the profile.
  */
 export async function cancelBooking(bookingId) {
   try {
@@ -104,7 +104,7 @@ export async function cancelBooking(bookingId) {
 const byStart = (left, right) =>
   Date.parse(left.startsAt) - Date.parse(right.startsAt) || left.id.localeCompare(right.id)
 
-/** The signed-in member's bookings (Q8: `where uid ==`, every page), soonest first. */
+/** The signed-in member's bookings (`where uid ==`, every page), soonest first. */
 export async function listMyBookings(uid, { signal } = {}) {
   if (!isValidId(uid)) {
     throw new RepositoryError('permission')
@@ -156,7 +156,7 @@ export async function fetchBooking(bookingId, { signal } = {}) {
  * session outside the public statuses that they never booked. For these two reads that refusal is
  * the page's answer, not a lost access, so it reads as `not-found` with `details.reason:
  * 'unreadable'` and never dispatches the permission-denied event (as readPublishedActivity does
- * inside the transaction, ruling R-5c.3).
+ * inside the transaction).
  */
 const unreadableOr = (error) =>
   error?.code === 'permission-denied'
@@ -190,7 +190,7 @@ export async function fetchBookingActivity(activityId, { signal } = {}) {
   }
 }
 
-/** The current sessions of My Bookings in chunks of 30 (Q6), with per-chunk tolerance (D6). */
+/** The current sessions of My Bookings in chunks of 30, with per-chunk tolerance. */
 export async function fetchSessionsForBookings(sessionIds, { signal } = {}) {
   try {
     const { records, skippedCount, failedIds } = await readByIds(
@@ -205,12 +205,12 @@ export async function fetchSessionsForBookings(sessionIds, { signal } = {}) {
 }
 
 /**
- * Whether this build calls the email function at all (spec 5.9: decided from configuration, never
+ * Whether this build calls the email function at all (decided from configuration, never
  * from an error). The composables read it here because only a data module may import the wiring.
  */
 export const isBookingEmailEnabled = () => capabilities.functions
 
-/** The booking email callable (spec 5.5); `resend` is sent only when true. */
+/** The booking email callable; `resend` is sent only when true. */
 export async function requestBookingEmail({ bookingId, kind, resend = false }) {
   return callFunction('sendBookingEmail', { bookingId, kind, ...(resend ? { resend: true } : {}) })
 }

@@ -2,7 +2,7 @@ import { isCoordinate } from './nearbyServices.js'
 import { formatDistance } from './resultsCopy.js'
 
 /**
- * Trip maths and links (spec 6.5, D1): a straight-line estimate at fixed speeds for walking,
+ * Trip maths and links: a straight-line estimate at fixed speeds for walking,
  * cycling and driving (never for public transport), the Google Maps and PTV links, and the one
  * trip sentence. An `area` record gets none of this (the composable never asks); a route from
  * OSRM renders through `formatTrip({ kind: 'route' })`.
@@ -24,7 +24,7 @@ const point3 = (coordinate) =>
 
 /**
  * Minutes at the mode's speed over the street-factored distance, at least 1; null minutes for
- * public transport (links only, D1).
+ * public transport (links only).
  *
  * @returns {{ minutes: number | null, distanceKm: number }}
  */
@@ -57,7 +57,7 @@ export function buildGoogleMapsUrl({ origin = null, destination, mode }) {
 
 /**
  * The PTV journey planner. PTV publishes no deep-link parameter, so the destination is accepted
- * for the spec's signature and unused; a non-coordinate yields no link.
+ * for the public signature and unused; a non-coordinate yields no link.
  */
 export function buildPtvUrl(destination) {
   return isCoordinate(destination) ? 'https://www.ptv.vic.gov.au/journey' : ''
@@ -82,7 +82,7 @@ export function formatTrip({ kind, mode, distanceKm, minutes }) {
 }
 
 /**
- * The result card's distance and trip line (spec 6.4, Part 0 C22): the walking estimate, never a
+ * The result card's distance and trip line: the walking estimate, never a
  * route, "1.9 km · About 30 min walking, estimate"; nothing without a finite distance (an `area`
  * card renders `formatAreaLine` instead).
  */

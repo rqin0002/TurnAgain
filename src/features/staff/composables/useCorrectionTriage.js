@@ -5,12 +5,12 @@ import { resolveCorrection } from '../data/staffRepository.js'
 import { useStaffCatalogue } from './useStaffCatalogue.js'
 
 /**
- * Mark applied and Dismiss on the corrections queue (spec 8.5). One triage at a time; after any
+ * Mark applied and Dismiss on the corrections queue. One triage at a time; after any
  * answer the catalogue reloads, so a card that someone else handled moves to its new status
  * instead of offering a second triage the rules would refuse. The result line is plain text for
  * a mounted `role="status"` element; with `focusTarget` (a ref to that line, which carries
  * tabindex="-1"), focus moves there once a started triage settles, because the card's buttons are
- * gone by then and would leave focus on <body> (M6-D22).
+ * gone by then and would leave focus on <body>.
  */
 export function useCorrectionTriage({ focusTarget = null } = {}) {
   const catalogue = useStaffCatalogue()
@@ -22,7 +22,7 @@ export function useCorrectionTriage({ focusTarget = null } = {}) {
     try {
       await catalogue.reload()
     } catch {
-      // The catalogue reports its own failure (spec 11: the loaded lists stay).
+      // The catalogue reports its own failure (the loaded lists stay).
     }
   }
 

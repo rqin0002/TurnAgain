@@ -21,12 +21,12 @@ import {
 } from '../domain/searchServices.js'
 
 /**
- * The results pipeline (spec 6.4): `searchServices` -> the D4 hint split -> geography (the
+ * The results pipeline: `searchServices` -> the action-hint split -> geography (the
  * applied viewport, else the origin's radius, else everything) -> sort -> numbering ->
  * `paginateRecords`. Every in-radius or in-view result is numbered 1..N once; the page affects
- * only the list. Highest-rated sorts the whole candidate set (D3) with the summaries the view
- * fetched for `candidateIds`, and keeps the previous rated order until the next round is ready
- * (M4-D10): a round is ready only when `ratingStatus` is `ready` and its `ratingIds` cover every
+ * only the list. Highest-rated sorts the whole candidate set with the summaries the view
+ * fetched for `candidateIds`, and keeps the previous rated order until the next round is ready:
+ * a round is ready only when `ratingStatus` is `ready` and its `ratingIds` cover every
  * candidate, so a follow-mode pan that changes the candidates before the debounced round runs
  * never re-ranks them with the old summaries. The kept order belongs to one item and one set of
  * action chips; a new query starts in name order until its own round is ready. A discovery
@@ -36,7 +36,7 @@ import {
  * Nearest stays in distance order while origin coordinates are held, `pending` included (a held
  * origin being re-acquired); it falls back to name order when none are held or the device said
  * `denied` or `unavailable`. "Other options" is never ranked by rating: it follows Nearest and
- * Name Z-A, and falls back to name order under Highest rated (FW-R8).
+ * Name Z-A, and falls back to name order under Highest rated.
  *
  * Every option is a `MaybeRefOrGetter`: `services` (the catalogue), `state` (the parsed
  * `/find-nearby` query), `origin` and `originStatus` (`useLocationOrigin`), `appliedViewport`

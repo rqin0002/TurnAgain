@@ -7,7 +7,7 @@ import CapabilityNotice from '@/shared/components/CapabilityNotice.vue'
 import { useBookingEmail } from '../composables/useBookingEmail.js'
 import { EMAIL_ACTIONS } from '../domain/bookingMessages.js'
 
-// The email line of a booking (spec 7.7 L954). One status region, mounted empty before any call,
+// The email line of a booking. One status region, mounted empty before any call,
 // holds the sentence only; the buttons sit beside it and carry the countdown as their hint. A
 // button keeps focus while its own request runs (busy, never natively disabled); when the answer
 // removes or disables it, focus moves to the status sentence instead of falling to <body>.

@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 import { rankRatedServices } from '../domain/rankServices.js'
 
 /**
- * Top five rated services, props-driven (spec 10.4, decision row L1413): the view composes the
+ * Top five rated services, props-driven: the view composes the
  * catalogue and the summaries and passes them down; this component only ranks and renders.
  * `status` is the view's combined state: idle (nothing requested yet), loading, ready, error.
  */

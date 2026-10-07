@@ -8,7 +8,7 @@ import { useSearchDraft } from '../composables/useSearchDraft.js'
 import { cellText } from '../domain/tableQuery.js'
 
 /**
- * The staff tables (spec 8.3 L989; APG sortable table, facts F5): a native table with a caption,
+ * The staff tables (WAI-ARIA APG sortable table): a native table with a caption,
  * one sort button per data column (`aria-sort` on the sorted header only), a labelled filter per
  * column, 10 rows a page through `ResultPagination` (its polite output is the count), and below
  * 992 px cards with the filters in a `<details>` and the sort as a `<select>`. The table holds no
@@ -33,7 +33,7 @@ const captionId = `${id}-caption`
 const sortSelectId = `${id}-sort`
 const filterId = (column) => `${id}-filter-${column.key}`
 
-// Tables inline at 992 px, cards below (spec 10.1); the table when matchMedia is missing.
+// Tables inline at 992 px, cards below; the table when matchMedia is missing.
 const media =
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(min-width: 992px)')

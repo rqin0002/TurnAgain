@@ -6,9 +6,9 @@ import { isAbortError } from '@/shared/data/RepositoryError.js'
 import { fetchBooking, fetchBookingSession } from '../data/bookingRepository.js'
 
 /**
- * One booking by id and its current session (spec 7.7). The page is refresh-safe: the owner
+ * One booking by id and its current session. The page is refresh-safe: the owner
  * reads the booking by id, then the session in any status; a session that cannot be read leaves
- * `session` null, which the page shows as "Current session status not confirmed" (D6). Reloads
+ * `session` null, which the page shows as "Current session status not confirmed". Reloads
  * on a new id and on every identity change.
  *
  * @param {{ bookingId: import('vue').MaybeRefOrGetter<string> }} options

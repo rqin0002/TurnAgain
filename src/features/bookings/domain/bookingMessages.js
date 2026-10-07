@@ -2,9 +2,8 @@ import { deepFreeze } from '@/shared/domain/deepFreeze.js'
 import { describeError } from '@/shared/domain/errorCopy.js'
 
 /**
- * Every sentence the booking screens show (spec 7.4-7.7, M5-D6), and the two readers that turn
- * a RepositoryError into one of them. The client maps `code` and `details`, never a message
- * (spec 5.9); a RepositoryError's or AuthError's own message is used only for an error this table
+ * Every sentence the booking screens show, and the two readers that turn a RepositoryError into
+ * one of them. The client maps `code` and `details`, never a message; a RepositoryError's or AuthError's own message is used only for an error this table
  * cannot name; anything else is the generic line.
  */
 
@@ -46,7 +45,7 @@ export const BOOKING_MESSAGES = deepFreeze({
   },
 })
 
-/** The email status line (spec 7.7 L954, verbatim). */
+/** The email status line. */
 export const EMAIL_STATUS_COPY = deepFreeze({
   sending: 'Sending your confirmation',
   accepted: 'Sent to the email provider',
@@ -63,7 +62,7 @@ export const EMAIL_ACTIONS = deepFreeze({
 })
 
 /**
- * A refused or failed booking write as one of the review's states (spec 7.6 L948).
+ * A refused or failed booking write as one of the review's states.
  *
  * @returns {{ state: 'session-filled' | 'duplicate' | 'closed' | 'failed', reason: string | null, message: string, bookingId: string | null }}
  */
@@ -113,11 +112,11 @@ const REFUSAL_COPY = Object.freeze({
   'functions-off': '',
 })
 
-/** The `details.code` values the email line explains itself (contract section 3.6). */
+/** The `details.code` values the email line explains itself. */
 export const EMAIL_REFUSAL_CODES = Object.freeze(Object.keys(REFUSAL_COPY))
 
 /**
- * An email call that the function refused, as the line's copy (spec 7.7, M5-D6).
+ * An email call that the function refused, as the line's copy.
  *
  * @returns {{ code: string, message: string, retryAfterMs: number | null, untilTomorrow: boolean }}
  */

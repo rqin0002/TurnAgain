@@ -13,9 +13,9 @@ import { describeSessionAvailability, isLiveBooking } from '../domain/bookingRul
 
 import SessionAvailabilityBadge from './SessionAvailabilityBadge.vue'
 
-// The sessions of one activity (spec 7.3). Each row is focusable by id (`session-<id>`, D8) and
-// offers one action from describeSessionAvailability; provider and drop-in sessions keep the copy
-// and provider link Activity Detail showed before milestone 5.
+// The sessions of one activity. Each row is focusable by id (`session-<id>`) and offers one
+// action from describeSessionAvailability; provider and drop-in sessions keep the copy and
+// provider link Activity Detail already showed.
 const props = defineProps({
   sessions: { type: Array, required: true },
   activity: { type: Object, required: true },
@@ -45,7 +45,7 @@ const showsBadge = ({ availability }) =>
 
 <template>
   <div class="session-list">
-    <!-- Present when the list renders, so a plain paragraph, not a live region (M5-D17). -->
+    <!-- Present when the list renders, so a plain paragraph, not a live region. -->
     <p v-if="truncated" class="session-list__truncated">
       Results incomplete: showing the first 1,000 records.
     </p>

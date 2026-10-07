@@ -1,5 +1,5 @@
 /**
- * Export builders for the staff tables (spec 8.3 L993, decision M6-D6). Pure: the rows are the
+ * Export builders for the staff tables. Pure: the rows are the
  * filtered, sorted `allRows` of `applyTableState` (every page) and every cell is the text the
  * table shows (`cellText`: dates in Melbourne words, "Provider managed", never a raw ISO instant
  * or an array), so the CSV and the JSON carry exactly what is on screen. The CSV goes through
@@ -27,7 +27,7 @@ export function buildCsvExport({ rows, columns }) {
 
 /**
  * The JSON file: `{ exportedAt, filters, columns, rows }` with the CSV's labels and rows, plus
- * `"incomplete": true` when the read behind the table was truncated (spec C8).
+ * `"incomplete": true` when the read behind the table was truncated.
  */
 export function buildJsonExport({ rows, columns, filters, exportedAt, incomplete = false }) {
   return JSON.stringify(

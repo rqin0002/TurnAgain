@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import { GENERIC_FAILURE } from '@/shared/domain/errorCopy.js'
 
-// Loading, empty, error, offline and notice states in one place (spec 10.2). `error` is read by
+// Loading, empty, error, offline and notice states in one place. `error` is read by
 // duck typing (`code`, `message`): a shared component imports nothing from a data layer, and a
 // RepositoryError already carries the copy for its code, so the panel renders that message and
 // only supplies its own when the caller gives neither a message nor an error message.
@@ -17,9 +17,9 @@ const props = defineProps({
   message: { type: String, default: '' },
   error: { type: Object, default: null },
   retryLabel: { type: String, default: 'Try again' },
-  /** False drops the live role where the page already announces the change (spec 6.4 L886). */
+  /** False drops the live role where the page already announces the change. */
   live: { type: Boolean, default: true },
-  /** A failure the person just caused is announced at once, whatever the variant (FW-R7). */
+  /** A failure the person just caused is announced at once, whatever the variant. */
   assertive: { type: Boolean, default: false },
 })
 
@@ -33,7 +33,7 @@ const DEFAULT_MESSAGES = Object.freeze({
   notice: '',
 })
 
-// "check your connection" appears only for the network and offline codes (spec 10.2).
+// "check your connection" appears only for the network and offline codes.
 const CONNECTION_CODES = Object.freeze(['network', 'offline'])
 
 const resolvedMessage = computed(() => {

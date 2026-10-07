@@ -12,7 +12,7 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-// Mount immediately (spec 9.5): the store starts its single listener with the router in hand,
+// Mount immediately: the store starts its single listener with the router in hand,
 // the guard holds protected navigation until `ready`, and index.html shows the loading text
 // until this mount replaces it. Nothing awaits auth before the first paint.
 useAuthStore(pinia).init({ router })

@@ -1,5 +1,5 @@
 /**
- * The result strings of spec 6.4, once: the D4 match labels, the D1 area line, the distance,
+ * The result strings, once: the match labels, the area line, the distance,
  * the one live-region sentence and the pin names. Pure; components render what these return.
  */
 
@@ -10,7 +10,7 @@ export function formatMatchLabel(match) {
   return ''
 }
 
-/** The D1 line of an `area` record, never a distance or minutes. */
+/** The area line of an `area` record, never a distance or minutes. */
 export function formatAreaLine(service) {
   const postcode = service?.postcode
   return postcode

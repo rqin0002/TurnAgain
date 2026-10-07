@@ -25,7 +25,7 @@ onScopeDispose(() => {
   isPageActive = false
 })
 
-// The URL is the hand-off (spec 9.2): registration, verification and sign-out reasons arrive as
+// The URL is the hand-off: registration, verification and sign-out reasons arrive as
 // queries, never as store state, so a reload or a second tab shows the same notice.
 const QUERY_NOTICES = Object.freeze({
   registered:
@@ -48,7 +48,7 @@ const queryNotice = computed(() => {
 const reasonNotice = computed(() => REASON_NOTICES[route.query.reason] ?? '')
 
 const redirectTarget = computed(() => resolveSafeRedirect(route.query.redirect, router))
-// Spec 7.4 L940: the person came from "Book this session" and goes back to it after signing in.
+// The person came from "Book this session" and goes back to it after signing in.
 const isBookingRedirect = computed(() => isBookingReviewPath(redirectTarget.value))
 const withRedirect = (name) =>
   redirectTarget.value ? { name, query: { redirect: redirectTarget.value } } : { name }
@@ -80,7 +80,7 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
   },
 })
 
-/** "Send the verification email again" is a sign-in attempt with the typed password (C4.12). */
+/** "Send the verification email again" is a sign-in attempt with the typed password. */
 const resendVerification = async () => {
   if (resendPending.value || submitting.value) {
     return

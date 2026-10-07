@@ -3,7 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { db } from './admin.js'
 
 /**
- * Steps 1-4 of spec 5.3 for every protected callable, before anything else is read: signed in,
+ * The access checks of every protected callable, before anything else is read: signed in,
  * verified email, an active profile (read with the Admin SDK, which bypasses the rules, so this
  * function is the boundary) and an allowed role. Returns the caller the handlers need.
  */

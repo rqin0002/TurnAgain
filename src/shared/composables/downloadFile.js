@@ -1,7 +1,7 @@
 /**
- * The one browser download path (facts F4d): the CSV and JSON exports of the staff tables and the
- * booking's `.ics` file. Not a composable (no reactive state); it sits in `composables/` beside
- * the code that calls it from click handlers, as `bookingIcsDownload.js` did in milestone 5.
+ * The one browser download path: the CSV and JSON exports of the staff tables and the booking's
+ * `.ics` file. Not a composable (no reactive state); it sits in `composables/` beside the code
+ * that calls it from click handlers.
  */
 
 // WebKit resolves an anchor download after click() returns; FileSaver.js waits this long too.

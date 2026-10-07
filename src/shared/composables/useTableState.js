@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { applyTableState, normalizeTableState, toTableQuery } from '../domain/tableQuery.js'
 
 /**
- * The URL is the single source of truth of a table (spec 8.3 L989): filters, sort and page live
+ * The URL is the single source of truth of a table: filters, sort and page live
  * in `route.query`, so they survive a refresh and Back, and the Overview can deep-link into a
  * register (`/staff/sessions?status=full`). Every change is a `router.replace` (a filter is not a
  * page in the history); a filter, a cleared filter or a new sort returns to page 1. Query keys the

@@ -1,5 +1,5 @@
 /**
- * TurnAgain's three explicit motion effects (spec 10.3). Each one reads the DOM it is given,
+ * TurnAgain's three explicit motion effects. Each one reads the DOM it is given,
  * no-ops under `prefers-reduced-motion` (or when the preference cannot be read, or the tab is
  * hidden) and only then imports anime.js, so the library is a lazy chunk a reduced-motion visitor
  * never downloads. Everything else in the interface is a CSS transition on `--duration-fast`.
@@ -143,7 +143,7 @@ const cancelSummary = (el) => {
  * holds and lands on that exact string, so the target is never parsed out of the text being
  * animated. A second call on the same root (the summary changed while the count ran) cancels the
  * first, so the number ends on the latest value. The staff Overview reuses it in its "All rated
- * services" tile, which renders RatingSummary.vue (milestone 6).
+ * services" tile, which renders RatingSummary.vue.
  *
  * @param {HTMLElement | null} el the summary root
  * @param {{ average?: string | number | null, count?: number }} [values] the summary's average
@@ -204,7 +204,7 @@ export async function animateRatingSummary(el, { average = null, count = 0 } = {
 }
 
 /**
- * Reveals a booking reference (milestone 5's confirmation page) with a short fade and rise.
+ * Reveals a booking reference (the booking confirmation page) with a short fade and rise.
  *
  * @param {HTMLElement | null} el the element that shows the reference
  * @returns {Promise<void>}

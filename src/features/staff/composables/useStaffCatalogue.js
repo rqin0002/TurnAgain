@@ -12,13 +12,13 @@ import {
 } from '../data/staffRepository.js'
 
 /**
- * The staff catalogue (spec 8.1 L979): module-level state shared by every staff page, not a
- * second Pinia store. It is keyed by the auth store's identity epoch (spec 9.3): a load records
+ * The staff catalogue: module-level state shared by every staff page, not a
+ * second Pinia store. It is keyed by the auth store's identity epoch: a load records
  * the epoch it started under, reads with `authStore.identitySignal` and drops its result when the
  * epoch moved; an epoch change (sign-out, another uid, a role or profile revision change) empties
  * the lists synchronously, so a downgraded account never repopulates staff data from a late
- * response (E1, E2). Writes never come through here and never take the identity signal (E7).
- * Nothing reaches localStorage (spec 11): offline, a page keeps what this session loaded.
+ * response. Writes never come through here and never take the identity signal.
+ * Nothing reaches localStorage: offline, a page keeps what this session loaded.
  */
 
 const STAFF_ROLES = Object.freeze(['staff', 'admin'])
@@ -142,7 +142,7 @@ const read = () => {
       status.value = 'ready'
     } catch (caught) {
       if (isAbortError(caught) || run !== generation || store.identityEpoch !== epoch) return
-      // A failed reload keeps what this session loaded (offline, spec 11); a failed first load
+      // A failed reload keeps what this session loaded (offline); a failed first load
       // is the error state.
       error.value = caught
       if (status.value !== 'ready') status.value = 'error'

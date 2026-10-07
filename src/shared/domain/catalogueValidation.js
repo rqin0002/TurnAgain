@@ -1,7 +1,7 @@
 /**
- * Shared validation vocabulary for catalogue and profile records (spec 4.5). Pure: no imports.
+ * Shared validation vocabulary for catalogue and profile records. Pure: no imports.
  * The schema modules in each feature compose these into record validators; the seed imports
- * them in Node through the customization hooks (spec 13.4).
+ * them in Node through the customization hooks.
  */
 
 export const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
@@ -78,7 +78,7 @@ export function isHttpsUrl(value) {
   }
 }
 
-/** Lower-cases and trims an email for comparison with the Auth token email (spec 9.4). */
+/** Lower-cases and trims an email for comparison with the Auth token email. */
 export function normalizeEmail(value) {
   return typeof value === 'string' ? value.trim().toLocaleLowerCase('en-AU') : ''
 }

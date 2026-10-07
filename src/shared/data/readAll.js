@@ -3,7 +3,7 @@ import { getDocs, limit, query, startAfter } from 'firebase/firestore/lite'
 import { throwIfAborted } from './RepositoryError.js'
 
 /**
- * Reads a collection completely up to a cap (spec 4.3, C5). Never changes the caller's ordering:
+ * Reads a collection completely up to a cap. Never changes the caller's ordering:
  * it runs `query(baseQuery, limit(pageSize))` and pages with `startAfter(lastSnapshot)`, which
  * the SDK resolves against the query's own orderBy fields plus the implicit `__name__`. So a
  * where()/`in` query pages on `__name__` with no composite index and a single `orderBy` keeps

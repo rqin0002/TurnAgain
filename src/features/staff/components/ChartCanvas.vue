@@ -6,12 +6,12 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { loadChart } from './chartChunk.js'
 
 /**
- * One Chart.js bar chart with its table alternative (spec 8.6 L1005, 10.5, L235). Chart.js loads
+ * One Chart.js bar chart with its table alternative. Chart.js loads
  * lazily through chartChunk.js; the canvas is an image named by `label`, and "View as table"
  * always carries the same numbers, so the chart is never the only way to read them. Colours are
  * the CSS tokens named by `colorTokens` (one per series), read again when the theme changes;
  * animation is off under prefers-reduced-motion. No data renders the empty StatePanel and no
- * canvas (U10). New data with the same labels and numbers (a catalogue reload) keeps the drawn
+ * canvas. New data with the same labels and numbers (a catalogue reload) keeps the drawn
  * chart, so a reload neither flickers nor animates again; a failed chunk load is retried.
  * Sizing comes from the `.chart-canvas__frame` class, never a string :style.
  */
@@ -157,7 +157,7 @@ onBeforeUnmount(() => {
       <div v-if="!failed" class="chart-canvas__frame">
         <canvas ref="canvas" role="img" :aria-label="label"></canvas>
       </div>
-      <!-- Mounted with the chart; only its text changes (M6-D22). -->
+      <!-- Mounted with the chart; only its text changes. -->
       <p class="chart-canvas__status" role="status">{{ failed ? FAILED_MESSAGE : '' }}</p>
       <details class="chart-canvas__table">
         <summary>View as table</summary>

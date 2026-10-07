@@ -6,7 +6,7 @@ rules_version = '2';
 // catalogues/current (public get): datasetId, schemaVersion, catalogueType,
 //   checkedAt, coverage, updatedAt.
 // services/{serviceId} (public when published; staff read any status): the
-//   22 keys of spec 4.4 isValidService: id, name, actionTypes, acceptedItems,
+//   22 keys of isValidService: id, name, actionTypes, acceptedItems,
 //   aliases, summary, address, suburb, postcode, searchAreas, status, source
 //   map, createdAt, updatedAt, geo, itemCategories, acceptanceConditions,
 //   preparation, access, openingHours, cost, revision. Staff create (with the
@@ -18,7 +18,7 @@ rules_version = '2';
 //   createdAt, updatedAt.
 // users/{uid} (owner get; admin get, list and count): uid, email, displayName,
 //   role, status, revision, savedServiceIds, createdAt, updatedAt. Owner create
-//   and the four update branches of spec 4.4; never deleted.
+//   and four update branches; never deleted.
 // activities/{activityId} (public when published; staff read any status): the
 //   18 keys of isValidActivity: id, title, summary, activityType,
 //   suitableItems, acceptedConditions, excludedConditions, costLabel,
@@ -31,18 +31,18 @@ rules_version = '2';
 //   venueName, address, suburb, postcode, capacity, bookedCount,
 //   waitlistCount, registrationType, registrationUrl, status, sourceCheckedAt,
 //   participantNotice, cancellationNoticeAt, createdAt, updatedAt, revision.
-//   No activityTitle (the client joins the activity, C7), and no participant
+//   No activityTitle (the client joins the activity), and no participant
 //   identity, contact detail, or access request is permitted. Capacity fields
 //   are all null when an external provider does not publish live availability;
 //   TurnAgain-managed sessions require integers. Reads never validate the
-//   schema (spec 4.4 line 334), so a legacy session that still carries
+//   schema, so a legacy session that still carries
 //   activityTitle stays readable until the seed migrates it.
 // bookings/{uid}_{sessionId} (owner get and list by uid; staff get and list):
 //   the 20 keys of isValidBooking: uid, email, contactName, itemDescription,
 //   sessionId, activityId, activityTitle, venueName, address, suburb,
 //   postcode, startsAt, endsAt, status, reference, waitlistedAt, promotedAt,
 //   cancelledAt, createdAt, updatedAt. The owner creates, cancels and rebooks
-//   in one write with the session's counters (R7); only promoteNextBooking
+//   in one write with the session's counters; only promoteNextBooking
 //   (Admin SDK) promotes; never deleted.
 // emailLogs/{logId} (staff get and bounded list) and emailSends/{sendKey} (no
 //   client access): written by the two email functions with the Admin SDK.
@@ -52,7 +52,7 @@ rules_version = '2';
 // accessLocks/{uid}: the adminSetUserAccess lease; no client access.
 //
 // Activities and sessions: staff create and update; sessions also take the
-// member counter write of milestone 5; never deleted.
+// member's counter write; never deleted.
 // ============================================================================
 
 service cloud.firestore {
@@ -134,9 +134,8 @@ service cloud.firestore {
         || (data.status == 'full' && data.bookedCount == data.capacity);
     }
 
-    // Spec 4.4 line 378 (C7): no activityTitle; revision and cancellationNoticeAt join the exact
-    // key list. Called by the session create and update branches only; reads never validate
-    // (spec 4.4 line 334).
+    // No activityTitle; revision and cancellationNoticeAt join the exact key list. Called by the
+    // session create and update branches only; reads never validate.
     function isValidActivitySession(data, sessionId) {
       return hasExactFields(
           data,
@@ -371,14 +370,14 @@ service cloud.firestore {
         && profile.data.role in ['staff', 'admin'];
     }
 
-    // Spec 4.4 line 337: admin reads and the role-only update branch of the users block.
+    // Admin reads and the role-only update branch of the users block.
     function isAdmin() {
       return hasStaffRole()
         && get(profilePath(request.auth.uid)).data.role == 'admin';
     }
 
-    // Spec 4.4 lines 338-339: staff content writes carry request.time stamps and an exact
-    // revision step (optimistic concurrency, R1); a legacy document without revision reads as 0.
+    // Staff content writes carry request.time stamps and an exact
+    // revision step (optimistic concurrency); a legacy document without revision reads as 0.
     function isStaffCreate(after) {
       return hasStaffRole()
         && after.createdAt == request.time
@@ -393,7 +392,7 @@ service cloud.firestore {
         && after.revision == before.get('revision', 0) + 1;
     }
 
-    // Spec 4.4 line 343: rules cannot loop, so only the first element is typed and bounded; the
+    // Rules cannot loop, so only the first element is typed and bounded; the
     // schema modules check every element and the seed and forms never write anything else.
     function isStringList(v, maxItems, maxLen) {
       return v is list
@@ -401,7 +400,6 @@ service cloud.firestore {
         && (v.size() == 0 || (v[0] is string && v[0].size() <= maxLen));
     }
 
-    // Spec 4.4 lines 344-349.
     function isValidGeo(g) {
       return hasExactFields(g, ['latitude', 'longitude', 'precision', 'sourceUrl', 'checkedAt'])
         && g.latitude is number
@@ -415,7 +413,7 @@ service cloud.firestore {
         && isValidDateString(g.checkedAt);
     }
 
-    // Spec 4.4 lines 350-371: the 22 keys of a stored service and the bounds serviceSchema.js
+    // The 22 keys of a stored service and the bounds serviceSchema.js
     // mirrors (name 1-150, summary 1-600, source.organisation 1-150, the list sizes, nullable
     // address/suburb/postcode/cost).
     function isValidService(d, id) {
@@ -583,7 +581,7 @@ service cloud.firestore {
       return /databases/$(database)/documents/bookings/$(bookingId);
     }
 
-    // Spec 4.4 line 372: the 18 stored activity keys with the bounds activitySchema.js uses.
+    // The 18 stored activity keys with the bounds activitySchema.js uses.
     function isValidActivity(d, id) {
       return hasExactFields(
           d,
@@ -634,7 +632,7 @@ service cloud.firestore {
     }
 
     // Ownership of an absent booking is provable from the id, so the owner may read it inside
-    // runTransaction before the create (spec 4.4 line 421); a stored booking is proved by its uid,
+    // runTransaction before the create; a stored booking is proved by its uid,
     // because isValidId admits '_' in uids and session ids and `amy` + `_x_s1` is `amy_x` + `_s1`.
     function ownsBookingId(id) {
       let prefix = request.auth.uid + '_';
@@ -726,7 +724,7 @@ service cloud.firestore {
         && s.startsAt > request.time;
     }
 
-    // Snapshot fields equal the session; the title snapshot equals the activity's title (C7).
+    // Snapshot fields equal the session; the title snapshot equals the activity's title.
     function matchesSession(b, s) {
       return b.activityId == s.activityId
         && b.venueName == s.venueName
@@ -762,7 +760,7 @@ service cloud.firestore {
       return (after == 'waitlisted' ? 1 : 0) - (before == 'waitlisted' ? 1 : 0);
     }
 
-    // The session's counters move by exactly this booking's delta in the same write (R7).
+    // The session's counters move by exactly this booking's delta in the same write.
     function sessionCountersMoved(id, beforeStatus, afterStatus) {
       let p = sessionPath(id);
       return existsAfter(p)
@@ -786,7 +784,7 @@ service cloud.firestore {
         && after.waitlistCount == before.waitlistCount + waitlistDelta(beforeStatus, b.status);
     }
 
-    // Spec 4.2 and 4.4 (C4, invariant 10): the twelve keys of a correction. Anyone files one against
+    // The twelve keys of a correction. Anyone files one against
     // a published service; staff triage an open one once; nobody deletes one.
     function isValidCorrection(data) {
       return hasExactFields(
@@ -835,7 +833,7 @@ service cloud.firestore {
     }
 
     match /catalogues/{catalogueId} {
-      // Spec 4.4 lines 588-591 with the milestone 4 amendment (M4-D2): a staff identity may
+      // A staff identity may
       // confirm that the document is absent (the seed's dry run), so the public branch reads an
       // existing valid document and the staff branch reads an absent one.
       allow get: if catalogueId == 'current'
@@ -850,7 +848,7 @@ service cloud.firestore {
     }
 
     match /services/{serviceId} {
-      // Spec 4.4 lines 383-389. Published content is public; a staff identity reads any status
+      // Published content is public; a staff identity reads any status
       // (and an absent document, which the seed's plan needs to confirm a create). The repository
       // performs the full schema check for both direct and list reads before displaying it.
       allow get: if resource.data.status == 'published' || hasStaffRole();
@@ -860,18 +858,18 @@ service cloud.firestore {
       allow list: if isBoundedCollectionQuery()
         && (resource.data.status == 'published' || hasStaffRole());
 
-      // A new service and its zero summary are one batch (C3, R3).
+      // A new service and its zero summary are one batch.
       allow create: if isValidService(request.resource.data, serviceId)
         && isStaffCreate(request.resource.data)
         && existsAfter(summaryPath(serviceId))
         && getAfter(summaryPath(serviceId)).data.ratingCount == 0;
       allow update: if isValidService(request.resource.data, serviceId)
         && isStaffUpdate(resource.data, request.resource.data);
-      // Archive instead (C4).
+      // Archive instead.
       allow delete: if false;
 
       match /aggregates/rating-summary {
-        // No read-time schema check (spec 4.4, C3): projectRatingSummary rejects malformed data
+        // No read-time schema check: projectRatingSummary rejects malformed data
         // client-side and renders "can't be rated yet"; staff read any service's summary.
         allow get: if isPublishedService(serviceId) || hasStaffRole();
         allow list: if false;
@@ -894,9 +892,9 @@ service cloud.firestore {
             request.resource.data
           );
 
-        // Spec 4.4 lines 400-405. The summary must pre-exist before any rating (C3). Staff create
+        // The summary must pre-exist before any rating. Staff create
         // it with zero values in the same batch as the service; the seed does the same only when
-        // it creates a service. The pairing is enforced in both directions (R3): a service cannot
+        // it creates a service. The pairing is enforced in both directions: a service cannot
         // be created without its summary, and a zero summary can never be created for a service
         // that already exists, so a legacy service with ratings but no summary stays unrateable
         // until an admin rebuild from its existing ratings, which is a future function.
@@ -953,7 +951,7 @@ service cloud.firestore {
     }
 
     match /activities/{activityId} {
-      // Spec 4.4 lines 409-415. Published content is public; a staff identity reads any status
+      // Published content is public; a staff identity reads any status
       // (and an absent document, which the seed's plan needs to confirm a create). The
       // repositories validate every document they display.
       allow get: if resource.data.status == 'published' || hasStaffRole();
@@ -963,15 +961,15 @@ service cloud.firestore {
         && isStaffCreate(request.resource.data);
       allow update: if isValidActivity(request.resource.data, activityId)
         && isStaffUpdate(resource.data, request.resource.data);
-      // Archive instead (C4).
+      // Archive instead.
       allow delete: if false;
     }
 
     match /activitySessions/{sessionId} {
-      // Spec 4.4 lines 472-475: no read-time schema check (line 334). The owner of a stored
+      // No read-time schema check. The owner of a stored
       // booking on the session reads it by id in any status (no profile read); an active member
       // may run any bounded list in any status (sessions hold no personal data); My Bookings reads
-      // them by id chunk (D6); a public query proves a public status.
+      // them by id chunk; a public query proves a public status.
       allow get: if resource.data.status in ['scheduled', 'full', 'cancelled']
         || hasStaffRole()
         || (request.auth != null && ownsStoredBookingOn(sessionId));
@@ -981,14 +979,14 @@ service cloud.firestore {
           || hasStaffRole()
           || (request.auth != null && isActiveProfile(request.auth.uid))
         );
-      // Spec 4.4 lines 476-478: a new session starts scheduled with empty counters (0/0 on a
+      // A new session starts scheduled with empty counters (0/0 on a
       // TurnAgain session, null/null on a provider or drop-in one).
       allow create: if isValidActivitySession(request.resource.data, sessionId)
         && isStaffCreate(request.resource.data)
         && request.resource.data.status == 'scheduled'
         && request.resource.data.bookedCount in [0, null]
         && request.resource.data.waitlistCount in [0, null];
-      // Spec 4.4 lines 479-484: a staff content write leaves the counters alone and never drops
+      // A staff content write leaves the counters alone and never drops
       // the capacity below the places already taken.
       allow update: if isValidActivitySession(request.resource.data, sessionId)
         && request.resource.data.updatedAt == request.time
@@ -997,14 +995,14 @@ service cloud.firestore {
             isStaffUpdate(resource.data, request.resource.data)
             && request.resource.data.bookedCount == resource.data.bookedCount
             && request.resource.data.waitlistCount == resource.data.waitlistCount
-            // Restates isValidActivitySession's bookedCount <= capacity for the reader (spec 4.4
-            // line 482); the validator is what refuses a smaller room.
+            // Restates isValidActivitySession's bookedCount <= capacity for the reader;
+            // the validator is what refuses a smaller room.
             && (
               request.resource.data.capacity == null
               || request.resource.data.capacity >= request.resource.data.bookedCount
             )
           )
-          // Spec 4.4 lines 486-489: the member's counter write moves by exactly the delta of the
+          // The member's counter write moves by exactly the delta of the
           // caller's own booking written in the same request, with the status re-derived; revision
           // never moves here.
           || (
@@ -1033,14 +1031,14 @@ service cloud.firestore {
       allow update: if isValidProfile(request.resource.data, uid)
         && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
         && request.resource.data.revision == resource.data.get('revision', 0) + 1 && (
-           // legacy migration (R9): a profile without revision/savedServiceIds is completed in one write, syncing the email at the same time
+           // legacy migration: a profile without revision/savedServiceIds is completed in one write, syncing the email at the same time
            (isOwner(uid) && (!('revision' in resource.data) || !('savedServiceIds' in resource.data))
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revision','savedServiceIds','email','updatedAt'])
              && (('savedServiceIds' in resource.data)
                    ? request.resource.data.savedServiceIds == resource.data.savedServiceIds
                    : request.resource.data.savedServiceIds == [])
-             && request.resource.data.email == request.auth.token.email)   // the outer condition already fixes revision to (existing ?? 0) + 1 (R15)
-           // email sync only (E1): isOwner rather than isActiveProfile, because isActiveProfile fails while the two emails differ
+             && request.resource.data.email == request.auth.token.email)   // the outer condition already fixes revision to (existing ?? 0) + 1
+           // email sync only: isOwner rather than isActiveProfile, because isActiveProfile fails while the two emails differ
         || (isOwner(uid)
              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','revision','updatedAt'])
              && request.resource.data.email == request.auth.token.email)
@@ -1054,7 +1052,7 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      // Spec 4.4 lines 493-495: the owner reads by id: an absent own id inside the booking
+      // The owner reads by id: an absent own id inside the booking
       // transaction, a stored booking only when its uid is the caller's; the owner lists
       // `where uid ==`; staff read and list any booking.
       allow get: if (
@@ -1070,9 +1068,9 @@ service cloud.firestore {
           (isActiveProfile(request.auth.uid) && resource.data.uid == request.auth.uid)
           || hasStaffRole()
         );
-      // Spec 4.4 lines 496-504: a bookable session, snapshots equal to the session and the
+      // A bookable session, snapshots equal to the session and the
       // activity title, a seat only while one is free and nobody waits, and the session's
-      // counters moved by this booking in the same write (R7).
+      // counters moved by this booking in the same write.
       allow create: if isActiveProfile(request.auth.uid)
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email
@@ -1096,8 +1094,8 @@ service cloud.firestore {
           'cancelled',
           request.resource.data.status
         );
-      // Spec 4.4 lines 505-525: the owner cancels before the start, or rebooks a cancelled
-      // booking with the current sign-in email (R6); promotion is promoteNextBooking only.
+      // The owner cancels before the start, or rebooks a cancelled
+      // booking with the current sign-in email; promotion is promoteNextBooking only.
       allow update: if isValidBooking(request.resource.data, bookingId)
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time
@@ -1141,23 +1139,23 @@ service cloud.firestore {
             )
           )
         );
-      // Cancel instead (C4).
+      // Cancel instead.
       allow delete: if false;
     }
 
-    // Spec 4.4 lines 581-586: written by sendSessionEmail with the Admin SDK; staff read the log.
+    // Written by sendSessionEmail with the Admin SDK; staff read the log.
     match /emailLogs/{logId} {
       allow get: if hasStaffRole();
       allow list: if hasStaffRole() && isBoundedCollectionQuery();
       allow create, update, delete: if false;
     }
 
-    // The send lock and result records of the two email functions; no client access (inv. 6).
+    // The send lock and result records of the two email functions; no client access.
     match /emailSends/{sendKey} {
       allow read, write: if false;
     }
 
-    // Spec 4.4 lines 567-580 (C4, invariant 10), with the open-only triage of decision M6-D3.
+    // Corrections, with open-only triage.
     match /corrections/{correctionId} {
       allow create: if isValidCorrection(request.resource.data)
         && isPublishedService(request.resource.data.serviceId)
@@ -1182,11 +1180,11 @@ service cloud.firestore {
         && request.resource.data.resolvedBy == request.auth.uid
         && request.resource.data.resolvedAt == request.time
         && request.resource.data.updatedAt == request.time;
-      // Dismissed corrections stay as a record (C4).
+      // Dismissed corrections stay as a record.
       allow delete: if false;
     }
 
-    // Spec 4.4 line 587: the per-uid lease of adminSetUserAccess; no client access.
+    // The per-uid lease of adminSetUserAccess; no client access.
     match /accessLocks/{uid} {
       allow read, write: if false;
     }

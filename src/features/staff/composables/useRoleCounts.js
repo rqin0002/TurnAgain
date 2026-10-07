@@ -6,7 +6,7 @@ import { isAbortError } from '@/shared/data/RepositoryError.js'
 import { countUsersByRole } from '../data/staffRepository.js'
 
 /**
- * Accounts by role for the Overview (spec 8.6, E5): administrators only (a staff store reads
+ * Accounts by role for the Overview: administrators only (a staff store reads
  * nothing and stays `idle`); every load reads afresh, so the counts follow a Team change; nothing
  * is cached or persisted, and an identity change clears what was read under the old one.
  */

@@ -1,4 +1,4 @@
-/* Authentication pages share one compact layout, card and feedback system (spec 9.2). Fields
+/* Authentication pages share one compact layout, card and feedback system. Fields
    are FormField, buttons are AppButton; this file owns only the page frame and the summaries. */
 .auth-page__layout {
   display: grid;

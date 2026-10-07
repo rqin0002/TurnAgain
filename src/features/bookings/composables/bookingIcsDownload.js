@@ -2,15 +2,15 @@ import { bookingIcsFileName, buildBookingIcs } from '@shared/ics.js'
 
 import { downloadTextFile } from '@/shared/composables/downloadFile.js'
 
-/** Shown beside the button when the browser could not build or offer the file (R-5c.36). */
+/** Shown beside the button when the browser could not build or offer the file. */
 export const ICS_UNAVAILABLE_MESSAGE =
   'The calendar file could not be created here. Your booking is unchanged.'
 
 /**
- * "Add to calendar (.ics)" (spec 7.2, 7.7): the booking's file built in the browser from the same
+ * "Add to calendar (.ics)": the booking's file built in the browser from the same
  * `@shared/ics.js` the confirmation email attaches, offered as a download through the shared
  * `downloadTextFile` (Blob, temporary link, 40-second revoke). The time and venue come from the
- * current session when it loaded (L956), else from the booking's snapshot.
+ * current session when it loaded, else from the booking's snapshot.
  *
  * @param {object} booking the projected booking (ISO instants)
  * @param {object | null} session the current session, or null when it did not load

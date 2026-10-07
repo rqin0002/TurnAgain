@@ -9,7 +9,7 @@ import { sendSessionEmail } from '../data/emailRepository.js'
 import { isStaffFunctionsEnabled } from '../data/staffCapabilities.js'
 import { recipientSummary } from '../domain/participants.js'
 
-/** The form's states (spec 8.4); the page's `loading` is the participants' load. */
+/** The form's states; the page's `loading` is the participants' load. */
 export const EMAIL_FORM_STATES = Object.freeze([
   'composing',
   'no-participants',
@@ -21,7 +21,7 @@ export const EMAIL_FORM_STATES = Object.freeze([
   'failed',
 ])
 
-/** The status label of a "Previous emails for this session" row (drafter addition). */
+/** The status label of a "Previous emails for this session" row. */
 export const EMAIL_LOG_STATUS_LABELS = Object.freeze({
   sending: 'Sending',
   accepted: EMAIL_STATUS_COPY.accepted,
@@ -31,7 +31,7 @@ export const EMAIL_LOG_STATUS_LABELS = Object.freeze({
   'dry-run': EMAIL_STATUS_COPY['dry-run'],
 })
 
-/** A log row that may have reached people offers New send only (decision M6-D5). */
+/** A log row that may have reached people offers New send only. */
 export const offersNewSendFromLog = (log) => ['unknown', 'partial', 'sending'].includes(log?.status)
 
 export const PARTICIPANT_EMAIL_MESSAGES = Object.freeze({
@@ -45,7 +45,7 @@ export const PARTICIPANT_EMAIL_MESSAGES = Object.freeze({
     `An earlier send to ${log.recipientCount} participants may have reached them; they may receive this one too.`,
 })
 
-/** The form's field copy (drafter addition). */
+/** The form's field copy. */
 export const PARTICIPANT_EMAIL_FIELD_MESSAGES = Object.freeze({
   subject: Object.freeze({
     required: 'Enter a subject.',
@@ -93,7 +93,7 @@ const STATE_OF_STATUS = Object.freeze({
 })
 
 /**
- * The result banner (L997; the first three sentences verbatim, contract T13 for the rest).
+ * The result banner.
  *
  * @param {{ status: string, results: { participants: object, copy: object | null } } | null} response
  */
@@ -136,7 +136,7 @@ const fingerprint = (values) =>
   })
 
 /**
- * The participant email form (spec 8.4, R10, decision M6-D5, M5 Task 7 (b)). The operation lives
+ * The participant email form. The operation lives
  * in memory only: `operationId` is made when the form starts and kept until a send whose every
  * requested part is accepted or dry-run. Retry repeats the last operation exactly (its id and
  * content) and is withdrawn as soon as the subject, the message, the selection or a box changes;
@@ -144,16 +144,16 @@ const fingerprint = (values) =>
  * the function refuses (`operation-mismatch`) is reported and leaves New send, never turning into
  * a new operation by itself. "Previous emails" rows that may have reached people (`unknown`,
  * `partial`, `sending`) offer New send with a warning built from the row. With nobody selected,
- * Send is possible only with "Send me a copy" (the zero-participant D.2 demonstration), and
+ * Send is possible only with "Send me a copy" (the zero-participant demonstration), and
  * unticking it clears "Attach participant list" (the list rides on the copy only). New send after
  * a thrown send, or with the participants' part unsettled, warns that the earlier send may have
  * reached them. The subject and message are prefilled from the session, and prefilled again while
  * the form is untouched and unsent (a session cancelled meanwhile gains "Cancelled: "), never over
  * what the person typed. With `focusTarget` (a ref to the mounted banner line, tabindex="-1"),
  * focus moves there as a send starts, because Send now and Retry unmount at once and would leave
- * focus on <body> (M6-D22). A confirm is a snapshot: Send now and New send send the validated
+ * focus on <body>. A confirm is a snapshot: Send now and New send send the validated
  * content, the selection and the session the confirm text described, even when the participants'
- * checkboxes above the form (which stay usable) or the session moved meanwhile (R-6d.45).
+ * checkboxes above the form (which stay usable) or the session moved meanwhile.
  *
  * @param {{ sessionId: import('vue').MaybeRefOrGetter<string>, session: import('vue').MaybeRefOrGetter<object | null>, activityTitle: import('vue').MaybeRefOrGetter<string>, selectedBookings: import('vue').MaybeRefOrGetter<object[]>, liveCount: import('vue').MaybeRefOrGetter<number>, emailLogs: import('vue').MaybeRefOrGetter<object[]>, onParticipantsChanged?: (ids: string[]) => unknown, onSettled?: () => unknown, focusTarget?: import('vue').Ref<HTMLElement | null> | null }} options
  */

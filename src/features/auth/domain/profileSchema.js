@@ -7,10 +7,10 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The users/{uid} vocabulary (spec 4.5), mirroring the rules' isValidProfile (spec 4.4, L378):
+ * The users/{uid} vocabulary, mirroring the rules' isValidProfile:
  * the seven HEAD keys plus `revision` (int >= 1) and `savedServiceIds` (list of ids, <= 100). A
  * legacy profile lacks the last two; the projector fills their defaults and flags `needsUpgrade`
- * so the store performs the one-time migration write (L595, R9). Timestamps are checked by the
+ * so the store performs the one-time migration write. Timestamps are checked by the
  * rules (`createdAt <= updatedAt`, `updatedAt == request.time`) and never rendered, so the client
  * validator accepts any value there; a document just written carries sentinels, not Timestamps.
  * Both sides count the display name in UTF-16 code units: the rules' `size()` and `length` here.
@@ -30,7 +30,7 @@ export const PROFILE_KEYS = Object.freeze([
 
 export const PROFILE_STATUSES = Object.freeze(['active', 'disabled'])
 export const DISPLAY_NAME_MAX_LENGTH = 50
-/** The rules bound (`savedServiceIds is list && size() <= 100`, spec L378). */
+/** The rules bound (`savedServiceIds is list && size() <= 100`). */
 export const SAVED_SERVICES_LIMIT = 100
 
 const DEFAULT_DISPLAY_NAME = 'Member'
@@ -115,7 +115,7 @@ const safeDisplayName = (value) => {
 }
 
 /**
- * The document createProfile writes, minus the two server timestamps (spec 9.1: role member,
+ * The document createProfile writes, minus the two server timestamps (role member,
  * status active, revision 1, no saved services).
  */
 export function blankProfile({ uid, email, displayName }) {

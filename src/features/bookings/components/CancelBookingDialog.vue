@@ -5,7 +5,7 @@ import { onMounted, ref, watch } from 'vue'
 import AppButton from '@/shared/components/AppButton.vue'
 import { describeError } from '@/shared/domain/errorCopy.js'
 
-// The cancel confirmation (spec 7.7 L956): a native <dialog> opened with showModal(), so focus is
+// The cancel confirmation: a native <dialog> opened with showModal(), so focus is
 // trapped and Escape closes it. It only asks; the page runs the cancel and passes `busy`/`error`.
 const props = defineProps({
   booking: { type: Object, default: null },
@@ -45,7 +45,7 @@ watch(
       {{ booking.activityTitle }}, {{ formatSessionWhen(booking.startsAt, booking.endsAt) }}.
       Reference {{ booking.reference }}.
     </p>
-    <!-- Mounted with the dialog; only its text changes (M5-D17). -->
+    <!-- Mounted with the dialog; only its text changes. -->
     <p class="cancel-dialog__error" role="alert">{{ error ? describeError(error) : '' }}</p>
     <div class="cancel-dialog__actions">
       <AppButton

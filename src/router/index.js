@@ -113,7 +113,7 @@ const routes = [
     },
   },
   {
-    // The staff layout (spec 3.6, 8.1): children inherit the role meta. The redirect makes a
+    // The staff layout: children inherit the role meta. The redirect makes a
     // navigation to { name: 'staff' } (defaultDestination, LoginView) render the overview.
     path: '/staff',
     name: 'staff',
@@ -190,7 +190,7 @@ const routes = [
         component: () => import('@/views/StaffTeamView.vue'),
         meta: { title: 'Team | TurnAgain', allowedRoles: ['admin'] },
       },
-      // Static create paths outrank /staff/sessions/:sessionId (spec 3.6); child order is free.
+      // Static create paths outrank /staff/sessions/:sessionId; child order is free.
     ],
   },
   {
@@ -243,7 +243,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => authGuard(to, router))
-// A completed navigation to a protected page re-validates the profile (spec 9.3).
+// A completed navigation to a protected page re-validates the profile.
 router.afterEach(afterNavigation)
 
 // Focus follows a completed client-side page change so keyboard and screen-reader

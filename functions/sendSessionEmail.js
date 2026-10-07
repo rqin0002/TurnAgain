@@ -22,7 +22,7 @@ import { validateSessionEmail } from './shared/emailValidation.js'
 import { SESSION_ICS_FILE_NAME, buildSessionIcs } from './shared/ics.js'
 
 /**
- * sendSessionEmail (spec 5.2, 5.5; Part 0 section 3.6): a staff member emails the selected
+ * sendSessionEmail: a staff member emails the selected
  * participants of one session, with an optional copy to themselves. The client's `operationId`
  * names the `emailSends` record; a repeat of the same operation re-sends only a `failed` sub-send.
  * Participants get one Brevo message-version each, so nobody sees another address.
@@ -44,7 +44,7 @@ const iso = (value) => {
   return ms === null ? null : new Date(ms).toISOString()
 }
 
-/** Every booking of the session, all pages (spec 5.5: "all pages"). */
+/** Every booking of the session, all pages. */
 async function loadSessionBookings(sessionId) {
   const bookings = []
   let cursor = null
@@ -248,7 +248,7 @@ export async function handleSendSessionEmail(request) {
     })
   }
 
-  // The Overview item clears itself only when every participant was reached (spec 5.5, R11, R17).
+  // The Overview item clears itself only when every participant was reached.
   const selectedIds = new Set(input.recipientBookingIds)
   const everyoneSelected = participants.every((booking) => selectedIds.has(booking.id))
   if (

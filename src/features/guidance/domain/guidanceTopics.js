@@ -1,7 +1,7 @@
 import { deepFreeze } from '@/shared/domain/deepFreeze.js'
 
 /**
- * Source-backed public guidance for high-risk or commonly misunderstood items (spec 10.5, B.2).
+ * Source-backed public guidance for high-risk or commonly misunderstood items.
  *
  * This is deliberately a small editorial dataset, not a second service catalogue. Content stays
  * as plain text so Vue's normal escaping remains the rendering boundary, while time-sensitive

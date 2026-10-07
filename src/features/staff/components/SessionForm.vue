@@ -6,10 +6,10 @@ import FormField from '@/shared/components/FormField.vue'
 import { SESSION_LOCK_MESSAGE, recordIdFrom } from '../domain/recordDrafts.js'
 
 /**
- * The session fields (spec 8.2 L985): the activity is chosen on a create and shown read-only from
+ * The session fields: the activity is chosen on a create and shown read-only from
  * the activity record on an edit; sessions carry venue text only, so there are no map controls.
- * A session with bookings keeps its time, venue and activity (M6-D8): those fields are disabled
- * under the sentence that says why. The counters are shown, never edited (invariant 3). The
+ * A session with bookings keeps its time, venue and activity: those fields are disabled
+ * under the sentence that says why. The counters are shown, never edited. The
  * registration type is fixed once the session exists. The id appears on a create only and
  * follows the activity, date and start time until the person edits it.
  */

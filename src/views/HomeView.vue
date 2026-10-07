@@ -10,16 +10,16 @@ import { useRatingSummaries } from '@/features/ratings/composables/useRatingSumm
 
 const router = useRouter()
 // The last search (item, location, action chips and sort; never coordinates, never near=me)
-// prefills the form (spec 11 L1088): a saved criterion, not a saved place. The form asks for no
-// device position (decision M6-D24): the map's "Use my location" control on Find nearby is the
+// prefills the form: a saved criterion, not a saved place. The form asks for no
+// device position: the map's "Use my location" control on Find nearby is the
 // one request, so Home holds no geolocation state.
 const { lastSearch } = useLastSearch()
 
 // Top rated is loaded on request, never on mount: the ranking needs one summary read per
-// published service (spec 6.4, Q3), which the Home page should not spend on every visit.
+// published service, which the Home page should not spend on every visit.
 const catalogue = useServiceCatalogue({ autoLoad: false })
 const ranking = useRatingSummaries({ services: catalogue.services })
-// The view owns the request's in-flight state: a catalogue revalidating a saved copy (spec 11)
+// The view owns the request's in-flight state: a catalogue revalidating a saved copy
 // reports 'ready' while its fetch is open, so neither composable's status says a round is running.
 const topRatedRequested = ref(false)
 const loadingTopRated = ref(false)

@@ -2,12 +2,12 @@ import { firebaseApp } from './firebaseClient.js'
 import { EMULATOR_HOST, EMULATOR_PORTS } from './emulators.js'
 
 /**
- * Where callable functions run for this build (spec 5.9 / A6).
+ * Where callable functions run for this build.
  * 'cloud'    -> the deployed functions in australia-southeast1
  * 'emulator' -> the local Functions emulator on 127.0.0.1:5001
  * 'off'      -> callables are not available; controls show a configuration notice
  * The value comes from the committed Vite mode files (.env.development, .env.emulator,
- * .env.production, added in milestone 2); with none present it defaults to 'off'.
+ * .env.production); with none present it defaults to 'off'.
  */
 const target = import.meta.env.VITE_FUNCTIONS_TARGET ?? 'off'
 

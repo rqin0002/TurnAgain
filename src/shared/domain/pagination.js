@@ -1,10 +1,10 @@
 /**
- * URL-facing pagination (spec 8.3): `normalizePagination` reads route-query values, and
+ * URL-facing pagination: `normalizePagination` reads route-query values, and
  * `paginateRecords` keeps the `items/total/pageCount/from/to` vocabulary its four consumers
  * (activityCatalogue, SearchResults, ActivitiesView, FindNearbyView) render. The slicing itself
  * lives in `tableQuery.js` (`paginateRows`), the canonical page-slicer; this module only maps
  * that result onto these names. The staff tables use `applyTableState` instead; this module
- * stays for its four consumers (decision M6-D11).
+ * stays for its four consumers.
  */
 
 import { paginateRows } from './tableQuery.js'

@@ -1,7 +1,7 @@
 /**
- * The one route-access decision (spec 9.5), shared by the guard before a navigation and by the
+ * The one route-access decision, shared by the guard before a navigation and by the
  * store after a recovery, when the guard has already let a protected page render its retry panel
- * and the identity arrives later (Astra F3). Pure: the route's meta and the store's user in, one
+ * and the identity arrives later. Pure: the route's meta and the store's user in, one
  * of three words out. Route meta is UX; the rules are the boundary.
  *
  * @param {{ requiresAuth?: boolean, allowedRoles?: string[] } | undefined} meta - `route.meta`
@@ -23,9 +23,9 @@ export function decideRouteAccess(meta, user) {
 }
 
 /**
- * Whether a completed navigation to this route re-reads the profile without the 60-second cache
- * (decision M6-DA4): a protected route whose roles exclude members is a staff or admin page, and
- * an account downgraded inside /staff must be out of it on its next click (spec L1297).
+ * Whether a completed navigation to this route re-reads the profile without the 60-second cache:
+ * a protected route whose roles exclude members is a staff or admin page, and
+ * an account downgraded inside /staff must be out of it on its next click.
  *
  * @param {{ requiresAuth?: boolean, allowedRoles?: string[] } | undefined} meta - `route.meta`
  * @returns {boolean}

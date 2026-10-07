@@ -19,7 +19,7 @@ const SECTION_OF_ROUTE = Object.freeze({
 })
 
 /**
- * The /staff sub-navigation (spec 8.1 L977): the section the current route belongs to, and how
+ * The /staff sub-navigation: the section the current route belongs to, and how
  * Team appears: hidden for staff, a link for an admin in a build with Cloud Functions, the text
  * "Team (not enabled in this deployment)" for an admin without them.
  *

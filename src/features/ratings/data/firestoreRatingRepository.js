@@ -10,8 +10,8 @@ import { validateRatingInput } from '../domain/ratingValidation.js'
 import { storeRatingSummary } from './ratingSummaryRepository.js'
 
 /**
- * Ratings on Firestore Lite (spec 10.4, F2): the summary must pre-exist and is never reset; a
- * missing or malformed summary is `not-found` ("can't be rated yet"), never a zero (C3).
+ * Ratings on Firestore Lite: the summary must pre-exist and is never reset; a
+ * missing or malformed summary is `not-found` ("can't be rated yet"), never a zero.
  * Every error is a RepositoryError; the composable renders `message`.
  */
 

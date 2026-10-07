@@ -1,5 +1,5 @@
 <script setup>
-// The one button (spec 10.2). The look comes from the shared `.button` and `.text-button` rules
+// The one button. The look comes from the shared `.button` and `.text-button` rules
 // of main.css so existing markup and this component match until every site has migrated.
 const props = defineProps({
   variant: {

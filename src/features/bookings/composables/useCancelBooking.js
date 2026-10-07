@@ -7,8 +7,8 @@ import {
 } from '../data/bookingRepository.js'
 
 /**
- * Cancels one booking, then asks for the "cancelled" email when this build has functions (spec
- * 7.7 L956). The email is fire-and-forget: a failed email never affects the booking (L954), so
+ * Cancels one booking, then asks for the "cancelled" email when this build has functions.
+ * The email is fire-and-forget: a failed email never affects the booking, so
  * its failure is swallowed and the cancel resolves as soon as the transaction committed.
  * A refusal stays in `error` until the page clears it, so the page calls clearError() whenever the
  * dialog opens or closes: a refusal belongs to the attempt it answered, never to the next dialog.

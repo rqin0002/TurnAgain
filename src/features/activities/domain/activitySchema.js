@@ -9,7 +9,7 @@ import {
   toIsoTimestamp,
 } from '@/shared/domain/catalogueValidation.js'
 
-/** The activity vocabulary (spec 4.2, 4.5); the rules mirror it. */
+/** The activity vocabulary; the rules mirror it. */
 
 export const ACTIVITY_TYPES = Object.freeze(['repair', 'reuse', 'workshop'])
 export const ACTIVITY_STATUSES = Object.freeze(['published', 'archived'])
@@ -48,7 +48,7 @@ const CHECKS = Object.freeze({
   suitableItems: (c) => list(c.suitableItems),
   acceptedConditions: (c) => list(c.acceptedConditions),
   // Published activities may state no exclusions (four seeded ones do); the rules' isValidActivity
-  // mirrors this bound when milestone 5 rewrites it.
+  // mirrors this bound.
   excludedConditions: (c) => list(c.excludedConditions, 0),
   costLabel: (c) => isBoundedString(c.costLabel, 300),
   whatToBring: (c) => list(c.whatToBring),

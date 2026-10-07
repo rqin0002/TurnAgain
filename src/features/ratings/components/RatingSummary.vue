@@ -5,7 +5,7 @@ import { describeRatingSummary } from '../domain/ratingPresentation.js'
 import { animateRatingSummary } from '@/shared/motion/index.js'
 
 /**
- * The public rating summary of one service (spec 10.4): the overall score, the distribution and
+ * The public rating summary of one service: the overall score, the distribution and
  * the sample note on Service Detail; the one-line form on cards and the Top-5 list (`compact`).
  * A summary that does not describe reads "Rating unavailable"; a zero summary reads as unrated.
  */
@@ -32,7 +32,7 @@ const sampleCopy = computed(() => {
   return 'The average is one part of the picture. Check the spread of scores and whether the service accepts your item.'
 })
 
-// Explicit effect of spec 10.3: bars grow and the average counts up when a summary appears or
+// Explicit effect: bars grow and the average counts up when a summary appears or
 // changes. The target values are the component's own (never read back from the DOM), a change
 // while the count runs cancels the previous run, and the function no-ops under reduced motion.
 const root = ref(null)

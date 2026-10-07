@@ -3,7 +3,7 @@ import { computed, useId } from 'vue'
 
 import { useTheme } from '../composables/useTheme.js'
 
-// A two-state switch (owner design 2026-10-01, M4-D31). It shows the effective theme, so a device
+// A two-state switch. It shows the effective theme, so a device
 // in dark mode reads On until the person chooses; flipping stores an explicit light or dark choice
 // on this device, which theme-init.js applies before the first paint of every later visit.
 const { effective, setPreference } = useTheme()
@@ -73,7 +73,7 @@ const toggle = () => setPreference(isDark.value ? 'light' : 'dark')
   gap: 1rem;
 }
 
-/* The two track colours are the switch's own (the owner's reference): white icons and knob keep
+/* The two track colours are the switch's own: white icons and knob keep
    at least 3:1 against either. The switch shows the effective theme, so the orange track only ever
    sits on the light page, which it already stands out from, and the near-black track only on the
    dark page, which needs the border to separate them. The border stays 1px wide in both states so

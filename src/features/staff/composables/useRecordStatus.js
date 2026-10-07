@@ -5,12 +5,12 @@ import { setRecordStatus } from '../data/staffRepository.js'
 import { useStaffCatalogue } from './useStaffCatalogue.js'
 
 /**
- * The register row actions (spec 8.2: Archive/Restore, Cancel session, Mark completed; no Delete
- * anywhere, C4). Archiving and cancelling ask first; restoring and completing do not. A change
+ * The register row actions (Archive/Restore, Cancel session, Mark completed; no Delete
+ * anywhere). Archiving and cancelling ask first; restoring and completing do not. A change
  * that another window overtook reloads the register before it says so. The result goes to the
  * page's mounted status line through `message`; with `focusTarget` (a ref to that line, which
  * carries tabindex="-1"), focus moves there once a started change settles, because the control
- * just used is disabled, swapped or gone by then and would leave focus on <body> (M6-D22).
+ * just used is disabled, swapped or gone by then and would leave focus on <body>.
  */
 
 const nameOf = (record) => record.name ?? record.title ?? 'this record'

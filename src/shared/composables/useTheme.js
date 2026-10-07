@@ -30,7 +30,7 @@ const writeStored = (value) => {
   }
 }
 
-// jsdom has no matchMedia (facts.md section 3); an absent or throwing implementation reads as light.
+// jsdom has no matchMedia; an absent or throwing implementation reads as light.
 const darkQuery = () => {
   try {
     return typeof window.matchMedia === 'function' ? window.matchMedia(DARK_QUERY) : null
@@ -80,7 +80,7 @@ const setPreference = (value) => {
 }
 
 /**
- * The stored theme preference and the theme the page currently renders (spec 10.1).
+ * The stored theme preference and the theme the page currently renders.
  * @returns {{
  *   preference: import('vue').Ref<'system' | 'light' | 'dark'>,
  *   effective: import('vue').ComputedRef<'light' | 'dark'>,

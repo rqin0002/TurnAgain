@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 import AppButton from '@/shared/components/AppButton.vue'
 
-// Accounts by role (spec 8.6 L1005, E5): administrators see the member, staff, admin and total
+// Accounts by role: administrators see the member, staff, admin and total
 // counts from three count queries; staff see that the figures are for administrators only.
 defineProps({
   counts: { type: Object, default: null },
@@ -14,7 +14,7 @@ defineProps({
 const emit = defineEmits(['retry'])
 
 // Try again leaves with the error block once the view loads again, so focus moves first to the
-// mounted status line that announces the new load (M6-D22), never to <body>.
+// mounted status line that announces the new load, never to <body>.
 const statusLine = ref(null)
 const retry = () => {
   statusLine.value?.focus()
@@ -35,7 +35,7 @@ const number = (value) => new Intl.NumberFormat('en-AU').format(value)
     <h3 id="role-counts-heading">Accounts by role</h3>
     <p v-if="!isAdmin" class="role-counts__note">Available to administrators</p>
     <template v-else>
-      <!-- Mounted for administrators; only its text changes (M6-D22). -->
+      <!-- Mounted for administrators; only its text changes. -->
       <p ref="statusLine" class="role-counts__note" role="status" tabindex="-1">
         {{ status === 'loading' || status === 'idle' ? 'Loading the role counts…' : '' }}
       </p>

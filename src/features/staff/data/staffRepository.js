@@ -32,13 +32,12 @@ import {
 } from './staffWrites.js'
 
 /**
- * The staff side's Firestore access (spec 8.1 L981, 4.3 Q2, Q4, Q5, Q9, Q11-Q13). Reads take the
- * caller's signal (the auth store's identitySignal, spec 9.3) and never cache or persist anything
- * (staff data is memory-only per identity, spec 11). Whole collections are read through `readAll`
+ * The staff side's Firestore access. Reads take the
+ * caller's signal (the auth store's identitySignal) and never cache or persist anything
+ * (staff data is memory-only per identity). Whole collections are read through `readAll`
  * (pages of 100 up to 1,000, `truncated` exact); a malformed document is skipped and counted,
- * never fatal (spec 4.5). The staff read of a session's bookings (Q9) lives here, so nothing
- * outside bookings/ imports bookings/data/ (L926, L981). Every failure is a RepositoryError.
- * Task 9 appends the writes, Task 11 the correction triage, Task 12 the promotion callable.
+ * never fatal. The staff read of a session's bookings lives here, so nothing
+ * outside bookings/ imports bookings/data/. Every failure is a RepositoryError.
  */
 
 const readProjected = async (baseQuery, projector, signal) => {
@@ -58,7 +57,7 @@ const readProjected = async (baseQuery, projector, signal) => {
   }
 }
 
-/** Q2: every service in any status. */
+/** Every service in any status. */
 export async function fetchStaffServices({ signal } = {}) {
   const { records, skippedCount, truncated } = await readProjected(
     query(collection(firestoreLite, 'services')),
@@ -68,7 +67,7 @@ export async function fetchStaffServices({ signal } = {}) {
   return { services: records, skippedCount, truncated }
 }
 
-/** Q4 unfiltered: every activity in any status. */
+/** Every activity in any status. */
 export async function fetchStaffActivities({ signal } = {}) {
   const { records, skippedCount, truncated } = await readProjected(
     query(collection(firestoreLite, 'activities')),
@@ -78,7 +77,7 @@ export async function fetchStaffActivities({ signal } = {}) {
   return { activities: records, skippedCount, truncated }
 }
 
-/** Q5 unfiltered: every session in any status; the caller joins the activity title (C7). */
+/** Every session in any status; the caller joins the activity title. */
 export async function fetchStaffSessions({ signal } = {}) {
   const { records, skippedCount, truncated } = await readProjected(
     query(collection(firestoreLite, 'activitySessions')),
@@ -88,7 +87,7 @@ export async function fetchStaffSessions({ signal } = {}) {
   return { sessions: records, skippedCount, truncated }
 }
 
-/** Q11: the corrections queue, newest first. */
+/** The corrections queue, newest first. */
 export async function listCorrections({ signal } = {}) {
   const { records, skippedCount, truncated } = await readProjected(
     query(collection(firestoreLite, 'corrections'), orderBy('createdAt', 'desc')),
@@ -98,7 +97,7 @@ export async function listCorrections({ signal } = {}) {
   return { corrections: records, skippedCount, truncated }
 }
 
-/** Q12: the participant email history, newest first (the session page filters by session). */
+/** The participant email history, newest first (the session page filters by session). */
 export async function listEmailLogs({ signal } = {}) {
   const { records, skippedCount, truncated } = await readProjected(
     query(collection(firestoreLite, 'emailLogs'), orderBy('sentAt', 'desc')),
@@ -108,7 +107,7 @@ export async function listEmailLogs({ signal } = {}) {
   return { emailLogs: records, skippedCount, truncated }
 }
 
-/** Q9: every booking of one session, all pages (participants, the CSV and the email). */
+/** Every booking of one session, all pages (participants, the CSV and the email). */
 export async function listSessionBookings(sessionId, { signal } = {}) {
   if (!isValidId(sessionId)) {
     throw new RepositoryError('not-found')
@@ -121,7 +120,7 @@ export async function listSessionBookings(sessionId, { signal } = {}) {
   return { bookings: records, skippedCount, truncated }
 }
 
-/** One staff record by kind and id (the form's Reload, M6-D4); not-found when absent or malformed. */
+/** One staff record by kind and id (the form's Reload); not-found when absent or malformed. */
 export async function fetchStaffRecord(kind, id, { signal } = {}) {
   if (!Object.hasOwn(COLLECTION_OF_KIND, kind) || !isValidId(id)) {
     throw new RepositoryError('not-found')
@@ -142,7 +141,7 @@ export async function fetchStaffRecord(kind, id, { signal } = {}) {
 }
 
 /**
- * Q13 (M6-D7): three Lite `getCount` queries, one per role; admin only under the rules
+ * Three Lite `getCount` queries, one per role; admin only under the rules
  * (`allow list: if isAdmin()`, no limit because a count query carries none).
  */
 export async function countUsersByRole({ signal } = {}) {
@@ -162,9 +161,9 @@ export async function countUsersByRole({ signal } = {}) {
 }
 
 /**
- * Staff content writes (spec 8.1 L981; Task 9). The writers live in staffWrites.js on an injected
- * `db`; these wire the app's Lite client. A write never takes the identity signal (E7). There is
- * no deleteRecord and no deleteCorrection (C4).
+ * Staff content writes. The writers live in staffWrites.js on an injected
+ * `db`; these wire the app's Lite client. A write never takes the identity signal. There is
+ * no deleteRecord and no deleteCorrection.
  */
 export function saveService(record, { isNew = false, correctionId = null } = {}) {
   return writeService(firestoreLite, record, {
@@ -186,14 +185,14 @@ export function markParticipantsNotified(session) {
   return writeParticipantsNotified(firestoreLite, session)
 }
 
-/** The loaded record, not its id: the write needs its revision (contract ruling PR0-3). */
+/** The loaded record, not its id: the write needs its revision. */
 export function setRecordStatus(kind, record, status) {
   return writeRecordStatus(firestoreLite, kind, record, status)
 }
 
 /**
- * Mark applied or Dismiss on the corrections queue (spec 8.5); `resolvedBy` is the signed-in uid,
- * which the rules compare with `request.auth.uid`. A write: never takes the identity signal (E7).
+ * Mark applied or Dismiss on the corrections queue; `resolvedBy` is the signed-in uid,
+ * which the rules compare with `request.auth.uid`. A write: never takes the identity signal.
  */
 export async function resolveCorrection(correction, { status, resolutionNote = null }) {
   return writeCorrectionResolution(firestoreLite, correction, {
@@ -204,10 +203,10 @@ export async function resolveCorrection(correction, { status, resolutionNote = n
 }
 
 /**
- * Promote next (spec 5.6, 8.4): the staff callable that moves the earliest waitlisted booking of a
+ * Promote next: the staff callable that moves the earliest waitlisted booking of a
  * session into a free place. Refusals arrive as `conflict` with `details.code` (`session-not-open`,
  * `no-free-place`, `no-waitlist`, `counter-mismatch`, `live-admin-disabled`); a build without
- * functions is `unavailable` `functions-off`. A write: never takes the identity signal (E7).
+ * functions is `unavailable` `functions-off`. A write: never takes the identity signal.
  *
  * @returns {Promise<{ bookingId: string, reference: string, bookedCount: number, waitlistCount: number }>}
  */

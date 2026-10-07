@@ -1,5 +1,5 @@
 /**
- * Melbourne time (spec 7.2, decision M5-D8): one time zone, one locale, Intl only, no library.
+ * Melbourne time: one time zone, one locale, Intl only, no library.
  * Pure on purpose: the SPA imports it through `@shared/melbourneTime.js` (via
  * src/shared/domain/formatDate.js), the email functions import it relatively, and nothing here
  * reads the machine's TZ. Values are ISO strings or Date objects; invalid input renders an
@@ -62,7 +62,7 @@ export function formatTimeRange(startsAt, endsAt) {
   return `${formatTime(starts)}–${formatTime(ends)}`
 }
 
-/** "Saturday, 10 October 2026, 10:00 am–12:00 pm (Melbourne time)": the session line (N2). */
+/** "Saturday, 10 October 2026, 10:00 am–12:00 pm (Melbourne time)": the session line. */
 export function formatSessionWhen(startsAt, endsAt) {
   return `${formatDate(startsAt)}, ${formatTimeRange(startsAt, endsAt)} (${MELBOURNE_TIME_LABEL})`
 }
@@ -74,7 +74,7 @@ const dayKeyFormat = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 })
 
-/** The Melbourne calendar day of an instant as 'YYYY-MM-DD' (facts F6.3), or null. */
+/** The Melbourne calendar day of an instant as 'YYYY-MM-DD', or null. */
 export function melbourneDayKey(value) {
   const date = toDate(value)
   if (!date) {

@@ -6,21 +6,21 @@ import { isAbortError } from '@/shared/data/RepositoryError.js'
 import { DUPLICATE_ID_MESSAGE } from '../data/staffWrites.js'
 
 /**
- * One record form (spec 8.2 L985): the draft, its errors and the save, for the three staff forms.
+ * One record form: the draft, its errors and the save, for the three staff forms.
  * `validate(draft)` returns `{ isValid, errors, values }` (an empty string for a valid field) and
  * `save(values)` writes the record. A refused save maps to a state: `conflict` (another window
- * saved first, R1), field errors (invalid-data, with "A record with this id already exists." for a
- * create collision, M6-D4) or `error`. After a conflict, `reload()` loads the latest record and
+ * saved first), field errors (invalid-data, with "A record with this id already exists." for a
+ * create collision) or `error`. After a conflict, `reload()` loads the latest record and
  * lists the person's changed fields beside the current values; nothing is merged on its own, so a
- * Save straight after Reload writes the latest record and no stale field (M6-D4). A changed field
- * the latest record locks (`lockedFields(latest)`, M6-D8: a session with bookings keeps its time,
+ * Save straight after Reload writes the latest record and no stale field. A changed field
+ * the latest record locks (`lockedFields(latest)`: a session with bookings keeps its time,
  * venue and activity) is listed as `locked` and "Use mine" is refused for it. A dirty form asks
  * before the page changes: leaving its route, or the same route moving to another record (history
  * between two edit pages keeps the instance); a query or hash change does not ask. The instance
  * is reused across records, so a save or a Reload still in flight when the form is reset (the
  * next record, or the form unmounted) settles without touching the new draft: `submit` then
  * resolves null and the view skips its saved epilogue. `fieldOf` maps a stored field a
- * classification names to the form's field (a drafter addition; the identity by default).
+ * classification names to the form's field (the identity by default).
  */
 
 export const LEAVE_CONFIRM = 'Leave this page? Your unsaved changes will be lost.'
@@ -130,9 +130,9 @@ export function useRecordForm({
   }
 
   /**
-   * M6-D4: the latest record becomes the draft; the person's changed fields wait for "Use mine",
-   * except the ones the latest record locks (M6-D8), which are listed but cannot be restored. A
-   * read an identity change aborted (E7) leaves the form as it was, conflict and message included.
+   * The latest record becomes the draft; the person's changed fields wait for "Use mine",
+   * except the ones the latest record locks, which are listed but cannot be restored. A
+   * read an identity change aborted leaves the form as it was, conflict and message included.
    */
   async function reload() {
     const started = round

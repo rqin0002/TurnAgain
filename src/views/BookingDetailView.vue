@@ -22,7 +22,7 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { isConnectionError } from '@/shared/domain/errorCopy.js'
 import { animateBookingReference } from '@/shared/motion/index.js'
 
-// The booking page (spec 7.6-7.7, D5): refresh-safe (the owner reads the booking by id), with the
+// The booking page: refresh-safe (the owner reads the booking by id), with the
 // one-shot hand-off from the review for the heading, the email line, Copy, Add to calendar and
 // Cancel. Nothing here writes the waitlist position anywhere.
 const route = useRoute()
@@ -64,7 +64,7 @@ const showsPlaceOpened = computed(
   () => booking.value?.status === 'confirmed' && handoff.value?.placeOpened === true,
 )
 const showsBooking = computed(() => status.value === 'ready' && booking.value !== null)
-// A promoted booking's confirmation was sent by staff (M5-D6): no email line for it without a
+// A promoted booking's confirmation was sent by staff: no email line for it without a
 // hand-off. The member's own cancellation email always has its line.
 const showsEmail = computed(
   () =>
@@ -114,14 +114,14 @@ watch(status, async (value) => {
   if (value !== 'ready' || revealed) return
   revealed = true
   now.value = new Date()
-  // After the router's #main-content focus (contract section 3.4): a tick, then a task.
+  // After the router's #main-content focus: a tick, then a task.
   await nextTick()
   await new Promise((resolve) => window.setTimeout(resolve, 0))
   heading.value?.focus()
   void animateBookingReference(reference.value)
 })
 
-// N7: once the first email status has rendered, `new` leaves the URL so history never re-sends.
+// Once the first email status has rendered, `new` leaves the URL so history never re-sends.
 const stripNew = () => {
   requestOnMount.value = false
   if (route.query.new === undefined) return
@@ -148,7 +148,7 @@ const openCancelDialog = () => {
   dialogOpen.value = true
 }
 
-// Spec 7.9 (ruling C4): after a cancel refused because the session started, the clock moves
+// After a cancel refused because the session started, the clock moves
 // only once the dialog has closed and the browser has returned focus to Cancel. If the page
 // then removes Cancel, focus goes to the started line (or the heading when the session has
 // also ended), never to <body>.

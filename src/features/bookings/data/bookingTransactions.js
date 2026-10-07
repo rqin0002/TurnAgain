@@ -15,16 +15,16 @@ import {
 } from '../domain/bookingRules.js'
 
 /**
- * The booking write path (spec 7.6, contract sections 3.1-3.3): two Lite transactions that take
- * their Firestore and Auth instances as arguments and import nothing from @/firebase (M5-D5), so
+ * The booking write path: two Lite transactions that take their Firestore and Auth instances as
+ * arguments and import nothing from @/firebase, so
  * the emulator test drives two signed-in apps at once while bookingRepository wires the
  * singletons. Each callback reads before it writes and is pure over its reads, so every run
  * decides again from fresh data. A refusal is a RepositoryError('conflict') with
- * `details.outcome`; it is not a FirebaseError, so the SDK never retries it (F4.3).
+ * `details.outcome`; it is not a FirebaseError, so the SDK never retries it.
  */
 
 /**
- * How many times a callback may run when its commit is refused by the rules. Under the M5 rules
+ * How many times a callback may run when its commit is refused by the rules. Under the rules
  * the loser of two concurrent bookings is refused with permission-denied (the rules evaluate the
  * commit against the winner's counters before any precondition), which Lite treats as permanent;
  * running the callback again on fresh reads turns it into session-filled or waitlisted. A refusal
@@ -106,10 +106,10 @@ const readPublishedActivity = async (transaction, db, activityId) => {
 
 /**
  * Creates the caller's booking, or rebooks a cancelled one, and moves the session counters in
- * the same commit (spec 7.6 L948; rules sessionCountersMoved / memberCountersMatchBooking).
+ * the same commit (rules sessionCountersMoved / memberCountersMatchBooking).
  * A commit the rules still refuse after every run is a RepositoryError('permission') carrying
  * `details.sessionStartsAt` and no permission-denied event: createBooking decides whether it is a
- * session that has just started (N11) or a lost access, and only the latter re-checks the profile.
+ * session that has just started or a lost access, and only the latter re-checks the profile.
  *
  * @param {import('firebase/firestore/lite').Firestore} db
  * @param {{ currentUser: { uid: string, email: string } | null }} auth
@@ -128,7 +128,7 @@ export async function createBookingTx(
   const bookingId = bookingIdFor(uid, sessionId)
   const sessionRef = doc(db, 'activitySessions', sessionId)
   const bookingRef = doc(db, 'bookings', bookingId)
-  // The session start the last run read, for the clock-skew mapping of a refused commit (N11).
+  // The session start the last run read, for the clock-skew mapping of a refused commit.
   let readStartsAt = null
 
   try {
@@ -198,7 +198,7 @@ export async function createBookingTx(
       return {
         bookingId,
         outcome,
-        // D5: the position from this run's read, held in memory only.
+        // The position from this run's read, held in memory only.
         position: outcome === 'waitlisted' ? session.waitlistCount + 1 : null,
         placeOpened: intent === 'waitlist' && outcome === 'confirmed',
       }
@@ -221,9 +221,9 @@ const closedReasonFor = (session) => {
 }
 
 /**
- * Cancels the caller's live booking and gives its place back in the same commit (spec 7.6:
- * status cancelled, cancelledAt, the matching counter -1, status re-derived; cut-off at start).
- * A commit or read the rules refuse has the create's N11 shape: a RepositoryError('permission')
+ * Cancels the caller's live booking and gives its place back in the same commit (status
+ * cancelled, cancelledAt, the matching counter -1, status re-derived; cut-off at start).
+ * A commit or read the rules refuse has the same shape as the create's: a RepositoryError('permission')
  * carrying `details.sessionStartsAt` (null when the booking read itself was refused) and
  * `bookingId`, and no permission-denied event. cancelBooking decides between a session that has
  * just started, a counter race lost on every run and a lost access, and only the last re-checks
@@ -237,12 +237,12 @@ export async function cancelBookingTx(db, auth, bookingId) {
     throw new RepositoryError('permission')
   }
   const bookingRef = doc(db, 'bookings', bookingId)
-  // The session start the last run read, for the clock-skew mapping of a refused commit (N11).
+  // The session start the last run read, for the clock-skew mapping of a refused commit.
   let readStartsAt = null
 
   try {
     return await runWithCommitRetry(db, async (transaction) => {
-      // Ruling C2: a run whose booking read is refused must not report an earlier run's start.
+      // A run whose booking read is refused must not report an earlier run's start.
       readStartsAt = null
       const bookingSnapshot = await transaction.get(bookingRef)
       if (!bookingSnapshot.exists()) {

@@ -1,8 +1,8 @@
 import { deepFreeze } from '@/shared/domain/deepFreeze.js'
 
 /**
- * Static content of the About page (spec 10.5, B.2). Plain data so Vue's escaping stays the
- * rendering boundary; the four ids of spec 3.6 (`checked`, `contact`, `privacy`, `api`) are the
+ * Static content of the About page. Plain data so Vue's escaping stays the
+ * rendering boundary; the four ids (`checked`, `contact`, `privacy`, `api`) are the
  * footer and route anchors, so they are constants here and not typed twice.
  */
 

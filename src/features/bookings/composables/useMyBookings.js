@@ -31,10 +31,10 @@ const eitherSignal = (first, second) => {
 }
 
 /**
- * The signed-in member's bookings (spec 7.7, D6, R27): snapshots render as soon as they load,
+ * The signed-in member's bookings: snapshots render as soon as they load,
  * then the current sessions arrive in chunks; a session that did not load leaves its bookings
  * `unconfirmed`, never cancelled. Member-private, so nothing is persisted, and every identity
- * change aborts the requests in flight, empties the lists and loads again (spec 9.3).
+ * change aborts the requests in flight, empties the lists and loads again.
  * `autoLoad` may be a getter: the list then loads on mount, on an identity change and when the
  * getter turns true, only while it reads true.
  *

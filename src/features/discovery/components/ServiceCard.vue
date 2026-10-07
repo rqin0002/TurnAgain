@@ -10,11 +10,11 @@ import { formatActionType, formatCheckedDate } from '../domain/servicePresentati
 import { formatCardTrip } from '../domain/trip.js'
 
 /**
- * One result (spec 6.4 L886): the number badge in the brand colour (the pin's number), action
- * tags, the name, the address line, the distance with the walking estimate, the match label
- * (decision D4), the first opening-hours line, the compact rating (Top rated and highest-rated
+ * One result: the number badge in the brand colour (the pin's number), action
+ * tags, the name, the address line, the distance with the walking estimate, the match label,
+ * the first opening-hours line, the compact rating (Top rated and highest-rated
  * sorts) and the source. An `area` record shows "In the 3168 area (exact venue not published)"
- * and no minutes (decision D1). Directions left the card for Service Detail's TripPlanner;
+ * and no minutes. Directions left the card for Service Detail's TripPlanner;
  * the card never requests a route. `TopRatedServices` passes `service`, `show-rating` and
  * `rating-summary` only.
  */

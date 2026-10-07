@@ -42,8 +42,8 @@ const myRatingCopy = computed(() =>
     : '',
 )
 const headingId = computed(() => `service-ratings-${props.serviceId}`)
-// A read or a write that failed for want of a connection renders the offline panel with Retry
-// (spec 11); every other failure keeps the inline alert. Only these two codes mean "offline".
+// A read or a write that failed for want of a connection renders the offline panel with Retry;
+// every other failure keeps the inline alert. Only these two codes mean "offline".
 const CONNECTION_CODES = Object.freeze(['offline', 'network'])
 const privateConnectionError = computed(() =>
   privateError.value && CONNECTION_CODES.includes(privateError.value.code)
@@ -119,7 +119,7 @@ const cancelEditing = () => {
   return finishEditing()
 }
 // An edit after a save failed offline makes the kept draft stale: the panel, its message and its
-// Retry go, so the next save sends what the form now holds (detail-trip#1). The message goes too,
+// Retry go, so the next save sends what the form now holds. The message goes too,
 // or the inline alert would take the panel's place. A failed read keeps its panel.
 const onDraftEdited = () => {
   if (!privateConnectionError.value || privateStatus.value !== 'ready') return

@@ -8,9 +8,9 @@ import { resolveTypedOrigin, unknownPlaceCopy } from '../domain/postcodeCentroid
 import { validateSearchInput } from '../domain/searchValidation.js'
 
 /**
- * The public search form (spec 6.2 L868, decision M6-D24): the item, the suburb or postcode and
+ * The public search form: the item, the suburb or postcode and
  * Find options, nothing else. The format checks of `searchValidation.js` run on submit, then the
- * place lookup against the Vicmap table, so an unknown place is the third B.1 validation type
+ * place lookup against the Vicmap table, so an unknown place is a third validation type
  * ("We don't have a location for 'Cheltenham East'. Try a Victorian postcode, e.g. 3168") and
  * never reaches the URL. The device-location request is the map's "Use my location" control, not
  * the form's. Home and Find nearby mount it; a parent-supplied `locationError` (a denied
@@ -170,7 +170,7 @@ const submitSearch = async () => {
   gap: 1rem;
 }
 
-/* A field error echoes the typed place (decision M4-D22): it takes its direction from its text. */
+/* A field error echoes the typed place: it takes its direction from its text. */
 .search-form :deep(.form-field__error) {
   unicode-bidi: plaintext;
 }

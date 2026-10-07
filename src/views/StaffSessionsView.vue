@@ -17,8 +17,8 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { useTableState } from '@/shared/composables/useTableState.js'
 
 /**
- * The Sessions register (spec 8.1, 8.3): every session in any status with its joined activity
- * title (C7), in the URL like the Service Register, and the small Activities section that ends
+ * The Sessions register: every session in any status with its joined activity
+ * title, in the URL like the Service Register, and the small Activities section that ends
  * the page (there is no Activities table). Participants and Email belong to TurnAgain sessions;
  * View opens the public page of a public session whose activity is published.
  */
@@ -60,7 +60,7 @@ const isViewable = (row) =>
 // The accessible name of a row action: the activity and the session time, never the id.
 const dateColumn = SESSION_COLUMNS.find((column) => column.key === 'date')
 const rowName = (row) => `${row.activityTitle}, ${dateColumn.text(row)}`
-// Cancel session and Mark completed (spec 8.2, C4): open sessions only, Mark completed once ended.
+// Cancel session and Mark completed: open sessions only, Mark completed once ended.
 // The result goes to a mounted status line that takes focus once the change settles (the row's
 // buttons are gone or disabled by then).
 const statusLine = ref(null)
@@ -71,6 +71,13 @@ const {
 } = useRecordStatus({ focusTarget: statusLine })
 const isOpen = (row) => row.status === 'scheduled' || row.status === 'full'
 const hasEnded = (row) => Date.parse(row.endsAt) < now.value.getTime()
+// Try again leaves with its error panel once the reload starts, so focus moves first to the heading
+// that stays mounted over the loading state.
+const heading = ref(null)
+const retry = () => {
+  heading.value?.focus()
+  return catalogue.reload()
+}
 const upcomingText = (count) => {
   if (count === 0) return 'No upcoming sessions'
   return count === 1 ? '1 upcoming session' : `${count} upcoming sessions`
@@ -79,7 +86,7 @@ const upcomingText = (count) => {
 
 <template>
   <section class="staff-section" aria-labelledby="staff-sessions-heading">
-    <h2 id="staff-sessions-heading" class="section-title" tabindex="-1">Sessions</h2>
+    <h2 id="staff-sessions-heading" ref="heading" class="section-title" tabindex="-1">Sessions</h2>
     <p class="staff-section__lead">
       <RouterLink class="button button--primary" to="/staff/sessions/new">New session</RouterLink>
     </p>
@@ -90,7 +97,7 @@ const upcomingText = (count) => {
       variant="error"
       title="The sessions could not be loaded"
       :error="catalogue.error.value"
-      @retry="catalogue.reload()"
+      @retry="retry"
     />
     <template v-else>
       <p class="staff-section__notice" role="status">{{ refreshNotice }}</p>

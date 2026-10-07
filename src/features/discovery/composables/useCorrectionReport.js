@@ -12,7 +12,7 @@ const EMPTY_ERRORS = Object.freeze({
 })
 
 /**
- * The correction form's state (spec 8.5): anonymous submission is allowed; a signed-in person's
+ * The correction form's state: anonymous submission is allowed; a signed-in person's
  * uid becomes `reporterUid` and their email is offered in the email field (they may clear it).
  * A filled honeypot is answered exactly like a successful send, without a write, so an automated
  * submitter learns nothing. Nothing here is persisted.

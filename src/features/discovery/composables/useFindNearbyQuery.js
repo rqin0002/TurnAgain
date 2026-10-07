@@ -20,14 +20,14 @@ const PAGE_RESETTING_KEYS = [
 ]
 
 /**
- * The `/find-nearby` query as state (spec 6.3): `state` is the parsed route query, `update(patch)`
+ * The `/find-nearby` query as state: `state` is the parsed route query, `update(patch)`
  * is the only writer (always `router.replace`, so Back leaves the results page in one step), and
  * the canonical watcher rewrites the URL at most once per navigation when the origin status or
- * the device's answer makes `near=me` or `sort=nearest` impossible (M4-D7). `settled` is the
+ * the device's answer makes `near=me` or `sort=nearest` impossible. `settled` is the
  * view's: true once its `restoreIfGranted()` has resolved (at once when the URL carries no
  * `near=me`) and no typed lookup is resolving (`!resolvingTyped`). The watcher runs after the
  * render flush, so a lookup the view starts for a new `location` in the same flush is already
- * resolving when the URL is judged (Astra round 1 P2 #3).
+ * resolving when the URL is judged.
  *
  * @param {{ originStatus: import('vue').MaybeRefOrGetter<string>, deviceStatus?: import('vue').MaybeRefOrGetter<string | null>, settled: import('vue').MaybeRefOrGetter<boolean> }} options
  * @returns {{ state: import('vue').ComputedRef<object>, update: (patch: object) => Promise<unknown>, canonical: import('vue').ComputedRef<object> }}

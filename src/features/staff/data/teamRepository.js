@@ -12,10 +12,10 @@ import {
 import { projectTeamUser } from '../domain/team.js'
 
 /**
- * The Team tab's data (spec 8.1 L981, 8.7 L1009): the admin's list of every profile (Q14, read
+ * The Team tab's data: the admin's list of every profile (read
  * whole through readAll, newest first; a profile without `createdAt` is outside an orderBy query
- * and is not listed, N9), one profile by uid for a row reload, and the adminSetUserAccess
- * callable. Nothing is cached or persisted: user lists are staff data (spec 11).
+ * and is not listed), one profile by uid for a row reload, and the adminSetUserAccess
+ * callable. Nothing is cached or persisted: user lists are staff data.
  */
 
 /**
@@ -60,7 +60,7 @@ export async function fetchTeamUser(uid, { signal } = {}) {
 }
 
 /**
- * One access change, or a Check when neither `role` nor `status` is given (spec 5.7 L775).
+ * One access change, or a Check when neither `role` nor `status` is given.
  *
  * @param {{ uid: string, role?: string, status?: string, expectedRevision: number }} input
  * @returns {Promise<{ uid: string, role: string, status: string, revision: number, authDisabled: boolean }>}

@@ -20,14 +20,14 @@ const unreadableAsNull = (caught) => {
 }
 
 /**
- * The review step (spec 7.5): loads the session, its activity and the member's bookings in
+ * The review step: loads the session, its activity and the member's bookings in
  * parallel, then settles on one state: `loading -> not-found | closed | duplicate | overlap |
  * ready -> submitting -> session-filled | duplicate | closed | failed | booked`. A success returns
  * the transaction's result and leaves `submitting` set (the view navigates away, or settles
  * `booked` through `markBooked` when that navigation fails). Every answer that lands after the
  * page is gone, or after a newer load, is ignored. A session the rules refuse (finished or never
  * public, and not booked) is `not-found`; an activity they refuse is `closed(external)`; neither
- * reaches the failed panel (ruling R-5c.34).
+ * reaches the failed panel.
  *
  * @param {{ activityId: import('vue').MaybeRefOrGetter<string>, sessionId: import('vue').MaybeRefOrGetter<string> }} options
  */
@@ -41,7 +41,7 @@ export function useBookingReview({ activityId, sessionId }) {
   const existingBooking = ref(null)
   const overlapping = ref(null)
   // After a session-filled refusal the stale counters still say "free": the next submit joins
-  // the waitlist (spec 7.5: "Join the waitlist instead?").
+  // the waitlist ("Join the waitlist instead?").
   const offeredWaitlist = ref(false)
 
   let generation = 0
@@ -80,7 +80,7 @@ export function useBookingReview({ activityId, sessionId }) {
         listMyBookings(authStore.user?.uid),
       ])
       if (disposed || run !== generation) return
-      // N3: a session that does not belong to the activity in the URL is not this page's.
+      // A session that does not belong to the activity in the URL is not this page's.
       if (loadedSession.activityId !== requestedActivityId) {
         settle('not-found')
         return
@@ -137,7 +137,7 @@ export function useBookingReview({ activityId, sessionId }) {
     settle('booked')
   }
 
-  /** The overlap is advisory (spec 7.5): "Book anyway" proceeds to the form. */
+  /** The overlap is advisory: "Book anyway" proceeds to the form. */
   const acceptOverlap = () => {
     if (state.value === 'overlap') settle('ready')
   }
@@ -150,7 +150,7 @@ export function useBookingReview({ activityId, sessionId }) {
     if (state.value === 'submitting' || session.value === null) return null
     const run = generation
     const requestedIntent = intent.value
-    // Set before the first await, so a second click finds the review already submitting (C1.2).
+    // Set before the first await, so a second click finds the review already submitting.
     settle('submitting')
     error.value = null
     try {

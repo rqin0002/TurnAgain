@@ -1,5 +1,5 @@
 /**
- * Validation of the staff session email (spec 5.11; the callable sendSessionEmail and the M6
+ * Validation of the staff session email (the callable sendSessionEmail and the
  * ParticipantEmailForm share it). Lengths are counted in code points after trimming; the body may
  * hold line breaks (CRLF and CR are normalised to LF first) and nothing else from the control
  * ranges; the subject holds none. Pure.

@@ -1,9 +1,9 @@
 /*
   Design tokens: the shared visual vocabulary for every feature and view.
 
-  Breakpoint contract (spec 10.1): 576 / 768 / 992 / 1200, mobile-first `min-width` queries only.
+  Breakpoints: 576 / 768 / 992 / 1200, mobile-first `min-width` queries only.
   The navigation goes inline and the staff registers become tables at 992; the map layout splits
-  at 992; the calendar switches to its list view below 768. Enforced by review, not by a test.
+  at 992; the calendar switches to its list view below 768. No test guards these breakpoints.
 
   Colour tokens are defined for the light theme here and redefined for the dark theme below, once
   under the OS preference (unless <html data-theme="light"> opts out) and once under an explicit
@@ -41,7 +41,7 @@
   --duration-press: 80ms;
   /* The header's min-height (App.vue): the map column is calc(100dvh - var(--header-h)). */
   --header-h: 4.25rem;
-  /* Map tiles (spec 10.1): a small override per theme, never an inversion. */
+  /* Map tiles: a small override per theme, never an inversion. */
   --map-tile-filter: none;
 }
 
@@ -52,7 +52,7 @@
   }
 }
 
-/* Dark theme (spec 10.1): the same tokens with the AA palette; the two selectors carry one block. */
+/* Dark theme: the same tokens with the AA palette; the two selectors carry one block. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --color-brand: #7cb8ff;

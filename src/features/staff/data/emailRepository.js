@@ -1,14 +1,14 @@
 import { callFunction } from '@/shared/data/callFunction.js'
 
 /**
- * The staff side's two email callables (spec 5.9, decision M6-D12), so nothing outside bookings/
- * imports bookings/data/ (L981). Both go through `callFunction`, which refuses with `unavailable`
+ * The staff side's two email callables, so nothing outside bookings/
+ * imports bookings/data/. Both go through `callFunction`, which refuses with `unavailable`
  * `functions-off` when this build has no functions; the pages decide from
- * `isStaffFunctionsEnabled()` (staffCapabilities.js, Task 6), never from that error (A6).
+ * `isStaffFunctionsEnabled()` (staffCapabilities.js), never from that error.
  */
 
 /**
- * "A place is now yours" for a promoted booking (spec 5.5, 5.6): the M5 `sendBookingEmail` with
+ * "A place is now yours" for a promoted booking: the `sendBookingEmail` callable with
  * `kind: 'promoted'`. Without `resend` the call returns the latest attempt (or makes the first);
  * `resend: true` is Send again.
  *
@@ -23,7 +23,7 @@ export async function sendPromotionEmail(bookingId, { resend = false } = {}) {
 }
 
 /**
- * The participant email (spec 5.5, 8.4; M5 `sendSessionEmail`): one operation per `operationId`;
+ * The participant email (`sendSessionEmail`): one operation per `operationId`;
  * a repeat with the same id and content re-sends only a `failed` sub-send, the same id with other
  * content is `conflict` `operation-mismatch`, and a selected booking that is no longer a
  * participant is `invalid-data` with `details.ids`.

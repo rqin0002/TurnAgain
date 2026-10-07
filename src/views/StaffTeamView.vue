@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import TeamTable from '@/features/staff/components/TeamTable.vue'
 import { useTeam } from '@/features/staff/composables/useTeam.js'
@@ -8,9 +8,9 @@ import CapabilityNotice from '@/shared/components/CapabilityNotice.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { useTableState } from '@/shared/composables/useTableState.js'
 
-// The Team tab (spec 8.7 L1009, route meta allowedRoles ['admin']): configuration decides it
-// (CapabilityNotice when the build has no Cloud Functions, A6); otherwise the table of every
-// profile with the per-row access actions. No export: these are personal records (spec 11).
+// The Team tab (route meta allowedRoles ['admin']): configuration decides it
+// (CapabilityNotice when the build has no Cloud Functions); otherwise the table of every
+// profile with the per-row access actions. No export: these are personal records.
 const { enabled, rows, status, error, truncated, load, check, applyRole, setStatus, retry } =
   useTeam()
 
@@ -18,18 +18,30 @@ const users = computed(() => rows.value.map((row) => row.user))
 const rowsByUid = computed(() => Object.fromEntries(rows.value.map((row) => [row.uid, row])))
 const table = useTableState(TEAM_COLUMNS, { defaultSort: TEAM_DEFAULT_SORT, rows: users })
 const { state, result, totalCount } = table
+// Try again leaves with its error panel once the list loads again, so focus moves first to the
+// heading that stays mounted over the loading state. `retry` is already the row Retry of TeamTable.
+const heading = ref(null)
+const retryList = () => {
+  heading.value?.focus()
+  return load()
+}
 </script>
 
 <template>
   <section class="staff-section" aria-labelledby="staff-team-heading">
-    <h2 id="staff-team-heading" class="section-title" tabindex="-1">Team</h2>
+    <h2 id="staff-team-heading" ref="heading" class="section-title" tabindex="-1">Team</h2>
     <CapabilityNotice v-if="!enabled" :enabled="false" feature="team" />
     <template v-else>
       <p class="staff-team__intro">
         Each row shows the profile status and whether the account can sign in.
       </p>
       <StatePanel v-if="status === 'loading'" variant="loading" message="Loading the team…" />
-      <StatePanel v-else-if="status === 'error'" variant="error" :error="error" @retry="load" />
+      <StatePanel
+        v-else-if="status === 'error'"
+        variant="error"
+        :error="error"
+        @retry="retryList"
+      />
       <TeamTable
         v-else-if="status === 'ready'"
         :columns="TEAM_COLUMNS"

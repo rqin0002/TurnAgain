@@ -1,9 +1,9 @@
 /**
- * Generic table query helpers (spec 3.1, 8.3): tokenised search, stable sort and page slicing.
+ * Generic table query helpers: tokenised search, stable sort and page slicing.
  * Pure. Feature modules supply the column-specific values and comparators. `paginateRows` is the
  * canonical page-slicer: `pagination.js` delegates to it and renames the fields for its
- * URL-facing consumers (discovery and activities keep that module; decision M6-D11). The
- * column-driven table API of milestone 6 (`normalizeTableState`, `toTableQuery`,
+ * URL-facing consumers (discovery and activities keep that module). The
+ * column-driven table API (`normalizeTableState`, `toTableQuery`,
  * `applyTableState`, `cellText`) sits at the end of this file and composes the helpers above for
  * `DataTable` and `useTableState`. This file never imports `pagination.js`.
  */
@@ -101,7 +101,7 @@ export function applyTableQuery(
 /** @typedef {{ filters: Record<string, string>, sort: { key: string, direction: 'asc' | 'desc' } | null, page: number }} TableState */
 /** @typedef {{ rows: object[], allRows: object[], total: number, page: number, pageCount: number, from: number, to: number }} TableResult */
 
-/** Rows per page of every DataTable (spec 8.3 L989): a constant, never a prop. */
+/** Rows per page of every DataTable: a constant, never a prop. */
 export const TABLE_PAGE_SIZE = 10
 
 const FILTER_MAX_LENGTH = 100
@@ -116,7 +116,7 @@ const cleanFilter = (value) => value.trim().replace(/\s+/gu, ' ').slice(0, FILTE
 
 const isOption = (column, value) => (column.options ?? []).some((option) => option.value === value)
 
-/** The text a cell shows and the export writes (decision M6-D6): `text(row)`, else the value. */
+/** The text a cell shows and the export writes: `text(row)`, else the value. */
 export function cellText(column, row) {
   return column.text ? column.text(row) : String(column.value(row) ?? '')
 }
@@ -137,7 +137,7 @@ function readPage(raw) {
 }
 
 /**
- * The table state a route query names (spec 8.3 L989). Filters are allow-listed to the column
+ * The table state a route query names. Filters are allow-listed to the column
  * keys: the first value of a repeated key, trimmed, whitespace collapsed, at most 100 characters;
  * an empty value is dropped and so is a select value that is not one of the column's options (a
  * stale or hand-edited `?status=draft` must not empty the table). `sort` is `<key>:asc|desc` on a

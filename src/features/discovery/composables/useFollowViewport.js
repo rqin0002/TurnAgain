@@ -5,15 +5,15 @@ import { createViewportState, reduceViewport } from '../domain/mapViewport.js'
 export const FOLLOW_DEBOUNCE_MS = 300
 
 /**
- * The map viewport of Find nearby (spec 6.4, D2, M4-D1): the reducer's state, dispatched only
+ * The map viewport of Find nearby: the reducer's state, dispatched only
  * here, and the follow-mode debounce on its apply.
  *
- * Follow mode (spec L882): a user move applies its viewport after 300 ms without another move,
+ * Follow mode: a user move applies its viewport after 300 ms without another move,
  * so the status line, the list and the rating candidates change together once the map settles.
  * With follow off the move only offers "Search this area", at once. A radius choice, a cleared
- * origin or the list view replaces the range a held move would apply, so it cancels that move
- * (Astra round 1 P2 #2, R-4b.50); a programmatic move does not (R-4b.37). A URL change that
- * reuses the view reaches the reducer through the watchers on `view` and `radius` (R-4b.39).
+ * origin or the list view replaces the range a held move would apply, so it cancels that move;
+ * a programmatic move does not. A URL change that reuses the view reaches the reducer through
+ * the watchers on `view` and `radius`.
  *
  * @param {{ state: import('vue').MaybeRefOrGetter<{ view: string, radius: number | null, follow: boolean }>, origin: import('vue').MaybeRefOrGetter<object | null>, onOriginMoved?: () => void }} options
  */
@@ -58,7 +58,7 @@ export function useFollowViewport({ state, origin, onOriginMoved }) {
     () => supersede({ type: 'radius-chosen' }),
   )
   // A new origin, typed or a device fix, replaces the area a viewport or a held move would apply,
-  // and the view frames it on the map (FW-R4), including a fix or a place that lands after the map.
+  // and the view frames it on the map, including a fix or a place that lands after the map.
   const originKey = computed(() => {
     const current = toValue(origin)
     return current ? `${current.source}|${current.latitude}|${current.longitude}` : ''

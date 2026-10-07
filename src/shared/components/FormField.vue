@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 
-// Label, hint and error around one control (spec 10.2). The control itself is the default slot
+// Label, hint and error around one control. The control itself is the default slot
 // so any input, select or textarea fits; it binds the slot's `control` object (id, required,
 // aria-invalid, aria-describedby) and aria-describedby names only the hint and error that are
 // rendered with text, never an empty element.

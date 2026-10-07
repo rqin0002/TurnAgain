@@ -12,12 +12,11 @@ import { formatMatchLabel } from '../domain/resultsCopy.js'
 import ServiceCard from './ServiceCard.vue'
 
 /**
- * The results list (spec 6.4 L886): one `role="status"` live region (the status line), the
- * numbered cards of the current page, the "Other options" block of the relaxed verb hint
- * (decision D4), the three list states on StatePanel and the pagination. Everything arrives as
- * props from `FindNearbyView`, the composition root (spec 3.4 L1413): this component calls no
- * composable and imports no data module, so the ratings call that lived here until milestone 3
- * is the view's now (decision M4-D10).
+ * The results list: one `role="status"` live region (the status line), the
+ * numbered cards of the current page, the "Other options" block of the relaxed verb hint,
+ * the three list states on StatePanel and the pagination. Everything arrives as
+ * props from `FindNearbyView`, the composition root: this component calls no
+ * composable and imports no data module, so the ratings call is the view's.
  */
 const props = defineProps({
   status: { type: String, required: true },
@@ -46,7 +45,7 @@ const props = defineProps({
   savedAt: { type: Date, default: null },
   /** The effective radius, for the none-in-radius copy and buttons. */
   radius: { type: Number, default: 10 },
-  /** A map area is applied: the empty list offers to clear it instead of widening (FW-R9). */
+  /** A map area is applied: the empty list offers to clear it instead of widening. */
   viewportApplied: { type: Boolean, default: false },
 })
 const emit = defineEmits([
@@ -86,7 +85,7 @@ const missingLabel = computed(
 )
 const labelFor = (id) => formatMatchLabel(props.matches[id])
 // A summary still loading would read "Rating unavailable" on every card; the header's loading
-// note speaks for the ratings until they arrive (the M3 gate).
+// note speaks for the ratings until they arrive.
 const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !== 'loading')
 </script>
 
@@ -101,9 +100,9 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
       >
         {{ heading }}
       </h2>
-      <!-- The one live region (spec L886); it echoes typed text, hence dir="auto" (M4-D22). It
+      <!-- The one live region; it echoes typed text, hence dir="auto". It
            stays mounted from loading to ready because a region inserted together with its text
-           is not reliably announced (FW-R7). -->
+           is not reliably announced. -->
       <p
         class="results-status"
         :class="{ 'visually-hidden': status !== 'ready' }"
@@ -218,7 +217,7 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
         </AppButton>
       </p>
 
-      <!-- The Other options block is not ranked, so its cards carry no rating (FW-R8). -->
+      <!-- The Other options block is not ranked, so its cards carry no rating. -->
       <section v-if="otherOptions.length" class="results-other" aria-labelledby="other-options">
         <h3 id="other-options">Other options</h3>
         <ServiceCard

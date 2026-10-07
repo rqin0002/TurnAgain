@@ -9,7 +9,7 @@ import {
 } from '../data/activityRepository.js'
 
 /**
- * Drops the five-minute module cache after a booking or a cancel moved the counters (C1.8a), so
+ * Drops the five-minute module cache after a booking or a cancel moved the counters, so
  * the next catalogue load reads Firestore; the bookings feature calls this, never the repository.
  */
 export function invalidateActivityCatalogue() {
@@ -17,7 +17,7 @@ export function invalidateActivityCatalogue() {
 }
 
 /**
- * Owns one abortable activity-catalogue request, stale-while-revalidate (spec 11): the persisted
+ * Owns one abortable activity-catalogue request, stale-while-revalidate: the persisted
  * copy paints first with `freshness: 'cached'`, the fetch replaces it with `'fresh'`, and a
  * failed fetch keeps what is showing. Nothing is cleared when a load starts. Staff inject the
  * staff repository loader and `cached: null`, so the public cache never paints a register. The

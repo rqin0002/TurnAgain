@@ -7,7 +7,7 @@ import {
 } from '@/features/discovery/domain/correctionValidation.js'
 
 /**
- * Corrections on the staff side (spec 8.5, decision M6-D3). `bindCorrection` decides whether the
+ * Corrections on the staff side. `bindCorrection` decides whether the
  * `?correction=` of a record edit may be marked applied in that save's batch: only a correction
  * that exists, is about this very service and is still open; any other link saves the record
  * without it and says why. The queue helpers filter and order the cards; the note check mirrors
@@ -27,7 +27,7 @@ const unbound = (notice) => ({ correction: null, notice })
 
 /**
  * @param {{ correctionId: string, kind: string, recordId: string, corrections: object[] | null }} input
- *   `corrections` (contract section 2.1 Correction) is null while the staff catalogue has not
+ *   `corrections` is null while the staff catalogue has not
  *   loaded, which gives no notice yet
  * @returns {{ correction: object | null, notice: string }}
  */

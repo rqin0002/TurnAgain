@@ -16,10 +16,10 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { formatDate, formatTime } from '@/shared/domain/formatDate.js'
 
 /**
- * The corrections queue (spec 8.5, L1001): a card list per `?status=` (open by default), newest
+ * The corrections queue: a card list per `?status=` (open by default), newest
  * first, from the staff catalogue. An open card links to the listing's edit form with the
  * correction bound (`?correction=`), and offers Mark applied and Dismiss with an optional note.
- * There is no Delete and no export, so reporter emails never leave the queue (C4).
+ * There is no Delete and no export, so reporter emails never leave the queue.
  */
 const route = useRoute()
 const catalogue = useStaffCatalogue()
@@ -53,6 +53,14 @@ const staleNotice = computed(() =>
     : '',
 )
 
+// Try again leaves with its error panel once the reload starts, so focus moves first to the heading
+// that stays mounted over the loading state.
+const heading = ref(null)
+const retry = () => {
+  heading.value?.focus()
+  return catalogue.reload()
+}
+
 const notes = reactive({})
 const noteErrors = reactive({})
 const when = (iso) => `${formatDate(iso, { dateStyle: 'medium' })}, ${formatTime(iso)}`
@@ -73,7 +81,9 @@ const resolve = async (correction, status) => {
 
 <template>
   <section class="staff-section" aria-labelledby="staff-corrections-heading">
-    <h2 id="staff-corrections-heading" class="section-title" tabindex="-1">Corrections</h2>
+    <h2 id="staff-corrections-heading" ref="heading" class="section-title" tabindex="-1">
+      Corrections
+    </h2>
 
     <nav class="staff-corrections__tabs" aria-label="Correction status">
       <ul>
@@ -106,7 +116,7 @@ const resolve = async (correction, status) => {
       variant="error"
       title="Corrections are unavailable"
       :error="catalogue.error.value"
-      @retry="catalogue.reload()"
+      @retry="retry"
     />
     <template v-else>
       <p v-if="catalogue.truncated.value.corrections" class="staff-corrections__truncated">

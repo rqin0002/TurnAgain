@@ -1,4 +1,4 @@
-// Applies the stored theme before first paint (spec 10.1). Loaded as a classic script from
+// Applies the stored theme before first paint. Loaded as a classic script from
 // index.html <head>, so it runs while the document is still parsing and no module has loaded;
 // the key, the three values and the colours duplicate src/shared/domain/theme.js on purpose.
 ;(function () {

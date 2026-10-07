@@ -6,7 +6,7 @@ import { resolveTypedOrigin } from '../domain/postcodeCentroids.js'
 export { placeLookupFailedCopy, unknownPlaceCopy } from '../domain/postcodeCentroids.js'
 
 /**
- * The search origin (spec 6.2): one module-level state for the page session, memory only. It
+ * The search origin: one module-level state for the page session, memory only. It
  * survives View details -> Back and disappears on reload, which is the one reading that keeps
  * "never stored" literally true; nothing here is cleared on unmount. Coordinates are rounded to
  * 3 dp before they enter state and the device accuracy is floored at 150 m. `requestLocation`
@@ -14,17 +14,17 @@ export { placeLookupFailedCopy, unknownPlaceCopy } from '../domain/postcodeCentr
  * re-acquires silently only when the permission is already granted and never prompts on load.
  *
  * `status` and `error` describe the effective origin; the device's own answer is `deviceStatus`,
- * because a failed request never takes down a typed place (Astra round 1 P2 #4): the typed origin
+ * because a failed request never takes down a typed place: the typed origin
  * stays `ready` and the view still learns that the device said no. `resolvingTyped` is true while
  * the latest typed lookup runs (the places chunk may still be loading), so the view can wait for
- * it before judging `sort=nearest` (Astra round 1 P2 #3).
+ * it before judging `sort=nearest`.
  *
- * Find nearby keeps a device origin only while its URL says `near=me` (FW-R3), and a failed
- * request with no typed place clears it (FW-R5), so `denied` or `unavailable` never sits beside a
+ * Find nearby keeps a device origin only while its URL says `near=me`, and a failed
+ * request with no typed place clears it, so `denied` or `unavailable` never sits beside a
  * stale device fix.
  *
- * Who started a request decides a typed place's fate (M5-D13): behind a request the person started
- * (`requestLocation`, from a click) the place waits as the fallback (M4-D29); a place the person
+ * Who started a request decides a typed place's fate: behind a request the person started
+ * (`requestLocation`, from a click) the place waits as the fallback; a place the person
  * submits while the silent restore of a `near=me` reload runs wins, because that restore was not
  * the person's act, and the restore's request is retired so its late answer is discarded.
  */
@@ -46,9 +46,9 @@ const resolvingTyped = shallowRef(false)
 // `epoch` counts clearOrigin and requestLocation calls: a geolocation answer is used only while
 // its request is current. `lookups` counts typed lookups: only the latest one is used. `clearedAt`
 // is the epoch of the last clearOrigin. `fallback` is the typed origin that a geolocation request
-// in flight superseded; it becomes the origin if that request fails (M4-D29).
+// in flight superseded; it becomes the origin if that request fails.
 // `silentRequestEpoch` is the epoch of the request restoreIfGranted started, or 0 once the person
-// adopted it with requestLocation (M5-D13); it names the current request only while it equals
+// adopted it with requestLocation; it names the current request only while it equals
 // `epoch`.
 let epoch = 0
 let lookups = 0
@@ -117,7 +117,7 @@ export function useLocationOrigin({
   const startRequest = ({ silent }) => {
     if (status.value === 'pending') {
       // A click on Use my location while the silent restore runs adopts that request: the person
-      // asked for the device now, so a place submitted afterwards waits behind it (M4-D29).
+      // asked for the device now, so a place submitted afterwards waits behind it.
       if (!silent) silentRequestEpoch = 0
       return
     }
@@ -168,13 +168,13 @@ export function useLocationOrigin({
    * the error, the state is untouched). Only the latest typed lookup is used, and never after a
    * `clearOrigin` issued while it ran. A geolocation request (in flight when the lookup started,
    * or issued while it ran) wins: the typed place waits behind it and becomes the origin only if
-   * that request fails (denied, timeout, unavailable, unsupported; M4-D29), so a reload of
+   * that request fails (denied, timeout, unavailable, unsupported), so a reload of
    * `near=me&location=…` ends on the device position whichever answer lands first (the URL's
-   * place starts its lookup before the restore asks the device). The exception (M5-D13): a lookup
+   * place starts its lookup before the restore asks the device). The exception: a lookup
    * started while the silent restore's request was waiting is the person's own submission, so its
    * place becomes the origin when it resolves and that request is retired (its late answer is
    * discarded); a fix that landed first is replaced, and the device's answer stays reported. A
-   * click on Use my location before the place resolves adopts the request, and M4-D29 holds again.
+   * click on Use my location before the place resolves adopts the request, and the place waits behind it again.
    * `resolvingTyped` is true from the call until the latest lookup's answer is applied, discarded
    * or fails (a rejected places chunk still rejects to the caller), or until `clearOrigin`.
    */

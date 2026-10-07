@@ -29,19 +29,19 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { useOnlineStatus } from '@/shared/composables/useOnlineStatus.js'
 
 /**
- * Find nearby, the composition root of discovery (spec 3.4 L1413, 6.3, 6.4): the URL is the
+ * Find nearby, the composition root of discovery: the URL is the
  * single truth (`useFindNearbyQuery`), the origin lives in the module-level
  * `useLocationOrigin`, the results pipeline is `useDiscoveryResults`, the rating summaries for
- * the candidate set come from the ratings feature here and go back in (decision D3), and the
+ * the candidate set come from the ratings feature here and go back in, and the
  * activities for RelatedActivities load here. `useLocationPrompts` runs the Use my location,
  * Nearest and Map prompt flows, and `useFollowViewport` holds the map viewport reducer and the
  * follow-mode debounce. Nothing redirects to Home: an invalid query key is dropped in memory and
- * the form shows the field error (spec L874).
+ * the form shows the field error.
  *
- * The URL names the origin's source (FW-R3): `near=me` stands only for a device fix (or one
+ * The URL names the origin's source: `near=me` stands only for a device fix (or one
  * being restored) and `location=` only for a typed place. Submitting a place drops `near=me`, a
- * granted fix drops `location=`, and a URL with neither key keeps no origin. The M4-D29 reload
- * states are the exception, which the next search or Use my location reconciles.
+ * granted fix drops `location=`, and a URL with neither key keeps no origin. Reload states
+ * are the exception: the next search or Use my location reconciles them.
  */
 const MELBOURNE = Object.freeze({ latitude: -37.8136, longitude: 144.9631 })
 const MELBOURNE_ZOOM = 11
@@ -62,10 +62,10 @@ const boundsOfPoints = (points) => {
 const catalogue = useServiceCatalogue()
 const locationOrigin = useLocationOrigin()
 const { origin, status: originStatus, deviceStatus } = locationOrigin
-// The URL is judged (M4-D7) once a near=me reload has its permission answer (`restored`) and no
-// typed lookup of the URL's place is running (Part 4a R-4a.26), so a cold load of
+// The URL is judged once a near=me reload has its permission answer (`restored`) and no
+// typed lookup of the URL's place is running, so a cold load of
 // location=3168&sort=nearest keeps nearest while the places table loads. The device's own answer
-// goes in too: a failure drops near=me even behind a typed place that stays the origin (R-4a.25).
+// goes in too: a failure drops near=me even behind a typed place that stays the origin.
 const restored = ref(false)
 const settled = () => restored.value && !locationOrigin.resolvingTyped.value
 const { state, update } = useFindNearbyQuery({ originStatus, deviceStatus, settled })
@@ -73,7 +73,7 @@ const { remember } = useLastSearch()
 const activities = useActivityCatalogue({ autoLoad: false })
 const { online } = useOnlineStatus()
 
-// Highest rated (decisions D3, M4-D10, M4-D30): the candidate ids go to the ratings feature from
+// Highest rated: the candidate ids go to the ratings feature from
 // here and the summaries come back in. The ids are handed over only when the set itself changes
 // (a new array of the same ids starts no read), and the pipeline sees 'loading', so it keeps the
 // previous order, until the round for the ids listed now is ready; it also receives those ids as
@@ -83,7 +83,7 @@ const keyOf = (ids) => [...ids].sort().join('\n')
 const rankedIds = shallowRef([])
 const ranking = useRatingSummaries({ ids: rankedIds })
 // `ratingStatus` is declared below and read lazily through the getter, because it needs
-// `results.candidateIds` (D8c). `appliedViewport` is read lazily as well: `useFollowViewport` is
+// `results.candidateIds`. `appliedViewport` is read lazily as well: `useFollowViewport` is
 // called below, because the reframe its origin watcher asks for reads `results`.
 const results = useDiscoveryResults({
   services: catalogue.services,
@@ -100,11 +100,11 @@ const ratingStatus = computed(() =>
   keyOf(rankedIds.value) === keyOf(results.candidateIds.value) ? ranking.status.value : 'loading',
 )
 
-// The map and the moves the view commands on it (spec L886/L888).
+// The map and the moves the view commands on it.
 const mapRef = ref(null)
 const isMapView = computed(() => state.value.view === 'map')
 const locating = computed(() => originStatus.value === 'pending')
-// The Map | List button (M6-D24) shows once a search has results: always in map view (it is the
+// The Map | List button shows once a search has results: always in map view (it is the
 // way back to the list), otherwise once the catalogue is ready and some place matches the item.
 const showViewToggle = computed(
   () =>
@@ -137,7 +137,7 @@ const frameRadius = async (radius) => {
   if (radius > 0) mapRef.value?.fitTo(boundsAround(origin.value, radius))
   else mapRef.value?.recentre(origin.value, ORIGIN_ZOOM)
 }
-// A typed origin frames its ring; a device fix keeps spec L888's zoom 13 (controller ruling C12).
+// A typed origin frames its ring; a device fix keeps zoom 13.
 const reframeOnOrigin = () =>
   origin.value?.source === 'typed' ? frameRadius(results.effectiveRadius.value) : recentreOnOrigin()
 
@@ -150,7 +150,7 @@ const { locationMessage, mapNotice, mapNoticeText, requestLocation, dismissMapNo
     showMelbourne,
   })
 
-// The view keeps the framing rule (FW-R4, controller ruling C12): a new origin reframes the map
+// The view keeps the framing rule: a new origin reframes the map
 // only in map view.
 const followViewport = useFollowViewport({
   state,
@@ -209,7 +209,7 @@ const onView = async (view) => {
     await update({ view: 'list' })
     // The list with nothing to show (no match, or the catalogue still loading) has no Map button,
     // so the List button just pressed is gone: focus goes to the results heading, never <body>
-    // (R-6z.2, WCAG 2.4.3).
+    // (WCAG 2.4.3).
     await nextTick()
     if (!showViewToggle.value) document.getElementById('results-heading')?.focus()
     return
@@ -234,7 +234,7 @@ const onClearOrigin = async () => {
   supersedeViewport({ type: 'clear-viewport' })
   await update({ near: false, location: '' })
 }
-// Clear map area (FW-R9, controller ruling C14): the whole radius again, framed on the origin;
+// Clear map area: the whole radius again, framed on the origin;
 // with no origin the visible pins that have a map position, and with none of those the map stays.
 const onClearViewport = async () => {
   supersedeViewport({ type: 'clear-viewport' })
@@ -248,7 +248,7 @@ const onClearViewport = async () => {
   if (points.length > 0) mapRef.value?.fitTo(boundsOfPoints(points))
 }
 
-// "Show on map" reveals the canvas below whatever sticks above it (FW-R10, controller ruling C13):
+// "Show on map" reveals the canvas below whatever sticks above it:
 // the sticky chip row below 992 px, the header from 992 px up, as the map column's `top` does.
 const chipsRow = ref(null)
 const wide = () =>
@@ -262,7 +262,7 @@ const headerHeightPx = () => {
 }
 const revealTop = () =>
   wide() ? headerHeightPx() : (chipsRow.value?.getBoundingClientRect().bottom ?? 0)
-// Selection sync (spec L890): a card focuses its pin; a pin focuses its card, changing the page
+// Selection sync: a card focuses its pin; a pin focuses its card, changing the page
 // when the card sits on another one; the map's own keyboard path keeps focus where it is.
 const selectService = async (id, from) => {
   const { page } = results.select(id, from)
@@ -275,7 +275,7 @@ const selectService = async (id, from) => {
 
 // A shared page past the last one (page=3 under a narrower radius) is clamped by the pipeline,
 // so the URL follows the page the list shows. It waits for a ready catalogue and a settled URL:
-// an empty catalogue still loading would clamp every shared page to the first (ruling R9).
+// an empty catalogue still loading would clamp every shared page to the first.
 // After the render flush, so a lookup the location watcher starts for a new place in the same
 // flush already holds the URL unsettled: the old place's results never clamp the new page.
 watch(
@@ -286,8 +286,8 @@ watch(
   { flush: 'post' },
 )
 
-// A typed origin is reconstructed from the `location` key, so it survives reloads and sharing
-// (spec L870); an unresolvable one stays in the URL and the form says so, and so does a lookup
+// A typed origin is reconstructed from the `location` key, so it survives reloads and sharing;
+// an unresolvable one stays in the URL and the form says so, and so does a lookup
 // that could not run (the places chunk is unreachable). Only the latest lookup reports, and only
 // while its place is still in the URL.
 const unknownLocation = ref('')
@@ -310,7 +310,7 @@ const lookUpPlace = async (text) => {
   }
   unknownLocation.value = resolved === null ? placeLookupFailedCopy(text) : unknownPlaceCopy(text)
 }
-// An origin the URL no longer names goes (FW-R3): a typed place once `location` is empty, a device
+// An origin the URL no longer names goes: a typed place once `location` is empty, a device
 // fix once `near=me` is gone as well.
 const dropUnnamedOrigin = () => {
   const source = origin.value?.source
@@ -332,7 +332,7 @@ watch(
   { immediate: true },
 )
 // A same-view link that drops `near=me` under an empty place never changes `location`; a separate
-// watcher, so a `near` flip under an unchanged place starts no second lookup (controller ruling C2).
+// watcher, so a `near` flip under an unchanged place starts no second lookup.
 // The flip clears whether or not a fix is held: a restore still waiting for its permission or
 // position answer holds no origin yet, and its late answer must not land under a URL naming none.
 watch(
@@ -341,7 +341,7 @@ watch(
     if (wasNear && !near && !state.value.location) locationOrigin.clearOrigin()
   },
 )
-// The last search (spec 11 L1088) carries a place only once it has resolved, so Home never
+// The last search carries a place only once it has resolved, so Home never
 // prefills a location the form would reject.
 watch(
   [state, resolvedLocation],
@@ -349,7 +349,7 @@ watch(
   { immediate: true },
 )
 
-// Related activities (spec L864) load once the query resolves to a category.
+// Related activities load once the query resolves to a category.
 const related = computed(() =>
   selectRelatedActivities(
     activities.activities.value,
@@ -366,7 +366,7 @@ watch(
   { immediate: true },
 )
 
-// Chunk warm-up (decision M4-D15): once, when the catalogue is ready and the browser is online.
+// Chunk warm-up: once, when the catalogue is ready and the browser is online.
 let warmed = false
 watch(
   [catalogue.status, online],
@@ -380,9 +380,9 @@ watch(
 )
 
 onMounted(async () => {
-  // A reload with near=me re-acquires silently only when the permission is already granted
-  // (spec L870); nothing prompts on load, and the URL settles only once that answer is known.
-  // Back from Service Detail still holds the fix, so it asks nothing again (FW-R5).
+  // A reload with near=me re-acquires silently only when the permission is already granted;
+  // nothing prompts on load, and the URL settles only once that answer is known.
+  // Back from Service Detail still holds the fix, so it asks nothing again.
   if (state.value.near && origin.value?.source !== 'geolocation') {
     await locationOrigin.restoreIfGranted()
   }
@@ -563,7 +563,7 @@ onMounted(async () => {
   gap: 0.75rem;
 }
 
-/* Map view below 992 (spec L888): sticky chip row, full-bleed map, the list in normal flow. */
+/* Map view below 992: sticky chip row, full-bleed map, the list in normal flow. */
 .find-nearby--map .find-nearby__chips {
   position: sticky;
   top: 0;
@@ -620,7 +620,7 @@ onMounted(async () => {
   box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
 }
 
-/* The 992 contract breakpoint (spec 10.1): the chip row across both columns, the list column
+/* The 992 breakpoint: the chip row across both columns, the list column
    left (40%), the map column right and sticky at the viewport height below the header. */
 @media (min-width: 992px) {
   .find-nearby--map .find-nearby__layout {
@@ -662,7 +662,7 @@ onMounted(async () => {
   }
 
   .find-nearby--map .find-nearby__map :deep(.nearby-map__canvas) {
-    /* The column's flexible row sizes the canvas (spec L888), not the component's own height. */
+    /* The column's flexible row sizes the canvas, not the component's own height. */
     height: auto;
     min-height: 0;
     margin: 0;

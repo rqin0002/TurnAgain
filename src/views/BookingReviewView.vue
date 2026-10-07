@@ -11,7 +11,7 @@ import AppButton from '@/shared/components/AppButton.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { isConnectionError } from '@/shared/domain/errorCopy.js'
 
-// The booking review page (spec 7.5, B.1): the URL is the selection (spec 7.4), the composable
+// The booking review page: the URL is the selection, the composable
 // owns the states, this view owns the navigation that follows a commit. One status region,
 // mounted with the page, announces every outcome that replaces the form, so those panels carry
 // no live role of their own. Focus moves to the name field after "Book anyway", and to the page
@@ -81,7 +81,7 @@ const onSubmit = async (values) => {
     }
     return
   }
-  // N5: a refused duplicate is the lost-response case; the booking page asks for its email once.
+  // A refused duplicate is the lost-response case; the booking page asks for its email once.
   if (review.state.value === 'duplicate' && review.existingBooking.value?.id) {
     await toDetail(review.existingBooking.value.id)
   }

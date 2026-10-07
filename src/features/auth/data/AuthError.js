@@ -1,8 +1,8 @@
 /**
- * The one error the auth repository and the auth store throw (spec 9.2, decision M6). The code
+ * The one error the auth repository and the auth store throw. The code
  * is the only channel to the views; the message is user-facing copy chosen here, never a Firebase
- * string (facts.md 1g: the SDK ships `Firebase: Error (auth/<code>).`). `account-disabled` is a
- * `logout(reason)` value and a `?reason=` query, not a code (C2.6).
+ * string (the SDK ships `Firebase: Error (auth/<code>).`). `account-disabled` is a
+ * `logout(reason)` value and a `?reason=` query, not a code.
  */
 
 import { GENERIC_FAILURE } from '@/shared/domain/errorCopy.js'
@@ -41,7 +41,7 @@ const MESSAGES = Object.freeze({
 })
 
 /**
- * Firebase Auth codes (facts.md 1g) to public codes. Wrong password, unknown user and the
+ * Firebase Auth codes to public codes. Wrong password, unknown user and the
  * enumeration-protected `invalid-credential` are one user-facing case; a disabled user signing
  * in is told the same (non-disclosing), the store detects a disabled *session* through
  * `endedSessionReason` instead.
@@ -78,7 +78,7 @@ export class AuthError extends Error {
 
 export const isAuthError = (error) => error instanceof AuthError
 
-// A hint only (spec 11): the failed request decides, the flag picks the wording.
+// A hint only: the failed request decides, the flag picks the wording.
 const isBrowserOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false
 
 /** @param {unknown} error - anything rejected by the Firebase Auth SDK */
@@ -94,7 +94,7 @@ export function toAuthError(error) {
 }
 
 /**
- * Why the SDK ended a session on its own (facts.md 1a addendum): a disabled Auth user or a
+ * Why the SDK ended a session on its own: a disabled Auth user or a
  * revoked refresh token makes `reload()` / `getIdToken(true)` reject and clears `currentUser`.
  *
  * @param {unknown} error - an AuthError (its cause is read) or the raw Firebase error

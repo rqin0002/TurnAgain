@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RepositoryError, isRepositoryError } from '../data/RepositoryError.js'
 
 /**
- * The stale-while-revalidate load state shared by the public catalogues (spec 11): a persisted
+ * The stale-while-revalidate load state shared by the public catalogues: a persisted
  * copy paints first with `freshness: 'cached'`, the fetch replaces it with `'fresh'`, and a
  * failed fetch keeps whatever is showing (the views say "Showing results saved {relative time}").
  * Nothing is cleared when a load starts; the error status is for a failure with nothing to show.

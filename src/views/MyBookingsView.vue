@@ -18,7 +18,7 @@ import AppButton from '@/shared/components/AppButton.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { isConnectionError } from '@/shared/domain/errorCopy.js'
 
-// My Bookings (spec 7.7 L956, D6): every booking renders from its snapshot at once; the current
+// My Bookings: every booking renders from its snapshot at once; the current
 // sessions follow, and an entry whose session did not load is "not confirmed", never cancelled,
 // with Cancel and Add to calendar held back until a refresh confirms it.
 const mine = useMyBookings()
@@ -41,7 +41,7 @@ const openCancelDialog = (booking) => {
   target.value = booking
 }
 
-// Spec 7.9 (ruling C4): after a cancel refused because the session started, `now` moves only
+// After a cancel refused because the session started, `now` moves only
 // once the dialog has closed and the browser has returned focus to Cancel. If the entry then
 // loses its Cancel, focus goes to its started line (or its title link when the session has
 // also ended and the entry moved to Past), never to <body>.
@@ -107,7 +107,7 @@ const confirmCancel = async (bookingId) => {
       />
 
       <template v-else>
-        <!-- Present when the list renders, so a plain paragraph, not a live region (M5-D17). -->
+        <!-- Present when the list renders, so a plain paragraph, not a live region. -->
         <p v-if="truncated">Results incomplete: showing the first 1,000 records.</p>
         <section
           v-for="section in sections"

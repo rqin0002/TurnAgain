@@ -15,7 +15,7 @@ import ThemeSwitch from '@/shared/components/ThemeSwitch.vue'
 import { describeError } from '@/shared/domain/errorCopy.js'
 
 const authStore = useAuthStore()
-// Saved services resolve against the public catalogue (spec 9.6), painted from its saved copy
+// Saved services resolve against the public catalogue, painted from its saved copy
 // first while the fresh read runs.
 const { status: catalogueStatus, services, retry: retryCatalogue } = useServiceCatalogue()
 
@@ -62,7 +62,7 @@ const {
   validate: validateEmailChangeInput,
   submit: async (validated) => {
     await authStore.requestEmailChange(validated.email)
-    // The spec 9.4 sentence, with the address the link went to.
+    // The confirmation sentence, with the address the link went to.
     emailNotice.value = `We sent a link to ${validated.email}. Your sign-in email changes when you open it; sign in again afterwards.`
     resetEmailChange()
   },
@@ -84,7 +84,7 @@ const logOut = async () => {
   loggingOut.value = true
   logoutError.value = ''
   try {
-    // The store replaces the route to /login (spec 9.1); nothing to navigate here.
+    // The store replaces the route to /login; nothing to navigate here.
     await authStore.logout()
   } catch (error) {
     logoutError.value = describeError(error)

@@ -28,18 +28,18 @@ import { formatDate } from '@/shared/domain/formatDate.js'
 import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 
 /**
- * Service Detail (spec 6.6 L902; decision M4-D9): one record through `useService`, the shared
- * origin, the trip request, and the sections in the spec's order: header (tags, name, address,
+ * Service Detail: one record through `useService`, the shared
+ * origin, the trip request, and the sections in this order: header (tags, name, address,
  * the distance from the origin for a venue), What this option covers, Acceptance conditions,
  * Before you go, Getting there (with the single-pin map), Trip, Check the source, then Save for
- * members directly above Ratings (M4-D9 keeps the M3 placement). Optional fields are omitted,
+ * members directly above Ratings. Optional fields are omitted,
  * never blank. Live records with `address` null render (the address line is suburb and
  * postcode). Staff and admins see "Edit this listing", a link to the staff record form, after
- * Check the source (spec 8.1 L975).
+ * Check the source.
  */
 const route = useRoute()
 const { goBack } = useBackNavigation({ name: 'find-nearby' })
-// The staff-only Edit link (spec 8.1 L975); the route meta and the rules guard the form itself.
+// The staff-only Edit link; the route meta and the rules guard the form itself.
 const authStore = useAuthStore()
 const canEdit = computed(() => authStore.canAccess(['staff', 'admin']))
 
@@ -87,8 +87,8 @@ const mapItems = computed(() =>
       ]
     : [],
 )
-// The Trip panel's start point. A refusal is the device's answer to the person's own request
-// (Part 4a R-4a.25): a typed place already chosen stays the origin and `error` stays empty, so the
+// The Trip panel's start point. A refusal is the device's answer to the person's own request:
+// a typed place already chosen stays the origin and `error` stays empty, so the
 // copy comes from `deviceStatus`, and only after a request made here.
 const typedError = ref('')
 const askedForLocation = ref(false)
@@ -235,7 +235,7 @@ watch(
               </ul>
             </template>
             <!-- A single map centres itself only when Leaflet loads, so another service mounts a
-                 fresh one rather than leaving its pin off the old centre (detail-trip#2). -->
+                 fresh one rather than leaving its pin off the old centre. -->
             <NearbyMap
               v-if="service.geo"
               :key="service.id"
@@ -280,7 +280,7 @@ watch(
           </section>
         </div>
 
-        <!-- Spec 8.5: Farah reports a change here; staff see it in the corrections queue. -->
+        <!-- Farah reports a change here; staff see it in the corrections queue. -->
         <CorrectionForm :service="service" />
         <p v-if="canEdit" class="staff-edit-link">
           <RouterLink
@@ -386,7 +386,7 @@ watch(
   font-weight: 600;
 }
 
-/* Keeps the Save control off the ratings section's top rule (owner, 2026-10-07). */
+/* Keeps the Save control off the ratings section's top rule. */
 .service-detail__save {
   margin: 0 0 1.5rem;
 }

@@ -1,5 +1,5 @@
 /**
- * Public Firebase web configuration (spec 12.2). A pure object module: no import.meta.env read,
+ * Public Firebase web configuration. A pure object module: no import.meta.env read,
  * so the seed can import it in Node. Firebase Web identifiers are public; access depends on
  * Firebase Auth, the Firestore rules and the API-key restrictions, never on hiding this file.
  * https://firebase.google.com/docs/projects/api-keys
@@ -27,7 +27,7 @@ export const FIREBASE_CONFIG = Object.freeze({
 export const EMULATOR_PROJECT_ID = 'demo-turnagain'
 
 // Host and ports of firebase.json. They live here rather than in emulators.js because that module
-// reads import.meta.env, which Node lacks; the seed connects to the emulators from these (spec 13.4).
+// reads import.meta.env, which Node lacks; the seed connects to the emulators from these.
 export const EMULATOR_HOST = '127.0.0.1'
 export const EMULATOR_PORTS = /* @__PURE__ */ Object.freeze({
   auth: 9099,

@@ -1,9 +1,9 @@
 <script>
 /**
- * Chunk warm-up (decision M4-D15): the view calls this once the catalogue is ready and the
+ * Chunk warm-up: the view calls this once the catalogue is ready and the
  * browser is online, so a later Map press while offline finds the Leaflet chunk in the browser
  * cache ("Map needs a connection" is then about tiles, never a missing chunk). This file stays
- * the only one that imports `leaflet` (spec 3.7, lazy chunk); failures are swallowed on purpose.
+ * the only one that imports `leaflet` (a lazy chunk); failures are swallowed on purpose.
  */
 export const warmUpMapChunks = () =>
   Promise.allSettled([import('leaflet'), import('leaflet/dist/leaflet.css')])
@@ -27,37 +27,36 @@ import { PLACES_ATTRIBUTION } from '../domain/postcodeCentroids.js'
 import { formatAreaLine, formatDistance, formatPinName } from '../domain/resultsCopy.js'
 
 /**
- * The one map (spec 6.4 L888-890): the results map and, with `single`, the Service Detail
- * mini-map. Leaflet is the only heavy import and is loaded lazily on mount (spec 3.7). Every
- * pin is a class-only `divIcon` (no `style=` attribute, so `style-src 'self'` holds, spec 12.6),
+ * The one map: the results map and, with `single`, the Service Detail
+ * mini-map. Leaflet is the only heavy import and is loaded lazily on mount. Every
+ * pin is a class-only `divIcon` (no `style=` attribute, so `style-src 'self'` holds),
  * named "3. Mernda Repair Cafe, 4.2 km"; the selected pin alone is in the tab order (roving
- * tabindex, decision M4-D14) and the Previous/Next place buttons are the keyboard path. The
+ * tabindex) and the Previous/Next place buttons are the keyboard path. The
  * Service Detail pin is a picture (`role="img"`), unnumbered and out of the keyboard path.
  *
- * Programmatic-flag protocol (decision M4-D1): animations are off, every programmatic call passes
+ * Programmatic-flag protocol: animations are off, every programmatic call passes
  * `animate: false` and runs inside `runProgrammatic`, so the one synchronous `moveend` Leaflet
- * fires (also for an unchanged view, facts F1) is classified as that move's own. User intent is
- * read from the DOM (decision R5): pointer, wheel, touch and key events on the container set
+ * fires (also for an unchanged view) is classified as that move's own. User intent is
+ * read from the DOM: pointer, wheel, touch and key events on the container set
  * `userIntent`, which a user-attributed `moveend` consumes or a short grace timer clears. A
  * `moveend` with neither flag is never the user's. `setView`/`fitBounds` are skipped entirely
  * when their predicate says no-op, and `panInside` is the only silent Leaflet call.
  */
 const props = defineProps({
-  /** T4 `visible` entries: `{ service, distanceKm, index }` plus the view's `matchLabel`. */
+  /** `useDiscoveryResults` `visible` entries: `{ service, distanceKm, index }` plus the view's `matchLabel`. */
   items: { type: Array, default: () => [] },
   origin: { type: Object, default: null },
   /** Kilometres; 0 draws no ring (the view passes 0 while a viewport is applied). */
   radiusKm: { type: Number, default: 0 },
   selectedId: { type: String, default: '' },
   /**
-   * Contract prop (spec 6.4): the view owns follow mode and its 300 ms debounce, and the map does
-   * not read it.
+   * The view owns follow mode and its 300 ms debounce; the map does not read this prop.
    */
   follow: { type: Boolean, default: false },
-  /** `[lat, lng]` pairs from T5's RouteResult.geometry, or null. */
+  /** `[lat, lng]` pairs from the route result's `geometry`, or null. */
   route: { type: Array, default: null },
   single: { type: Boolean, default: false },
-  /** False while the offline banner is up: the "Map needs a connection" line (spec 11 L1090). */
+  /** False while the offline banner is up: the "Map needs a connection" line. */
   online: { type: Boolean, default: true },
   /** True while the view's geolocation request is in flight: the Use my location control is busy. */
   locating: { type: Boolean, default: false },
@@ -99,17 +98,17 @@ let programmaticDepth = 0
 let userIntent = false
 let graceTimer
 let openPopupMarker = null
-/** The last view command issued before Leaflet loaded; `loadMap` applies it (decision M4-D1). */
+/** The last view command issued before Leaflet loaded; `loadMap` applies it. */
 let pendingView = null
 /**
  * A view has been chosen: a fit of real points, a parent's `recentre`/`fitTo`/`focusPin`, or a
- * user move. Items that arrive later frame the map only while it is false (FW-R4).
+ * user move. Items that arrive later frame the map only while it is false.
  */
 let framed = false
 const markerById = new Map()
 
 const mappable = computed(() => props.items.filter((entry) => isMappableGeo(entry.service.geo)))
-// Previous/Next place step from pin to pin (decision M4-D14): an entry without a map position has
+// Previous/Next place step from pin to pin: an entry without a map position has
 // no pin to focus, so the buttons skip it.
 const position = computed(() =>
   mappable.value.findIndex((entry) => entry.service.id === props.selectedId),
@@ -122,12 +121,12 @@ const nextId = computed(() => {
   return index < mappable.value.length ? mappable.value[index].service.id : ''
 })
 const showConnectionLine = computed(() => !props.online || tileError.value)
-// One status line stays mounted from loading to ready (FW-R7), so its changes are announced.
+// One status line stays mounted from loading to ready, so its changes are announced.
 const statusText = computed(() => {
   if (showConnectionLine.value) return 'Map needs a connection. The list stays available.'
   return status.value === 'loading' ? 'Loading map…' : ''
 })
-// An area record's pin is the centre of its postcode area, never the venue (spec 6 D1).
+// An area record's pin is the centre of its postcode area, never the venue.
 const singleHelp = computed(() => {
   const service = props.items[0]?.service
   if (service?.geo?.precision !== 'area') return 'The pin marks this place.'
@@ -162,7 +161,7 @@ const escapeHtml = (value) =>
 const runProgrammatic = (fn) => {
   if (!map) return
   // A pan or zoom animation never runs (all animations are off), but a stale `moveend` from an
-  // in-flight animation would steal the flag (facts F1); stop it first and let it classify alone.
+  // in-flight animation would steal the flag; stop it first and let it classify alone.
   if (map._panAnim?._inProgress || map._animatingZoom) map.stop()
   programmaticDepth += 1
   try {
@@ -240,7 +239,7 @@ const revealCanvas = (revealTop) => {
  * Brings a pin into view and opens its popup; `focus: false` leaves focus where it is (the
  * Previous/Next place buttons keep it so a person can keep stepping). `revealTop` is the bottom,
  * in viewport pixels, of whatever sticky band covers the top of the window (the view's chip row
- * below 992 px, the header height from 992 px; FW-R10). The map does not know the page layout, so
+ * below 992 px, the header height from 992 px). The map does not know the page layout, so
  * the view measures it.
  */
 const focusPin = (id, { focus = true, revealTop = 0 } = {}) => {
@@ -261,7 +260,7 @@ const focusPin = (id, { focus = true, revealTop = 0 } = {}) => {
 }
 defineExpose({ recentre, fitTo, focusPin })
 
-// --- the Use my location control (decision M6-D24) --------------------------------------------
+// --- the Use my location control ------------------------------------------------------------
 
 const LOCATE_LABEL = 'Use my location'
 const LOCATE_BUSY_LABEL = 'Finding your location…'
@@ -276,7 +275,7 @@ const syncLocateButton = () => {
  * The site's one device-location request: a real button in a Leaflet bar at the top right, under
  * the zoom control, so it sits in the map's own control container and in its tab order. It asks
  * the view (`request-location`), which runs the prompt flow the form's pill used to start. The
- * click is no map gesture (M4-D1): the bar swallows it as Leaflet's own zoom bar does, and the
+ * click is no map gesture: the bar swallows it as Leaflet's own zoom bar does, and the
  * recentre a fix ends on is a programmatic move. While the request is in flight the button reads
  * busy and swallows clicks, as AppButton does.
  */
@@ -539,7 +538,7 @@ const loadMap = async () => {
         tileError.value = false
       })
       .addTo(map)
-    // The zoom control at the top right and the Use my location control under it (M6-D24); the
+    // The zoom control at the top right and the Use my location control under it; the
     // Service Detail mini-map keeps its zoom there too and gets no location control.
     leaflet.control.zoom({ position: 'topright' }).addTo(map)
     if (!props.single) addLocateControl()
@@ -570,7 +569,7 @@ const loadMap = async () => {
 }
 
 // The catalogue or a typed place's results can arrive after Leaflet loaded: the first real points
-// frame the map, unless a view was already chosen (FW-R4).
+// frame the map, unless a view was already chosen.
 watch(
   () => props.items,
   () => {
@@ -706,13 +705,13 @@ onBeforeUnmount(() => {
   height: clamp(14rem, 40vh, 22rem);
 }
 
-/* Tiles follow the theme through one token (spec 10.1): never inverted. */
+/* Tiles follow the theme through one token: never inverted. */
 .nearby-map__canvas :deep(.leaflet-tile-pane) {
   filter: var(--map-tile-filter);
 }
 
 /* Pins: the circle is a pseudo-element so the selected scale never fights Leaflet's inline
-   transform on the icon element itself (CSSOM positioning, spec 12.6). */
+   transform on the icon element itself (CSSOM positioning). */
 .nearby-map__canvas :deep(.nearby-pin) {
   display: grid;
   place-items: center;
@@ -879,7 +878,7 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
-/* The Use my location control (M6-D24): a real button in a Leaflet bar, themed like the zoom bar. */
+/* The Use my location control: a real button in a Leaflet bar, themed like the zoom bar. */
 .nearby-map__canvas :deep(.nearby-map__locate-button) {
   display: inline-flex;
   min-height: 2.75rem;

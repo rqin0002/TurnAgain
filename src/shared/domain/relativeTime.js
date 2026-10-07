@@ -1,6 +1,6 @@
 /**
  * "5 minutes ago", "yesterday", "2 weeks ago": the relative age of a cached copy for the
- * "Showing results saved {relative time}" line (spec 11). Under a minute reads "just now"; a
+ * "Showing results saved {relative time}" line. Under a minute reads "just now"; a
  * saved time in the future (a clock that moved) also reads "just now" rather than "in 3 minutes".
  */
 

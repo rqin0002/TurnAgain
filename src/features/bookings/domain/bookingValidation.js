@@ -13,9 +13,8 @@ import {
 import { BOOKING_STATUSES, REFERENCE_PATTERN, bookingIdFor } from './bookingRules.js'
 
 /**
- * The review form's input (spec 7.5) and the booking document's client projection (spec 4.2
- * L265, 4.5). Lengths are UTF-16 code units, as the rules' `size()` and authValidation.js measure
- * them, so a value the form accepts is a value the rules store.
+ * The review form's input and the booking document's client projection. Lengths are UTF-16
+ * code units, as the rules' `size()` and authValidation.js measure them, so a value the form accepts is a value the rules store.
  */
 
 export const BOOKING_LIMITS = Object.freeze({ contactNameMax: 50, itemDescriptionMax: 200 })
@@ -125,7 +124,7 @@ const CHECKS = Object.freeze({
   updatedAt: (c) => toIsoTimestamp(c.updatedAt) !== null,
 })
 
-/** The rules' isValidBooking on the client side (spec 4.5): exact keys and every field check. */
+/** The rules' isValidBooking on the client side: exact keys and every field check. */
 export function validateBooking(candidate) {
   if (!isPlainObject(candidate)) {
     return { isValid: false, errors: { record: 'not-an-object' } }
@@ -149,8 +148,8 @@ export const isBookingId = (value) =>
 const isoOrNull = (value) => (value === null ? null : toIsoTimestamp(value))
 
 /**
- * The client Booking (contract section 3.1): the stored fields with ISO instants plus `id`; null
- * when the id is not `uid_sessionId` or any check fails (skip-and-count, spec 4.5).
+ * The client Booking: the stored fields with ISO instants plus `id`; null
+ * when the id is not `uid_sessionId` or any check fails (skip-and-count).
  */
 export function projectBooking(documentId, candidate) {
   if (

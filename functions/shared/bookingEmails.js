@@ -1,8 +1,8 @@
 /**
- * The four booking emails (spec 5.5, 5.11): subject, plain text and HTML for one booking. Pure:
+ * The four booking emails: subject, plain text and HTML for one booking. Pure:
  * the caller converts Firestore Timestamps to ISO strings first and attaches the calendar file
  * itself. Every user string in the HTML goes through `escapeHtml`; `itemDescription` is never read
- * (spec 4.3 L272: what the member brings stays between the member and staff).
+ * (what the member brings stays between the member and staff).
  */
 
 import { formatSessionWhen } from './melbourneTime.js'
@@ -15,7 +15,7 @@ export const BOOKING_EMAIL_KINDS = Object.freeze([
   'promoted',
 ])
 
-/** The kinds whose email carries the booking's .ics (D7, spec 13.1 L1201). */
+/** The kinds whose email carries the booking's .ics. */
 export const ICS_EMAIL_KINDS = Object.freeze(['confirmed', 'promoted'])
 
 export const bookingEmailHasIcs = (kind) => ICS_EMAIL_KINDS.includes(kind)
