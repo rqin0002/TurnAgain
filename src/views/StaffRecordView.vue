@@ -105,7 +105,11 @@ const validate = (draft) => {
 const form = useRecordForm({
   initial: config.value.blank(route.query),
   validate,
-  save: (values) => saveWith((correctionId) => save(values, { isNew: isNew.value, correctionId })),
+  // A save keeps the create-or-edit it started as, the retry without a correction included.
+  save: (values) => {
+    const savingNew = isNew.value
+    return saveWith((correctionId) => save(values, { isNew: savingNew, correctionId }))
+  },
   fetchLatest: async () => config.value.toDraft(await fetchLatest()),
   fieldOf: (field) => draftFieldOf(props.kind, field),
   // After a conflict Reload, a session that gained bookings keeps its time, venue and

@@ -1,4 +1,4 @@
-import { computed, ref, toValue } from 'vue'
+import { computed, ref, toValue, watch } from 'vue'
 
 import { isStaffFunctionsEnabled } from '../data/staffCapabilities.js'
 import { markParticipantsNotified } from '../data/staffRepository.js'
@@ -17,6 +17,10 @@ const NOTIFY_CONFLICT =
  * cancelled session whose `cancellationNoticeAt` is still null). `functionsEnabled` comes from
  * configuration, never from an error. `now` is the page's clock, so a page left open past
  * the start takes Promote next away.
+ *
+ * The notified state belongs to one session: a change of `sessionId` clears it, and an answer that
+ * arrives after that change still updates the shared catalogue but leaves the state of the session
+ * now shown alone. `markNotified` resolves to whether its outcome was shown.
  *
  * @param {import('vue').MaybeRefOrGetter<string>} sessionId
  * @param {{ now?: () => Date }} [options]
@@ -57,6 +61,18 @@ export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
   const notifyState = ref('idle')
   const notifyMessage = ref('')
 
+  // Counts session changes; a write remembers the count it started under and reports its outcome
+  // only while the count is unchanged.
+  let generation = 0
+  watch(
+    () => toValue(sessionId),
+    () => {
+      generation += 1
+      notifyState.value = 'idle'
+      notifyMessage.value = ''
+    },
+  )
+
   const refresh = async () => {
     try {
       await catalogue.reload()
@@ -67,7 +83,8 @@ export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
 
   const markNotified = async () => {
     const current = session.value
-    if (!current || notifyState.value === 'saving') return
+    if (!current || notifyState.value === 'saving') return false
+    const run = generation
     notifyState.value = 'saving'
     notifyMessage.value = ''
     try {
@@ -80,14 +97,20 @@ export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
         cancellationNoticeAt: new Date().toISOString(),
         noticeFieldStored: true,
       })
-      notifyState.value = 'saved'
-      notifyMessage.value = 'Participants marked as notified.'
+      if (run === generation) {
+        notifyState.value = 'saved'
+        notifyMessage.value = 'Participants marked as notified.'
+      }
       await refresh()
     } catch (caught) {
-      notifyState.value = 'failed'
-      notifyMessage.value = caught?.code === 'conflict' ? NOTIFY_CONFLICT : (caught?.message ?? '')
+      if (run === generation) {
+        notifyState.value = 'failed'
+        notifyMessage.value =
+          caught?.code === 'conflict' ? NOTIFY_CONFLICT : (caught?.message ?? '')
+      }
       if (caught?.code === 'conflict') await refresh()
     }
+    return run === generation
   }
 
   return {

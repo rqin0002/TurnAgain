@@ -1,4 +1,4 @@
-import { ref, toValue } from 'vue'
+import { ref, toValue, watch } from 'vue'
 
 import {
   EMAIL_STATUS_COPY,
@@ -27,6 +27,11 @@ const REFUSAL_CODES = Object.freeze([
  * never touches the promotion. An answer still in flight (`sending`) reads as unknown, and a
  * refusal with a `details.code` the email line knows (daily limit, too soon) keeps its reason.
  *
+ * The state belongs to one session: a change of `sessionId` clears it, and an answer that arrives
+ * after that change still completes its work (the promoted email is asked for, `onSettled` runs) but
+ * writes nothing for the session now shown. `promote` and `sendEmail` resolve to whether their
+ * outcome was shown, so the page moves focus only for an outcome it displays.
+ *
  * @param {{ sessionId: import('vue').MaybeRefOrGetter<string>, onSettled?: () => unknown }} options
  */
 export function usePromotion({ sessionId, onSettled = () => undefined }) {
@@ -34,6 +39,20 @@ export function usePromotion({ sessionId, onSettled = () => undefined }) {
   const message = ref('')
   const lastPromotion = ref(null)
   const emailStates = ref({})
+
+  // Counts session changes; an action remembers the count it started under and writes its outcome
+  // only while the count is unchanged.
+  let generation = 0
+  watch(
+    () => toValue(sessionId),
+    () => {
+      generation += 1
+      state.value = 'idle'
+      message.value = ''
+      lastPromotion.value = null
+      emailStates.value = {}
+    },
+  )
 
   const setEmailState = (bookingId, next) => {
     emailStates.value = { ...emailStates.value, [bookingId]: next }
@@ -47,71 +66,66 @@ export function usePromotion({ sessionId, onSettled = () => undefined }) {
     }
   }
 
-  const sendEmail = async (bookingId, { resend = false } = {}) => {
-    if (emailStates.value[bookingId]?.status === 'sending') return
-    setEmailState(bookingId, {
-      status: 'sending',
-      message: 'Sending the promotion email',
-    })
+  const requestEmail = async (bookingId, resend, run) => {
+    const show = (next) => {
+      if (run === generation) setEmailState(bookingId, next)
+    }
+    show({ status: 'sending', message: 'Sending the promotion email' })
     try {
       const result = await sendPromotionEmail(bookingId, { resend })
       if (result.status === 'dry-run') {
-        setEmailState(bookingId, {
-          status: 'test-mode',
-          message: EMAIL_STATUS_COPY['dry-run'],
-        })
+        show({ status: 'test-mode', message: EMAIL_STATUS_COPY['dry-run'] })
       } else if (result.status === 'accepted') {
-        setEmailState(bookingId, {
-          status: 'sent',
-          message: EMAIL_STATUS_COPY.accepted,
-        })
+        show({ status: 'sent', message: EMAIL_STATUS_COPY.accepted })
       } else if (result.status === 'unknown' || result.status === 'sending') {
-        setEmailState(bookingId, {
-          status: 'failed',
-          message: EMAIL_STATUS_COPY.unknown,
-        })
+        show({ status: 'failed', message: EMAIL_STATUS_COPY.unknown })
       } else {
-        setEmailState(bookingId, {
-          status: 'failed',
-          message: PROMOTION_MESSAGES.emailNotSent,
-        })
+        show({ status: 'failed', message: PROMOTION_MESSAGES.emailNotSent })
       }
     } catch (caught) {
       const reason =
         typeof caught?.details?.code === 'string' ? describeEmailRefusal(caught).message : ''
-      setEmailState(bookingId, {
+      show({
         status: 'failed',
         message: reason
           ? `${PROMOTION_MESSAGES.emailNotSent}. ${reason}`
           : PROMOTION_MESSAGES.emailNotSent,
       })
     }
+    return run === generation
+  }
+
+  const sendEmail = async (bookingId, { resend = false } = {}) => {
+    if (emailStates.value[bookingId]?.status === 'sending') return false
+    return requestEmail(bookingId, resend, generation)
   }
 
   const promote = async () => {
-    if (state.value === 'promoting') return
+    if (state.value === 'promoting') return false
+    const run = generation
     state.value = 'promoting'
     message.value = ''
     let promoted = null
+    let outcome
     try {
       promoted = await promoteNextBooking(toValue(sessionId))
-      lastPromotion.value = {
-        bookingId: promoted.bookingId,
-        reference: promoted.reference,
-      }
-      state.value = 'promoted'
-      message.value = PROMOTION_MESSAGES.promoted(promoted.reference)
+      outcome = { state: 'promoted', message: PROMOTION_MESSAGES.promoted(promoted.reference) }
     } catch (caught) {
       const code = caught?.details?.code
-      if (caught?.code === 'conflict' && REFUSAL_CODES.includes(code)) {
-        state.value = 'refused'
-        message.value = PROMOTION_MESSAGES[code]
-      } else {
-        state.value = 'failed'
-        message.value = caught?.message ?? ''
-      }
+      outcome =
+        caught?.code === 'conflict' && REFUSAL_CODES.includes(code)
+          ? { state: 'refused', message: PROMOTION_MESSAGES[code] }
+          : { state: 'failed', message: caught?.message ?? '' }
     }
-    await Promise.all([promoted ? sendEmail(promoted.bookingId) : null, settle()])
+    if (run === generation) {
+      if (promoted) {
+        lastPromotion.value = { bookingId: promoted.bookingId, reference: promoted.reference }
+      }
+      state.value = outcome.state
+      message.value = outcome.message
+    }
+    await Promise.all([promoted ? requestEmail(promoted.bookingId, false, run) : null, settle()])
+    return run === generation
   }
 
   return { state, message, lastPromotion, emailStates, promote, sendEmail }

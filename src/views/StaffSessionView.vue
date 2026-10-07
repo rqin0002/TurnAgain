@@ -109,27 +109,36 @@ const participantsNotice = computed(() =>
 const recentIds = computed(() => recentPromotions(bookings.value, now.value).map(({ id }) => id))
 const countText = computed(() => selectionCountText(selectedIds.value.length, liveCount.value))
 
+// Moving to another session keeps this page's instance, so an action can settle while the page
+// shows a different session, or after the page has gone. Focus moves only for an outcome the page
+// displayed (`shown`) on the session the action started on; after unmount the line refs are null.
+const settledHere = (startedOn, shown) => shown && props.sessionId === startedOn
+
 const promotionLine = ref(null)
 const notifyLine = ref(null)
 const promote = async () => {
-  await promotion.promote()
+  const startedOn = props.sessionId
+  const shown = await promotion.promote()
   await nextTick()
-  if (!canPromote.value) promotionLine.value?.focus()
+  if (settledHere(startedOn, shown) && !canPromote.value) promotionLine.value?.focus()
 }
 const notify = async () => {
-  await markNotified()
+  const startedOn = props.sessionId
+  const shown = await markNotified()
   await nextTick()
-  if (!showMarkNotified.value) notifyLine.value?.focus()
+  if (settledHere(startedOn, shown) && !showMarkNotified.value) notifyLine.value?.focus()
 }
 
 // A sent or test-mode email takes the row's button away under the focus, so the focus moves to that
 // row's email line, which reports the result. A failure keeps Send again, and the focus.
 const participantsBlock = ref(null)
 const sendEmail = async (bookingId) => {
-  await promotion.sendEmail(bookingId, {
+  const startedOn = props.sessionId
+  const shown = await promotion.sendEmail(bookingId, {
     resend: emailStates.value[bookingId]?.status === 'failed',
   })
   await nextTick()
+  if (!settledHere(startedOn, shown)) return
   if (document.activeElement && document.activeElement !== document.body) return
   const emailLine = participantsBlock.value?.querySelector(`[data-email-line="${bookingId}"]`)
   ;(emailLine ?? promotionLine.value)?.focus()

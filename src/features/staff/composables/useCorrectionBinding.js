@@ -17,7 +17,9 @@ const CORRECTION_NOT_OPEN = 'correction-not-open'
  * handled" once the catalogue reloads with it applied. When that save is refused because the
  * correction was applied or dismissed in another window after the page loaded (`conflict` with
  * `details.code` `correction-not-open`), the record is saved again without it and the notice says
- * the correction is already handled.
+ * the correction is already handled. A save belongs to the record and the correction on screen
+ * when it started: once the page has moved on (another record, or another `?correction=`), the
+ * save still settles for its caller, but it neither retries nor touches the notice or the query.
  *
  * @param {{ kind: import('vue').MaybeRefOrGetter<string>, recordId: import('vue').MaybeRefOrGetter<string> }} options
  */
@@ -28,6 +30,8 @@ export function useCorrectionBinding({ kind, recordId }) {
   const applying = ref(null)
   // The id refused as no longer open; this page never sends it again.
   const handled = ref(null)
+  // Counts the saves started: only the latest one may end the silence of the notice.
+  let saveCount = 0
 
   const requestedId = computed(() => {
     const value = route.query.correction
@@ -63,26 +67,35 @@ export function useCorrectionBinding({ kind, recordId }) {
    */
   const saveWith = async (run) => {
     const id = correctionId.value
+    const startedKind = toValue(kind)
+    const startedRecordId = toValue(recordId)
+    // The page reuses this instance for the next record, so after each await the save checks it
+    // is still on the record and the correction it carried before it retries or edits the query.
+    const stillOnStartedPage = () =>
+      toValue(kind) === startedKind &&
+      toValue(recordId) === startedRecordId &&
+      requestedId.value === id
+    const saveNumber = ++saveCount
     applying.value = id
     try {
       let saved
       try {
         saved = await run(id)
       } catch (error) {
-        if (id === null || !isNotOpenRefusal(error)) throw error
+        if (id === null || !isNotOpenRefusal(error) || !stillOnStartedPage()) throw error
         // Handled in another window since the page loaded: say so and save the record alone.
         handled.value = id
         applying.value = null
         return await run(null)
       }
-      if (id !== null) {
+      if (id !== null && stillOnStartedPage()) {
         const query = { ...route.query }
         delete query.correction
         await router.replace({ query, hash: route.hash })
       }
       return saved
     } finally {
-      applying.value = null
+      if (saveNumber === saveCount) applying.value = null
     }
   }
 

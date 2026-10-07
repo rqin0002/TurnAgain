@@ -16,8 +16,8 @@ import { assertEnum, assertId, assertNonNegativeInt, requestData } from './lib/v
  * target uid by a lease in accessLocks/{uid}. Firestore writes are fenced by the lease inside
  * their own transactions; Auth writes cannot be fenced, so they run only while the lease is
  * believed held (re-checked immediately before and after each) and never after it is known to be
- * lost. The reconcile sets Auth `disabled` from the profile. The role lives in users/{uid} only:
- * no custom claims.
+ * lost. The reconcile sets Auth `disabled` from the profile and completes the revocation of a
+ * disabled account. The role lives in users/{uid} only: no custom claims.
  */
 
 /** Longer than the 60 s timeoutSeconds, so a takeover happens only after a stall (step 1). */
@@ -50,16 +50,6 @@ const needsRecovery = ({ status, authDisabled }) =>
     authDisabled,
   })
 const isLockLost = (error) => error instanceof HttpsError && error.details?.code === 'lock-lost'
-
-/**
- * Whether the revocation of a disable is on record: Auth's tokensValidAfterTime (one-second
- * resolution) is at or after the second of the profile write that disabled the account, which
- * step 4 revokes after. An earlier value, or none, means a revokeRefreshTokens failed after its
- * updateUser succeeded, so the reconcile runs it again. An unknown or missing value revokes.
- */
-const toSeconds = (ms) => Math.floor(ms / 1000)
-const tokensRevokedSince = (user, updatedAt) =>
-  toSeconds(Date.parse(user.tokensValidAfterTime ?? '')) >= toSeconds(updatedAt?.toMillis?.() ?? 0)
 
 /** The step-4 signal that the lease was lost after an Auth write: the one re-acquire attempt. */
 class LostAfterAuthWrite extends Error {}
@@ -105,6 +95,10 @@ export async function handleAdminSetUserAccess(
   // The last states this execution saw, for a needs-recovery answer.
   const known = { status: null, authDisabled: null }
   let authCalled = false
+  // The profile revision this execution's own revokeRefreshTokens followed. Nothing else proves a
+  // revocation: Auth's tokensValidAfterTime has one-second resolution and its own clock, so a
+  // revocation that failed in the second of the disable would look done.
+  let revokedAtRevision = null
 
   const holds = (lock) =>
     lock.exists && lock.get('holderId') === holderId && lock.get('expiresAt').toMillis() > now()
@@ -135,7 +129,7 @@ export async function handleAdminSetUserAccess(
       if (lock.exists && lock.get('holderId') === holderId) tx.delete(lockRef)
     })
 
-  // Step 3: the fenced profile write (lease held, revision unmoved), revision + 1.
+  // Step 3: the fenced profile write (lease held, revision unmoved); resolves the new revision.
   const writeProfile = (fields) =>
     db.runTransaction(async (tx) => {
       const [lock, snapshot] = await tx.getAll(lockRef, userRef)
@@ -149,6 +143,7 @@ export async function handleAdminSetUserAccess(
         updatedAt: Timestamp.fromMillis(now()),
         ...(Array.isArray(profile.savedServiceIds) ? {} : { savedServiceIds: [] }),
       })
+      return currentRevision + 1
     })
 
   // Step 4: one Auth write between two lease checks; a lost lease before it skips the write.
@@ -159,14 +154,22 @@ export async function handleAdminSetUserAccess(
     known.authDisabled = disabled
     if (!(await stillHeld())) throw new LostAfterAuthWrite()
   }
-  const setAuthDisabled = async (disabled) => {
+  // A disable's revocation, recorded against the profile revision it follows.
+  const revokeTokens = (revision) =>
+    authWrite(async () => {
+      await auth.revokeRefreshTokens(uid)
+      revokedAtRevision = revision
+    }, true)
+  const setAuthDisabled = async (disabled, revision) => {
     await authWrite(() => auth.updateUser(uid, { disabled }), disabled)
-    if (disabled) await authWrite(() => auth.revokeRefreshTokens(uid), true)
+    if (disabled) await revokeTokens(revision)
   }
 
   // Step 5: Auth follows the profile; the answer comes from these reads. A disabled profile whose
-  // Auth account is disabled but whose tokens were not revoked since the disable (a failed
-  // revokeRefreshTokens after a successful updateUser) gets the revocation here, under the lease.
+  // Auth account is already disabled gets the revocation again, under the lease, unless this
+  // execution revoked after that same revision: a revokeRefreshTokens that failed after its
+  // updateUser succeeded, in this call or an earlier one, is completed here. An extra revocation
+  // of a disabled account is harmless.
   const reconcile = async () => {
     const profile = (await userRef.get()).data()
     known.status = profile.status
@@ -174,15 +177,14 @@ export async function handleAdminSetUserAccess(
     const user = await auth.getUser(uid)
     known.authDisabled = user.disabled
     const disabled = profile.status === 'disabled'
-    if (known.authDisabled !== disabled) await setAuthDisabled(disabled)
-    else if (disabled && !tokensRevokedSince(user, profile.updatedAt)) {
-      await authWrite(() => auth.revokeRefreshTokens(uid), true)
-    }
+    const revision = profile.revision ?? 0
+    if (known.authDisabled !== disabled) await setAuthDisabled(disabled, revision)
+    else if (disabled && revokedAtRevision !== revision) await revokeTokens(revision)
     return {
       uid,
       role: profile.role,
       status: profile.status,
-      revision: profile.revision ?? 0,
+      revision,
       authDisabled: known.authDisabled,
     }
   }
@@ -210,14 +212,14 @@ export async function handleAdminSetUserAccess(
         if (currentRevision !== expectedRevision) throw revisionMismatch(currentRevision)
         const roleChanges = role !== null && role !== profile.role
         const statusChanges = status !== null && status !== profile.status
-        // The same target state again (an idempotent retry) writes nothing.
+        // The same target state again (an idempotent retry) leaves the profile as it is.
         if (roleChanges || statusChanges) {
           const fields = { ...(role ? { role } : {}), ...(status ? { status } : {}) }
           // Enable: Auth first, then the profile; disable: the profile first, then Auth. A
-          // role-only change touches Auth not at all.
+          // role-only change writes nothing to Auth here.
           if (statusChanges && status === 'active') await setAuthDisabled(false)
-          await writeProfile(fields)
-          if (statusChanges && status === 'disabled') await setAuthDisabled(true)
+          const revision = await writeProfile(fields)
+          if (statusChanges && status === 'disabled') await setAuthDisabled(true, revision)
         }
       }
       return await reconcile()
