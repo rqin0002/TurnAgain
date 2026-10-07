@@ -1,3 +1,5 @@
+import { formatCalendarDate } from '@/shared/domain/formatDate.js'
+
 const ACTION_LABELS = Object.freeze({
   repair: 'Repair',
   reuse: 'Reuse or donate',
@@ -31,15 +33,5 @@ export function formatActionType(action) {
  * @returns {string}
  */
 export function formatCheckedDate(value) {
-  const date = new Date(`${value}T00:00:00`)
-
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date)
+  return formatCalendarDate(value)
 }

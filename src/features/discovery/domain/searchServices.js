@@ -1,156 +1,110 @@
-function toStringList(value) {
-  if (Array.isArray(value)) {
-    return value.filter((entry) => typeof entry === 'string')
-  }
+import { compareByName } from '@/shared/domain/tableQuery.js'
 
+import { matchService, resolveItemQuery } from './itemCategories.js'
+import { normalizeForSearch } from './textNormalization.js'
+
+/**
+ * The catalogue search (spec 6.1): item-aware matching through `itemCategories.js`, the action
+ * chips as an OR filter, and a stable name sort. No location criterion: a typed place becomes an
+ * origin with a radius (spec 6.2), never a text filter. `nearest` and `highest-rated` are applied
+ * by the results composable on top of the name order.
+ */
+
+const toStringList = (value) => {
+  if (Array.isArray(value)) return value.filter((entry) => typeof entry === 'string')
   return typeof value === 'string' ? [value] : []
 }
 
-function normalizeForSearch(value) {
-  // Search-only canonicalization makes punctuation and diacritics comparable;
-  // the original catalogue text remains untouched for display and attribution.
-  return String(value ?? '')
-    .normalize('NFKD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLocaleLowerCase('en-AU')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/gu, ' ')
-}
+const getActions = (service) =>
+  toStringList(service?.actionTypes).map(normalizeForSearch).filter(Boolean)
 
-function matchesText(haystackParts, query) {
-  const normalizedQuery = normalizeForSearch(query)
-  if (!normalizedQuery) {
-    return true
-  }
-
-  const haystack = normalizeForSearch(haystackParts.join(' '))
-
-  return normalizedQuery.split(' ').every((token) => {
-    if (haystack.includes(token)) {
-      return true
-    }
-
-    return token.endsWith('s') && token.length > 3 ? haystack.includes(token.slice(0, -1)) : false
-  })
-}
-
-function getItemSearchText(service) {
-  return [
-    service?.name,
-    ...toStringList(service?.acceptedItems),
-    ...toStringList(service?.aliases),
-  ].filter(Boolean)
-}
-
-function getLocationSearchText(service) {
-  return [
-    service?.address,
-    service?.suburb,
-    service?.postcode,
-    ...toStringList(service?.searchAreas),
-  ].filter(Boolean)
-}
-
-function getActions(service) {
-  return toStringList(service?.actionTypes)
-}
-
-function getSelectedActions(criteria) {
-  return toStringList(criteria?.actionTypes).map(normalizeForSearch).filter(Boolean)
-}
-
-function matchesSelectedActions(service, selectedActions) {
-  if (selectedActions.length === 0) {
-    return true
-  }
-
-  const serviceActions = new Set(getActions(service).map(normalizeForSearch))
-
-  // Checkbox filters use OR semantics: matching any selected action is enough.
+const matchesSelectedActions = (service, selectedActions) => {
+  if (selectedActions.length === 0) return true
+  const serviceActions = new Set(getActions(service))
+  // Chips use OR semantics: matching any selected action is enough.
   return selectedActions.some((action) => serviceActions.has(action))
 }
 
-function compareByName(left, right) {
-  return String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'en-AU', {
-    sensitivity: 'base',
-    numeric: true,
-  })
-}
-
-function createComparator(sort) {
-  if (sort === 'name-asc') {
-    return compareByName
-  }
-
-  if (sort === 'name-desc') {
-    return (left, right) => compareByName(right, left)
-  }
-
-  return () => 0
-}
+const createComparator = (sort) =>
+  sort === 'name-desc' ? (left, right) => compareByName(right, left) : compareByName
 
 /**
- * Filters and stably sorts catalogue services against normalized search text.
- * The source array is never sorted or mutated: the returned array is new, record
- * references are preserved, and original indices break all comparator ties.
+ * Filters and stably sorts catalogue services. The source array is never mutated: the returned
+ * array is new, record references are preserved, and ties break by name, then id, then the
+ * source index.
  *
- * @param {Array<Record<string, unknown>>} services Source catalogue records.
- * @param {{
- *   item?: string,
- *   location?: string,
- *   actionTypes?: string[] | string,
- *   sort?: string
- * }} [criteria={}] Search, action-filter, and sort criteria.
- * @returns {Array<Record<string, unknown>>} Matching services in stable display order.
+ * @param {Array<Record<string, unknown>>} services
+ * @param {{ item?: string, actionTypes?: string[] | string, sort?: string }} [criteria={}]
+ * @returns {Array<Record<string, unknown>>}
  */
-export function searchServices(services, criteria = {}) {
-  if (!Array.isArray(services)) {
-    return []
-  }
-
-  const selectedActions = getSelectedActions(criteria)
-  const comparator = createComparator(criteria.sort)
-  // Validation accepts VIC/Victoria labels; the catalogue need not repeat the
-  // state on every Melbourne address for those same valid searches to match.
-  const location = String(criteria.location ?? '').replace(/\bVIC(?:TORIA)?\b/giu, '')
-
+export function searchServices(services, { item = '', actionTypes = [], sort = 'name-asc' } = {}) {
+  if (!Array.isArray(services)) return []
+  const resolved = resolveItemQuery(item)
+  const selectedActions = toStringList(actionTypes).map(normalizeForSearch).filter(Boolean)
+  const comparator = createComparator(sort)
   return services
+    .map((service, sourceIndex) => ({ service, sourceIndex }))
     .filter(
-      (service) =>
-        matchesText(getItemSearchText(service), criteria.item) &&
-        matchesText(getLocationSearchText(service), location) &&
+      ({ service }) =>
+        (resolved.itemTokens.length === 0 || matchService(service, resolved).kind !== null) &&
         matchesSelectedActions(service, selectedActions),
     )
-    .map((service, originalIndex) => ({ service, originalIndex }))
     .sort(
       (left, right) =>
-        comparator(left.service, right.service) || left.originalIndex - right.originalIndex,
+        comparator(left.service, right.service) ||
+        String(left.service.id ?? '').localeCompare(String(right.service.id ?? '')) ||
+        left.sourceIndex - right.sourceIndex,
     )
     .map(({ service }) => service)
 }
 
 /**
- * Counts services by normalized action type. A service contributes at most once
- * to each action count, even when its source data repeats that action.
+ * Counts services by normalised action type. A service contributes at most once to each action,
+ * even when its source data repeats that action.
  *
- * @param {Array<Record<string, unknown>>} services Services to summarize.
- * @returns {Record<string, number>} Counts keyed by normalized actions.
+ * @returns {Record<string, number>}
  */
 export function countServicesByAction(services) {
-  if (!Array.isArray(services)) {
-    return {}
-  }
-
+  if (!Array.isArray(services)) return {}
   const counts = {}
-
-  services.forEach((service) => {
-    const uniqueActions = new Set(getActions(service).map(normalizeForSearch).filter(Boolean))
-
-    uniqueActions.forEach((action) => {
-      counts[action] = (counts[action] ?? 0) + 1
-    })
-  })
-
+  for (const service of services) {
+    for (const action of new Set(getActions(service))) counts[action] = (counts[action] ?? 0) + 1
+  }
   return counts
+}
+
+/**
+ * One entry per service the item matches, in input order, with the match the card label renders
+ * (D4); an empty item explains nothing. The seed's dry run counts these per kind.
+ *
+ * @returns {Array<{ id: string, kind: 'direct' | 'category', matchedTerms: string[], categoryLabel: string | null }>}
+ */
+export function explainMatches(services, item) {
+  if (!Array.isArray(services)) return []
+  const resolved = resolveItemQuery(item)
+  if (resolved.itemTokens.length === 0) return []
+  const explanations = []
+  for (const service of services) {
+    const match = matchService(service, resolved)
+    if (match.kind === null) continue
+    explanations.push({ id: service.id, ...match })
+  }
+  return explanations
+}
+
+/**
+ * The D4 split: user-selected chips are applied before this call and are never relaxed; only
+ * the verb-derived hint may be. With a hint, the hinted services are the primary block; when
+ * none carries the hinted action, the primary block is empty and every service becomes an
+ * "other option" below it.
+ *
+ * @returns {{ primary: object[], otherOptions: object[], hintDropped: boolean }}
+ */
+export function splitByActionHint(services, resolved) {
+  const list = Array.isArray(services) ? services : []
+  const hint = resolved?.actionHint ?? null
+  if (hint === null) return { primary: list, otherOptions: [], hintDropped: false }
+  const hinted = list.filter((service) => getActions(service).includes(hint))
+  if (hinted.length > 0) return { primary: hinted, otherOptions: [], hintDropped: false }
+  return { primary: [], otherOptions: list, hintDropped: true }
 }
