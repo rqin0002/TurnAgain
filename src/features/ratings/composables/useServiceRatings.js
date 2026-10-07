@@ -1,17 +1,29 @@
 import { computed, onBeforeUnmount, ref, toValue, watch } from 'vue'
 
-import { useAuthStore } from '../../auth/stores/authStore.js'
-import {
-  RatingRepositoryError,
-  createFirestoreRatingRepository,
-} from '../data/firestoreRatingRepository.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import { isRepositoryError } from '@/shared/data/RepositoryError.js'
+
+import { getMyRating, getSummary, saveMyRating } from '../data/firestoreRatingRepository.js'
 
 const GENERIC_RATING_ERROR = 'Ratings are temporarily unavailable.'
-const runtimeRatingRepository = createFirestoreRatingRepository()
-const pendingWritesByRepository = new WeakMap()
+const runtimeRatingRepository = Object.freeze({ getSummary, getMyRating, saveMyRating })
 
 const getSafeErrorMessage = (error) =>
-  error instanceof RatingRepositoryError ? error.message : GENERIC_RATING_ERROR
+  isRepositoryError(error) ? error.message : GENERIC_RATING_ERROR
+
+/** The code and copy a view renders (StatePanel offline for the connection codes, spec 11). */
+const toPrivateError = (error) => ({
+  code: isRepositoryError(error) ? error.code : 'unavailable',
+  message: getSafeErrorMessage(error),
+})
+
+/**
+ * A missing or malformed summary (C3): the listing cannot be rated, and no retry will change that.
+ * The repository marks it `details.code: 'no-summary'`; its other `not-found`, a missing or
+ * unpublished service, is an error with its own message.
+ */
+const isUnrateable = (error) =>
+  isRepositoryError(error) && error.code === 'not-found' && error.details?.code === 'no-summary'
 
 const isValidRepositoryResult = (result) =>
   result !== null &&
@@ -22,36 +34,37 @@ const isValidRepositoryResult = (result) =>
   typeof result.summary === 'object'
 
 /**
- * Coordinates public rating summaries with auth-bound private rating reads and writes.
- * Repository work is not cancelled; generation guards prevent stale work from changing the UI.
+ * Coordinates the public rating summary with the signed-in member's own rating for one service.
+ * Reads follow the auth store's `status`, `user` and `identityEpoch` (spec 9.1): private state
+ * waits while the store restores, is anonymous when nobody is signed in, and reloads when the
+ * identity changes under the same account. Repository work is not cancelled; generation guards
+ * keep stale work from changing the UI. Writes go straight to the repository (spec 10.4: no
+ * pending-write queue); the summary a save returns replaces the public one.
  *
  * @param {object} options
  * @param {import('vue').MaybeRefOrGetter<string>} options.serviceId Canonical resolved service ID.
- * @param {object} [options.authStore] Injectable Pinia-compatible authentication store.
+ * @param {object} [options.authStore] Injectable store with `status`, `user`, `identityEpoch`.
  * @param {object} [options.repository] Injectable rating repository.
  * @returns {{
  *   formKey: import('vue').ComputedRef<string>,
  *   isSaving: import('vue').ComputedRef<boolean>,
  *   myRating: import('vue').Ref<object | null>,
+ *   privateError: import('vue').Ref<{ code: string, message: string } | null>,
  *   privateErrorMessage: import('vue').Ref<string>,
- *   privateStatus: import('vue').Ref<string>,
+ *   privateStatus: import('vue').Ref<'idle' | 'waiting-for-auth' | 'anonymous' | 'loading' | 'ready' | 'saving' | 'error'>,
  *   reloadMyRating: () => Promise<void>,
  *   reloadSummary: () => Promise<void>,
  *   saveRating: (input: unknown) => Promise<object | null>,
  *   successMessage: import('vue').Ref<string>,
  *   summary: import('vue').Ref<object | null>,
- *   summaryErrorMessage: import('vue').Ref<string>,
- *   summaryStatus: import('vue').Ref<string>
+ *   summaryError: import('vue').Ref<{ code: string, message: string } | null>,
+ *   summaryErrorMessage: import('vue').ComputedRef<string>,
+ *   summaryStatus: import('vue').Ref<'idle' | 'loading' | 'ready' | 'unrateable' | 'error'>
  * }} Reactive public and current-user rating state.
  */
 export function useServiceRatings({ serviceId, authStore, repository } = {}) {
   const resolvedAuthStore = authStore ?? useAuthStore()
   const resolvedRepository = repository ?? runtimeRatingRepository
-  let pendingWrites = pendingWritesByRepository.get(resolvedRepository)
-  if (!pendingWrites) {
-    pendingWrites = new Map()
-    pendingWritesByRepository.set(resolvedRepository, pendingWrites)
-  }
   const currentServiceId = computed(() => {
     const value = toValue(serviceId)
     return typeof value === 'string' ? value : ''
@@ -60,26 +73,33 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     const value = resolvedAuthStore.user?.uid
     return typeof value === 'string' ? value : ''
   })
-  const authReady = ref(false)
+  const identityEpoch = computed(() =>
+    Number.isInteger(resolvedAuthStore.identityEpoch) ? resolvedAuthStore.identityEpoch : 0,
+  )
   const hasPrivateAccess = computed(
     () =>
-      authReady.value &&
       currentServiceId.value !== '' &&
-      resolvedAuthStore.status === 'authenticated' &&
-      resolvedAuthStore.operationStatus === 'idle' &&
+      resolvedAuthStore.status === 'signed-in' &&
       currentUserId.value !== '',
   )
+  // Restoring is the only state that may still become signed-in without the user acting.
+  const idlePrivateStatus = () =>
+    resolvedAuthStore.status === 'restoring' ? 'waiting-for-auth' : 'anonymous'
 
   const summary = ref(null)
   const summaryStatus = ref('idle')
-  const summaryErrorMessage = ref('')
+  const summaryError = ref(null)
+  const summaryErrorMessage = computed(() => summaryError.value?.message ?? '')
   const myRating = ref(null)
   const privateStatus = ref('idle')
+  const privateError = ref(null)
   const privateErrorMessage = ref('')
   const successMessage = ref('')
   const isSaving = computed(() => privateStatus.value === 'saving')
   const formKey = computed(() =>
-    hasPrivateAccess.value ? `${currentServiceId.value}:${currentUserId.value}` : '',
+    hasPrivateAccess.value
+      ? `${currentServiceId.value}:${currentUserId.value}:${identityEpoch.value}`
+      : '',
   )
 
   let disposed = false
@@ -99,28 +119,17 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
 
   const clearPrivateState = (nextStatus) => {
     myRating.value = null
+    privateError.value = null
     privateErrorMessage.value = ''
     successMessage.value = ''
     privateStatus.value = nextStatus
-  }
-
-  const waitForPendingWrites = async (requestedServiceId, isCurrent) => {
-    // Remounted views must read after every queued write to this service settles.
-    while (pendingWrites.has(requestedServiceId)) {
-      // The originating save owns its error; failed writes still unlock reads.
-      await pendingWrites.get(requestedServiceId).catch(() => undefined)
-      if (!isCurrent()) {
-        return false
-      }
-    }
-    return isCurrent()
   }
 
   const loadSummary = async () => {
     const requestedServiceId = currentServiceId.value
     const generation = ++publicGeneration
     summary.value = null
-    summaryErrorMessage.value = ''
+    summaryError.value = null
 
     if (requestedServiceId === '') {
       summaryStatus.value = 'idle'
@@ -129,13 +138,6 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
 
     summaryStatus.value = 'loading'
     try {
-      if (
-        !(await waitForPendingWrites(requestedServiceId, () =>
-          isPublicCurrent(generation, requestedServiceId),
-        ))
-      ) {
-        return
-      }
       const result = await resolvedRepository.getSummary(requestedServiceId)
       if (!isPublicCurrent(generation, requestedServiceId)) {
         return
@@ -147,8 +149,11 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
         return
       }
       summary.value = null
-      summaryErrorMessage.value = getSafeErrorMessage(error)
-      summaryStatus.value = 'error'
+      summaryError.value = {
+        code: isRepositoryError(error) ? error.code : 'unavailable',
+        message: getSafeErrorMessage(error),
+      }
+      summaryStatus.value = isUnrateable(error) ? 'unrateable' : 'error'
     }
   }
 
@@ -159,23 +164,11 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     clearPrivateState('loading')
 
     if (!hasPrivateAccess.value) {
-      privateStatus.value =
-        authReady.value &&
-        resolvedAuthStore.status === 'anonymous' &&
-        resolvedAuthStore.operationStatus === 'idle'
-          ? 'anonymous'
-          : 'waiting-for-auth'
+      privateStatus.value = idlePrivateStatus()
       return
     }
 
     try {
-      if (
-        !(await waitForPendingWrites(requestedServiceId, () =>
-          isPrivateCurrent(generation, requestedServiceId, requestedUserId),
-        ))
-      ) {
-        return
-      }
       const result = await resolvedRepository.getMyRating(requestedServiceId, requestedUserId)
       if (!isPrivateCurrent(generation, requestedServiceId, requestedUserId)) {
         return
@@ -187,7 +180,8 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
         return
       }
       myRating.value = null
-      privateErrorMessage.value = getSafeErrorMessage(error)
+      privateError.value = toPrivateError(error)
+      privateErrorMessage.value = privateError.value.message
       privateStatus.value = 'error'
     }
   }
@@ -211,31 +205,16 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     const wasUpdate = myRating.value !== null
     activeSaveGeneration = generation
     privateStatus.value = 'saving'
+    privateError.value = null
     privateErrorMessage.value = ''
     successMessage.value = ''
 
     try {
-      const previousWrite = pendingWrites.get(requestedServiceId)
-      const write = () =>
-        resolvedRepository.saveMyRating(requestedServiceId, requestedUserId, input)
-      const operation = previousWrite
-        ? previousWrite
-            .catch(() => undefined)
-            .then(() => {
-              // A queued intent may outlive its service, identity, or mounted form.
-              return isPrivateCurrent(generation, requestedServiceId, requestedUserId)
-                ? write()
-                : null
-            })
-        : write()
-      const pendingWrite = Promise.resolve(operation).finally(() => {
-        if (pendingWrites.get(requestedServiceId) === pendingWrite) {
-          pendingWrites.delete(requestedServiceId)
-        }
-      })
-      pendingWrites.set(requestedServiceId, pendingWrite)
-
-      const result = await pendingWrite
+      const result = await resolvedRepository.saveMyRating(
+        requestedServiceId,
+        requestedUserId,
+        input,
+      )
       if (!isPrivateCurrent(generation, requestedServiceId, requestedUserId)) {
         return null
       }
@@ -246,15 +225,24 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
       myRating.value = result.rating
       ++publicGeneration
       summary.value = result.summary
-      summaryErrorMessage.value = ''
+      summaryError.value = null
       summaryStatus.value = 'ready'
       successMessage.value = wasUpdate ? 'Your rating was updated.' : 'Your rating was submitted.'
       privateStatus.value = 'ready'
       return result
     } catch (error) {
       if (isPrivateCurrent(generation, requestedServiceId, requestedUserId)) {
-        privateErrorMessage.value = getSafeErrorMessage(error)
+        privateError.value = toPrivateError(error)
+        privateErrorMessage.value = privateError.value.message
         privateStatus.value = 'ready'
+        if (isUnrateable(error)) {
+          // The save found no summary to update: the listing cannot be rated after all (C3).
+          // The public panel says so and the editor is no longer rendered; no reload changes it.
+          ++publicGeneration
+          summary.value = null
+          summaryError.value = { code: error.code, message: error.message }
+          summaryStatus.value = 'unrateable'
+        }
       }
       return null
     } finally {
@@ -266,13 +254,7 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
 
   watch(currentServiceId, loadSummary, { flush: 'sync', immediate: true })
   watch(
-    [
-      currentServiceId,
-      () => resolvedAuthStore.status,
-      () => resolvedAuthStore.operationStatus,
-      currentUserId,
-      authReady,
-    ],
+    [currentServiceId, () => resolvedAuthStore.status, currentUserId, identityEpoch],
     () => {
       if (hasPrivateAccess.value) {
         void loadMyRating()
@@ -280,29 +262,10 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
       }
 
       ++privateGeneration
-      clearPrivateState(
-        authReady.value &&
-          resolvedAuthStore.status === 'anonymous' &&
-          resolvedAuthStore.operationStatus === 'idle'
-          ? 'anonymous'
-          : 'waiting-for-auth',
-      )
+      clearPrivateState(idlePrivateStatus())
     },
     { flush: 'sync', immediate: true },
   )
-
-  try {
-    Promise.resolve(resolvedAuthStore.initialize()).then(
-      () => {
-        if (!disposed) {
-          authReady.value = true
-        }
-      },
-      () => undefined,
-    )
-  } catch {
-    // Auth owns its public error state; rating reads remain private until eligibility is restored.
-  }
 
   onBeforeUnmount(() => {
     disposed = true
@@ -316,6 +279,7 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     formKey,
     isSaving,
     myRating,
+    privateError,
     privateErrorMessage,
     privateStatus,
     reloadMyRating,
@@ -323,6 +287,7 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
     saveRating,
     successMessage,
     summary,
+    summaryError,
     summaryErrorMessage,
     summaryStatus,
   }

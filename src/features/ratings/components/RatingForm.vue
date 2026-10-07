@@ -9,7 +9,7 @@ const props = defineProps({
   pending: { type: Boolean, default: false },
   saveRating: { type: Function, required: true },
 })
-const emit = defineEmits(['saved', 'cancel'])
+const emit = defineEmits(['saved', 'cancel', 'edit'])
 const form = ref(null)
 const isSubmitting = ref(false)
 const summaryError = ref('')
@@ -52,15 +52,18 @@ watch(
   { immediate: true },
 )
 
+// `edit` tells the parent the draft has moved on from the one a failed save kept for Retry.
 const updateScore = (score) => {
   fields.score = score
   errors.score = ''
   summaryError.value = ''
+  emit('edit')
 }
 const updateReview = (event) => {
   fields.reviewText = event.target.value
   errors.reviewText = ''
   summaryError.value = ''
+  emit('edit')
 }
 const focusFirstInvalid = async () => {
   if (errors.reviewText) noteOpen.value = true
@@ -128,13 +131,7 @@ const submit = async () => {
           <span aria-hidden="true">{{ option.score }}</span>
         </label>
       </div>
-      <div
-        v-motion:change.fade="fields.score"
-        class="rating-form__meaning"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      <div class="rating-form__meaning" role="status" aria-live="polite" aria-atomic="true">
         <template v-if="selectedOption">
           <strong>{{ selectedOption.label }}</strong>
           <span>{{ selectedOption.description }}</span>
@@ -146,12 +143,7 @@ const submit = async () => {
       </p>
     </fieldset>
 
-    <details
-      v-motion:disclosure
-      class="rating-form__note"
-      :open="noteOpen"
-      @toggle="noteOpen = $event.target.open"
-    >
+    <details class="rating-form__note" :open="noteOpen" @toggle="noteOpen = $event.target.open">
       <summary>Private note <span>Optional</span></summary>
       <div class="rating-form__review">
         <label for="rating-review">What would you like to remember?</label>
@@ -162,6 +154,7 @@ const submit = async () => {
           id="rating-review"
           class="form-control"
           name="reviewText"
+          dir="auto"
           rows="3"
           placeholder="For example, the item you brought, any fees, or something to check next time."
           :value="fields.reviewText"
