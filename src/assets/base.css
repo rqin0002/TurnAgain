@@ -1,4 +1,15 @@
-/* Design tokens: the shared visual vocabulary for every feature and view. */
+/*
+  Design tokens: the shared visual vocabulary for every feature and view.
+
+  Breakpoint contract (spec 10.1): 576 / 768 / 992 / 1200, mobile-first `min-width` queries only.
+  The navigation goes inline and the staff registers become tables at 992; the map layout splits
+  at 992; the calendar switches to its list view below 768. Enforced by review, not by a test.
+
+  Colour tokens are defined for the light theme here and redefined for the dark theme below, once
+  under the OS preference (unless <html data-theme="light"> opts out) and once under an explicit
+  <html data-theme="dark">. public/theme-init.js sets that attribute before first paint and
+  useTheme() keeps it in step; nothing else selects colours.
+*/
 :root {
   --color-brand: #0066cc;
   --color-brand-strong: #004f9e;
@@ -15,6 +26,10 @@
   --color-border-strong: #85858b;
   --color-danger: #a12626;
   --color-danger-soft: #fff0f0;
+  --color-success: #1e6b3a;
+  --color-success-soft: #e8f5ec;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fff4dc;
   --color-focus: #146bda;
   --radius-small: 10px;
   --radius-medium: 20px;
@@ -24,6 +39,70 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --duration-fast: 160ms;
   --duration-press: 80ms;
+  /* The header's min-height (App.vue): the map column is calc(100dvh - var(--header-h)). */
+  --header-h: 4.25rem;
+  /* Map tiles (spec 10.1): a small override per theme, never an inversion. */
+  --map-tile-filter: none;
+}
+
+/* The header grows at the 992 breakpoint (App.vue), so the token grows with it. */
+@media (min-width: 992px) {
+  :root {
+    --header-h: 4.5rem;
+  }
+}
+
+/* Dark theme (spec 10.1): the same tokens with the AA palette; the two selectors carry one block. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-brand: #7cb8ff;
+    --color-brand-strong: #a6cdff;
+    --color-brand-soft: #16304d;
+    --color-on-brand: #0b1220;
+    --color-heading: #f2f2f4;
+    --color-text: #f2f2f4;
+    --color-text-muted: #b3b3bb;
+    --color-link: #8ec4ff;
+    --color-background: #121214;
+    --color-surface: #1c1c1f;
+    --color-surface-muted: #232327;
+    --color-border: #34343a;
+    --color-border-strong: #8a8a93;
+    --color-danger: #ff9a9a;
+    --color-danger-soft: #3a1c1c;
+    --color-success: #7fd6a0;
+    --color-success-soft: #14301f;
+    --color-warning: #f2c46b;
+    --color-warning-soft: #3a2c10;
+    --color-focus: #8ec4ff;
+    --map-tile-filter: brightness(0.82) saturate(0.85) contrast(1.05);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-brand: #7cb8ff;
+  --color-brand-strong: #a6cdff;
+  --color-brand-soft: #16304d;
+  --color-on-brand: #0b1220;
+  --color-heading: #f2f2f4;
+  --color-text: #f2f2f4;
+  --color-text-muted: #b3b3bb;
+  --color-link: #8ec4ff;
+  --color-background: #121214;
+  --color-surface: #1c1c1f;
+  --color-surface-muted: #232327;
+  --color-border: #34343a;
+  --color-border-strong: #8a8a93;
+  --color-danger: #ff9a9a;
+  --color-danger-soft: #3a1c1c;
+  --color-success: #7fd6a0;
+  --color-success-soft: #14301f;
+  --color-warning: #f2c46b;
+  --color-warning-soft: #3a2c10;
+  --color-focus: #8ec4ff;
+  --map-tile-filter: brightness(0.82) saturate(0.85) contrast(1.05);
+  color-scheme: dark;
 }
 
 /* Document foundation and predictable box sizing. */

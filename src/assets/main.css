@@ -11,6 +11,14 @@ main {
   flex: 1 0 auto;
 }
 
+/* Shown by index.html until Vue mounts (spec 9.5); the guard, not the mount, waits for auth. */
+.app-loading {
+  margin: 0;
+  padding: clamp(2.5rem, 6vw, 5rem) 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
 .shell {
   width: min(100% - 2rem, var(--content-width));
   margin-inline: auto;
@@ -223,6 +231,13 @@ main {
   border-radius: var(--radius-medium);
   background: var(--color-surface);
   padding: clamp(1.1rem, 4vw, 1.75rem);
+}
+
+/* "Showing results saved {relative time}": a list or detail painted from the saved copy (spec 11). */
+.catalogue-freshness {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
 }
 
 .tag-list {
