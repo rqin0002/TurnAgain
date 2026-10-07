@@ -1,13 +1,14 @@
-import { getFirestore } from 'firebase/firestore/lite'
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore/lite'
 
+import { EMULATOR_HOST, EMULATOR_PORTS, useEmulators } from './emulators.js'
 import { firebaseApp } from './firebaseClient.js'
 
 /**
- * Shared Firestore Lite client for bounded one-shot catalogue reads and
- * profile reads/writes.
- *
- * These operations do not use realtime listeners or managed offline
- * persistence. Keeping them on the REST-only Lite SDK avoids loading the full
- * Firestore runtime until a feature genuinely requires it.
+ * Shared Firestore Lite client (spec 1.2, F2): one-shot reads, `runTransaction` and
+ * `writeBatch` without realtime listeners or the full SDK's local cache.
  */
 export const firestoreLite = getFirestore(firebaseApp)
+
+if (useEmulators) {
+  connectFirestoreEmulator(firestoreLite, EMULATOR_HOST, EMULATOR_PORTS.firestore)
+}
