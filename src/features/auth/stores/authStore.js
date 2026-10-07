@@ -1,351 +1,721 @@
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 
-import { AuthError } from '../data/AuthError.js'
-import { createFirebaseAuthRepository } from '../data/firebaseAuthRepository.js'
+import {
+  PERMISSION_DENIED_EVENT,
+  RepositoryError,
+  isRepositoryError,
+} from '@/shared/data/RepositoryError.js'
+import { normalizeEmail } from '@/shared/domain/catalogueValidation.js'
 
-const AUTH_STORE_ID = 'auth'
-const ALLOWED_ROLES = new Set(['member', 'staff', 'admin'])
+import { AuthError, endedSessionReason, isAuthError } from '../data/AuthError.js'
+import {
+  createAccount,
+  currentUser,
+  getIdToken,
+  onAuthChanged,
+  reloadUser,
+  requestEmailChange as requestAuthEmailChange,
+  requestPasswordReset as requestAuthPasswordReset,
+  sendVerification,
+  signIn,
+  signOut,
+} from '../data/firebaseAuthRepository.js'
+import {
+  createProfile,
+  fetchProfile,
+  saveService as saveServiceRecord,
+  syncEmail,
+  unsaveService as unsaveServiceRecord,
+  upgradeProfile,
+} from '../data/userRepository.js'
+import { decideRouteAccess } from '../router/routeAccess.js'
 
-const projectPublicUser = (candidate) => {
-  if (
-    candidate === null ||
-    typeof candidate !== 'object' ||
-    Array.isArray(candidate) ||
-    typeof candidate.uid !== 'string' ||
-    typeof candidate.email !== 'string' ||
-    typeof candidate.displayName !== 'string' ||
-    !ALLOWED_ROLES.has(candidate.role)
-  ) {
+/**
+ * The only Pinia store (spec 9.1, 9.3, 9.4; decision M7). One `onAuthStateChanged` listener feeds
+ * `resolveUser`, the single state machine; navigation, tab visibility and denied repository calls
+ * re-validate the profile. The router is handed in by `main.js` (`init({ router })`) and kept in
+ * a module variable, never imported, so router -> guard -> store -> router is not a cycle (C1.4).
+ */
+
+export const READY_TIMEOUT_MS = 8000
+export const PROFILE_CACHE_MS = 60_000
+
+/** RepositoryError.code -> lastError (decision M14). The 8-second race sets 'timeout' itself. */
+export const READ_FAILURES = Object.freeze({
+  network: 'offline',
+  offline: 'offline',
+  permission: 'profile-unavailable',
+  unavailable: 'profile-unavailable',
+  'invalid-data': 'profile-unavailable',
+  'not-found': 'profile-unavailable',
+  conflict: 'profile-unavailable',
+})
+
+const readFailure = (error) => {
+  if (isRepositoryError(error)) {
+    return READ_FAILURES[error.code] ?? 'profile-unavailable'
+  }
+  if (isAuthError(error) && (error.code === 'offline' || error.code === 'network')) {
+    return 'offline'
+  }
+  return 'profile-unavailable'
+}
+
+// `profile.uid` is the requested uid: the repository refuses a record that names another one
+// (Astra F4), so the identity is never patched over here.
+const toUser = (firebaseUser, profile) =>
+  Object.freeze({
+    uid: profile.uid,
+    email: profile.email,
+    emailVerified: firebaseUser.emailVerified === true,
+    displayName: profile.displayName,
+    role: profile.role,
+    status: profile.status,
+    revision: profile.revision,
+    savedServiceIds: Object.freeze([...profile.savedServiceIds]),
+  })
+
+let router = null
+
+export const useAuthStore = defineStore('auth', () => {
+  const status = ref('restoring')
+  const user = shallowRef(null)
+  const lastError = ref(null)
+  const identityEpoch = ref(0)
+  let controller = new AbortController()
+  const identitySignal = shallowRef(controller.signal)
+  const emailSyncPending = ref(false)
+  const profileReadAt = ref(null)
+  // A promise is never made reactive (a proxied `then` breaks `await`); shallowRef keeps it raw.
+  const readyPromise = shallowRef(Promise.resolve())
+  const ready = computed(() => readyPromise.value)
+
+  const isSignedIn = computed(() => status.value === 'signed-in' && user.value !== null)
+  const role = computed(() => user.value?.role ?? null)
+  const canAccess = (allowedRoles) =>
+    user.value !== null && Array.isArray(allowedRoles) && allowedRoles.includes(user.value.role)
+
+  let unsubscribe = null
+  let settleReady = () => undefined
+  let readyTimer = null
+  /**
+   * The session counter (Astra F1): +1 at the start of every resolution and of `logout()`. Every
+   * async entry point captures it and, after each await, stops when it has moved on, so work
+   * begun for one identity never writes state, signs out or navigates for the next one.
+   */
+  let session = 0
+  let resolving = null
+  let resolvingUid = null
+  let lastEvent = { session: 0, uid: null, outcome: 'signed-out' }
+  // What the listener last reported (Astra F2): the SDK notifies identity changes only.
+  let lastEventUid = null
+  let listenerEvents = 0
+  let revalidating = null
+  // The account register() is creating (A1): `{ email, uid }`, the uid known once createAccount()
+  // returns; its transient signed-in event is the only event the store ignores.
+  let registration = null
+  // Why the last 'verification-unsent' outcome could not resend the email; login() rethrows it.
+  let verificationFailure = null
+  let loggingOut = false
+  const waiters = []
+
+  /** Every identity change aborts the previous signal so late requests are discarded (spec 9.3). */
+  const bumpEpoch = () => {
+    controller.abort()
+    controller = new AbortController()
+    identitySignal.value = controller.signal
+    identityEpoch.value += 1
+  }
+
+  const commitUser = (firebaseUser, profile) => {
+    const next = toUser(firebaseUser, profile)
+    const identityChanged = user.value === null || user.value.uid !== next.uid
+    user.value = next
+    status.value = 'signed-in'
+    if (!emailSyncPending.value) {
+      lastError.value = null
+    }
+    profileReadAt.value = Date.now()
+    if (identityChanged) {
+      bumpEpoch()
+    }
+  }
+
+  const settleSignedOut = () => {
+    const hadIdentity = user.value !== null
+    user.value = null
+    status.value = 'signed-out'
+    lastError.value = null
+    emailSyncPending.value = false
+    profileReadAt.value = null
+    if (hadIdentity) {
+      bumpEpoch()
+    }
+  }
+
+  /** A protected page whose session ended goes back through the guard (spec 9.5). */
+  const leaveProtectedRoute = () => {
+    const route = router?.currentRoute.value
+    if (route?.meta.requiresAuth) {
+      void router.replace({ name: 'login', query: { redirect: route.fullPath } })
+    }
+  }
+
+  /**
+   * The guard's decision, re-run for the page that is showing (Astra F3): a protected route
+   * entered while the status was 'error' rendered the retry panel, so the role is checked here
+   * once the identity is known. The navigation is fired, never awaited; the guard resolves it.
+   */
+  const enforceRouteAccess = () => {
+    const route = router?.currentRoute.value
+    if (route && decideRouteAccess(route.meta, user.value) === 'forbidden') {
+      void router.replace({ name: 'forbidden' })
+    }
+  }
+
+  const armReady = () => {
+    clearTimeout(readyTimer)
+    readyPromise.value = new Promise((resolve) => {
+      settleReady = () => {
+        clearTimeout(readyTimer)
+        resolve()
+      }
+    })
+    readyTimer = setTimeout(() => {
+      // Never signed-out on a timeout: protected routes render the retry panel (spec 9.1, E1).
+      if (status.value === 'restoring' || status.value === 'error') {
+        status.value = 'error'
+        lastError.value = 'timeout'
+      }
+      settleReady()
+    }, READY_TIMEOUT_MS)
+  }
+
+  /**
+   * Refresh the token, then write the Auth email into the profile (spec 9.4). Until the write
+   * succeeds the banner stays up and every profile write is refused; Retry runs this again. A
+   * result that lands after the identity moved on changes nothing (Astra F1).
+   */
+  const syncEmailFor = async (firebaseUser, profile, isCurrent) => {
+    emailSyncPending.value = true
+    try {
+      await getIdToken(firebaseUser, true)
+      const synced = await syncEmail(firebaseUser.uid, firebaseUser.email)
+      if (!isCurrent()) {
+        return profile
+      }
+      emailSyncPending.value = false
+      lastError.value = null
+      return synced
+    } catch (error) {
+      if (!isCurrent()) {
+        return profile
+      }
+      if (endedSessionReason(error) !== null) {
+        throw error
+      }
+      // Signed in with the old address on screen until Retry succeeds (Review Focus 2).
+      lastError.value = readFailure(error)
+      return profile
+    }
+  }
+
+  /**
+   * The state machine of spec 9.1. `isCurrent()` turns false once a newer resolution or a
+   * logout has started, so a slow resolution never commits, signs out or navigates over it.
+   */
+  const resolveUser = async (firebaseUser, isCurrent) => {
+    if (firebaseUser === null) {
+      settleSignedOut()
+      // logout() navigates itself (with ?reason=); its null event must not add a second replace.
+      if (!loggingOut) {
+        leaveProtectedRoute()
+      }
+      return 'signed-out'
+    }
+    try {
+      if (firebaseUser.emailVerified !== true) {
+        await reloadUser(firebaseUser)
+        if (!isCurrent()) {
+          return 'stale'
+        }
+        if (firebaseUser.emailVerified !== true) {
+          // 'email-unverified' tells the user the email went out again, so a failed resend (rate
+          // limit, offline) is reported with its own code instead; the sign-out happens either way.
+          let sendFailure = null
+          try {
+            await sendVerification(firebaseUser)
+          } catch (error) {
+            sendFailure = error
+          }
+          // signOut() acts on whoever the SDK holds now (Astra F1): never for a newer identity.
+          if (!isCurrent()) {
+            return 'stale'
+          }
+          await signOut()
+          if (sendFailure !== null) {
+            verificationFailure = sendFailure
+            return 'verification-unsent'
+          }
+          return 'email-unverified'
+        }
+        // reload() flips emailVerified locally only; the rules read the token, so refresh it before
+        // the first profile read or write (facts.md 2.1, Review Focus 3).
+        await getIdToken(firebaseUser, true)
+      }
+      if (!isCurrent()) {
+        return 'stale'
+      }
+      const authEmail = normalizeEmail(firebaseUser.email)
+      let profile = await fetchProfile(firebaseUser.uid)
+      if (!isCurrent()) {
+        return 'stale'
+      }
+      if (profile === null) {
+        profile = await createProfile({
+          uid: firebaseUser.uid,
+          email: authEmail,
+          displayName: firebaseUser.displayName,
+        })
+      } else if (profile.needsUpgrade) {
+        try {
+          profile = await upgradeProfile({ uid: firebaseUser.uid, email: authEmail })
+        } catch (error) {
+          // A refused migration is not fatal (C4.2): sign in with the legacy projection and let the
+          // next listener event retry the write.
+          if (!isRepositoryError(error) || error.code !== 'permission') {
+            throw error
+          }
+        }
+      }
+      if (!isCurrent()) {
+        return 'stale'
+      }
+      if (profile.status !== 'active') {
+        await logout('account-disabled')
+        return 'account-disabled'
+      }
+      if (profile.email !== authEmail) {
+        profile = await syncEmailFor(firebaseUser, profile, isCurrent)
+        if (!isCurrent()) {
+          return 'stale'
+        }
+      }
+      commitUser(firebaseUser, profile)
+      return 'signed-in'
+    } catch (error) {
+      if (!isCurrent()) {
+        return 'stale'
+      }
+      const ended = endedSessionReason(error)
+      if (ended === 'account-disabled') {
+        await logout('account-disabled')
+        return 'account-disabled'
+      }
+      if (ended === 'session-expired') {
+        settleSignedOut()
+        leaveProtectedRoute()
+        return 'signed-out'
+      }
+      // A read failure keeps `user` untouched (spec 9.1); the retry panel takes over.
+      status.value = 'error'
+      lastError.value = readFailure(error)
+      return 'error'
+    }
+  }
+
+  /**
+   * The identity a running registration created (A1). The SDK reports the new account before
+   * `createAccount()` resolves with its uid (C1.10), so until then it is known by its email.
+   */
+  const isRegistrationIdentity = (firebaseUser) =>
+    registration !== null &&
+    firebaseUser !== null &&
+    (firebaseUser.uid === registration.uid ||
+      normalizeEmail(firebaseUser.email) === registration.email)
+
+  /**
+   * One resolution per session: the listener, `retry()` and a same-identity `login()` all enter
+   * here. A resolution that a newer one replaced hands nothing to the waiters or to `ready`.
+   */
+  const handleAuthEvent = async (firebaseUser) => {
+    if (isRegistrationIdentity(firebaseUser)) {
+      // The SDK signs the account register() just created in; register() signs it out again. The
+      // event moves nothing, not even the session, so that sign-out stays current; every other
+      // identity, including one signed in from a second tab meanwhile, resolves as usual (A1).
+      return 'ignored'
+    }
+    const startedIn = ++session
+    const isCurrent = () => startedIn === session
+    const uid = firebaseUser?.uid ?? null
+    // A new session never inherits the previous identity's unfinished email sync (Astra F1).
+    emailSyncPending.value = false
+    resolvingUid = uid
+    const run = resolveUser(firebaseUser, isCurrent)
+    resolving = run
+    const outcome = await run
+    if (resolving !== run) {
+      return outcome
+    }
+    resolving = null
+    resolvingUid = null
+    lastEvent = { session: startedIn, uid, outcome }
+    settleReady()
+    if (outcome === 'signed-in') {
+      enforceRouteAccess()
+    }
+    for (const waiter of waiters.splice(0)) {
+      waiter.resolve(waiter.uid === uid ? outcome : 'stale')
+    }
+    return outcome
+  }
+
+  /**
+   * The resolution for `uid` that is running now, or the one that finished after `sinceSession`
+   * (the latest current one); `null` when the identity has moved on to somebody else or nobody.
+   */
+  const resolutionFor = (uid, sinceSession) => {
+    if (resolving !== null && resolvingUid === uid) {
+      return resolving
+    }
+    if (lastEvent.session > sinceSession && lastEvent.uid === uid) {
+      return Promise.resolve(lastEvent.outcome)
+    }
     return null
   }
 
-  return Object.freeze({
-    uid: candidate.uid,
-    email: candidate.email,
-    displayName: candidate.displayName,
-    role: candidate.role,
-  })
-}
-
-const getPublicError = (error) =>
-  error instanceof AuthError ? error : new AuthError('unexpected')
-
-/**
- * Creates a Pinia auth-store definition around an injectable repository contract.
- *
- * @param {{
- *   initialize: () => Promise<object | null>,
- *   register: (input: unknown) => Promise<null>,
- *   login: (input: unknown) => Promise<object>,
- *   requestPasswordReset: (input: unknown) => Promise<null>,
- *   logout: () => Promise<null>,
- *   restoreSession: () => Promise<object | null>,
- *   subscribeToSessionChanges?: (listener: (uid: string | null) => void) => () => void
- * }} repository - Authentication operations; the default runtime uses Firebase.
- * @returns {ReturnType<typeof defineStore>} A `useAuthStore(pinia?)` function.
- */
-export function createAuthStore(repository) {
-  return defineStore(AUTH_STORE_ID, () => {
-    const user = ref(null)
-    const status = ref('idle')
-    const operationStatus = ref('idle')
-    const errorCode = ref('')
-    const errorMessage = ref('')
-    const isAuthenticated = computed(() => user.value !== null)
-
-    const clearError = () => {
-      errorCode.value = ''
-      errorMessage.value = ''
-    }
-
-    const setError = (error) => {
-      const publicError = getPublicError(error)
-      errorCode.value = publicError.code
-      errorMessage.value = publicError.message
-    }
-
-    let initialized = false
-    // A one-use acknowledgement of a successful send, never persisted or read
-    // from a URL. A full page reload creates a fresh store without this notice.
-    let registrationNoticePending = false
-    let initializationPromise = null
-    let latestOperation = 0
-    let repositoryOperationQueue = Promise.resolve()
-    let unsubscribeSession = null
-    // Undefined means no pending event; null is an observed signed-out session.
-    let pendingSessionUid
-    let disposed = false
-    const sessionWaiters = new Set()
-
-    const enqueueRepositoryOperation = (operation) => {
-      const queued = repositoryOperationQueue.then(operation, operation)
-      repositoryOperationQueue = queued.catch(() => undefined)
-      return queued
-    }
-
-    const commitUser = (candidate) => {
-      const publicUser = projectPublicUser(candidate)
-      if (pendingSessionUid !== undefined && pendingSessionUid !== (publicUser?.uid ?? null)) {
-        // A newer SDK identity takes precedence over an older command result.
-        // Keep privileged/private UI empty until that profile is validated.
-        user.value = null
-        status.value = pendingSessionUid === null ? 'anonymous' : 'restoring'
-        return null
-      }
-      user.value = publicUser
-      status.value = publicUser === null ? 'anonymous' : 'authenticated'
-      if (pendingSessionUid === (publicUser?.uid ?? null)) {
-        // Our login/register/logout already reconciled this SDK event. A newer
-        // different identity must remain pending for a separate profile read.
-        pendingSessionUid = undefined
-      }
-      return publicUser
-    }
-
-    const copyCurrentUser = () => projectPublicUser(user.value)
-
-    const resolveSessionWaiters = () => {
-      if (!disposed && (operationStatus.value !== 'idle' || status.value === 'restoring')) {
-        return
-      }
-      for (const resolve of sessionWaiters) {
-        resolve(disposed ? null : copyCurrentUser())
-      }
-      sessionWaiters.clear()
-    }
-
-    const waitForStableSession = () =>
-      new Promise((resolve) => {
-        sessionWaiters.add(resolve)
-        resolveSessionWaiters()
-      })
-
-    const refreshChangedSession = () => {
-      if (disposed || pendingSessionUid === undefined || operationStatus.value !== 'idle') {
-        return
-      }
-      pendingSessionUid = undefined
-      void runUserOperation('restoreSession', 'restoring-session')
-    }
-
-    const observeSession = () => {
-      if (disposed || unsubscribeSession !== null || !repository.subscribeToSessionChanges) {
-        return
-      }
-      unsubscribeSession = repository.subscribeToSessionChanges((uid) => {
-        if (disposed) {
-          return
-        }
-        if (
-          uid === (user.value?.uid ?? null) &&
-          (status.value === 'authenticated' || status.value === 'anonymous')
-        ) {
-          // Firebase can deliver an operation's observer event after its
-          // promise resolves. Do not re-enter restoration for settled state.
-          return
-        }
-        // Clear private UI immediately. Profile restoration shares the command
-        // queue so our own registration can finish creating its member profile.
-        user.value = null
-        status.value = uid === null ? 'anonymous' : 'restoring'
-        pendingSessionUid = uid
-        refreshChangedSession()
-      })
-    }
-
-    const initialize = () => {
-      if (initialized) {
-        return waitForStableSession()
-      }
-      if (initializationPromise !== null) {
-        return initializationPromise.then(waitForStableSession)
-      }
-
-      const operation = ++latestOperation
-      status.value = 'restoring'
-      clearError()
-      initializationPromise = (async () => {
-        try {
-          const restored = await enqueueRepositoryOperation(() => repository.initialize())
-          initialized = true
-          observeSession()
-          if (operation === latestOperation) {
-            commitUser(restored)
-            return copyCurrentUser()
-          }
-        } catch (error) {
-          if (operation === latestOperation) {
-            user.value = null
-            status.value = 'anonymous'
-            setError(error)
-          }
-        } finally {
-          initializationPromise = null
-        }
-
-        return null
-      })()
-
-      return initializationPromise.then(waitForStableSession)
-    }
-
-    const runUserOperation = async (method, pendingStatus, input) => {
-      const operation = ++latestOperation
-      const isSessionRefresh = method === 'restoreSession'
-      operationStatus.value = pendingStatus
-      if (!isSessionRefresh) {
-        clearError()
-        registrationNoticePending = false
-      }
-      const reportError = (error) => {
-        // Background reconciliation must not erase the failed command's
-        // message before the originating form/account page can display it.
-        if (!isSessionRefresh || !errorMessage.value) {
-          setError(error)
-        }
-      }
-
-      try {
-        const outcome = await enqueueRepositoryOperation(async () => {
-          try {
-            return { kind: 'success', user: await repository[method](input) }
-          } catch (operationError) {
-            try {
-              // Keep the authoritative read inside this queue command so later intents cannot overtake it.
-              const restoredUser = await repository.restoreSession()
-              return { kind: 'operation-failed', operationError, restoredUser }
-            } catch (restoreError) {
-              return { kind: 'restore-failed', restoreError }
-            }
-          }
-        })
-
-        if (operation !== latestOperation) {
-          return null
-        }
-
-        if (outcome.kind === 'success') {
-          initialized = true
-          observeSession()
-          commitUser(outcome.user)
-          if (method === 'register') {
-            registrationNoticePending = true
-          }
-          return method === 'register' ? true : copyCurrentUser()
-        }
-
-        if (outcome.kind === 'operation-failed') {
-          commitUser(outcome.restoredUser)
-          reportError(outcome.operationError)
-          return null
-        }
-
-        commitUser(null)
-        reportError(outcome.restoreError)
-        return null
-      } catch (error) {
-        if (operation === latestOperation) {
-          commitUser(null)
-          reportError(error)
-        }
-        return null
-      } finally {
-        if (operation === latestOperation) {
-          operationStatus.value = 'idle'
-          refreshChangedSession()
-          resolveSessionWaiters()
-        }
-      }
-    }
-
-    const register = (input) => runUserOperation('register', 'registering', input)
-    const login = (input) => runUserOperation('login', 'logging-in', input)
-
-    const consumeRegistrationNotice = () => {
-      const pending = registrationNoticePending
-      registrationNoticePending = false
-      return pending
-    }
-
-    const requestPasswordReset = async (input) => {
-      const operation = ++latestOperation
-      operationStatus.value = 'requesting-password-reset'
-      clearError()
-
-      try {
-        // Password recovery does not create an application session, so it
-        // deliberately bypasses runUserOperation's session-restoration path.
-        await enqueueRepositoryOperation(() => repository.requestPasswordReset(input))
-        return operation === latestOperation
-      } catch (error) {
-        if (operation === latestOperation) {
-          setError(error)
-        }
-        return false
-      } finally {
-        if (operation === latestOperation) {
-          operationStatus.value = 'idle'
-          refreshChangedSession()
-          resolveSessionWaiters()
-        }
-      }
-    }
-
-    const logout = async () => {
-      const operation = ++latestOperation
-      operationStatus.value = 'logging-out'
-      clearError()
-
-      try {
-        await enqueueRepositoryOperation(() => repository.logout())
-        if (operation === latestOperation) {
-          commitUser(null)
-          return true
-        }
-      } catch (error) {
-        if (operation === latestOperation) {
-          setError(error)
-        }
-      } finally {
-        if (operation === latestOperation) {
-          operationStatus.value = 'idle'
-          refreshChangedSession()
-          resolveSessionWaiters()
-        }
-      }
-
-      return false
-    }
-
-    onScopeDispose(() => {
-      disposed = true
-      ++latestOperation
-      unsubscribeSession?.()
-      resolveSessionWaiters()
+  /** `resolutionFor`, or the outcome of the next listener resolution when there is none yet. */
+  const waitForResolution = (uid, sinceSession) =>
+    resolutionFor(uid, sinceSession) ??
+    new Promise((resolve) => {
+      waiters.push({ uid, resolve })
     })
 
-    const hasAnyRole = (roles) =>
-      user.value !== null &&
-      Array.isArray(roles) &&
-      roles.some((role) => ALLOWED_ROLES.has(role) && role === user.value.role)
-
-    return {
-      consumeRegistrationNotice,
-      errorCode,
-      errorMessage,
-      hasAnyRole,
-      initialize,
-      isAuthenticated,
-      login,
-      logout,
-      operationStatus,
-      requestPasswordReset,
-      register,
-      status,
-      user,
+  /** Idempotent; called once from main.js before the router is installed (spec 9.5). */
+  const init = ({ router: appRouter } = {}) => {
+    if (appRouter) {
+      router = appRouter
     }
-  })
-}
+    if (unsubscribe !== null) {
+      return
+    }
+    armReady()
+    unsubscribe = onAuthChanged((firebaseUser) => {
+      listenerEvents += 1
+      lastEventUid = firebaseUser?.uid ?? null
+      void handleAuthEvent(firebaseUser)
+    })
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          void revalidateProfile({ reason: 'visibility' })
+        }
+      })
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PERMISSION_DENIED_EVENT, (event) => {
+        // The store's own profile writes report through their promise (C4.2).
+        if (event.detail?.source !== 'users') {
+          void revalidateProfile({ reason: 'permission-denied' })
+        }
+      })
+    }
+  }
 
-export const useAuthStore = createAuthStore(createFirebaseAuthRepository())
+  /**
+   * Re-runs the resolution for the current SDK user and re-arms the timeout (spec 9.1). Before
+   * the first listener event the SDK is still reloading the persisted user and `currentUser()` is
+   * null whoever is signed in, so Retry only waits again: resolving that null would sign a member
+   * on a slow link out and park them on the sign-in page when their real event lands.
+   */
+  const retry = () => {
+    armReady()
+    if (listenerEvents === 0) {
+      status.value = 'restoring'
+      lastError.value = null
+      return readyPromise.value
+    }
+    void handleAuthEvent(currentUser())
+    return readyPromise.value
+  }
+
+  /**
+   * Re-read users/{uid} and reconcile (spec 9.3). Waits for a running resolution first (Review
+   * Focus 3); a 'navigation' re-check is skipped for 60 s after a read, while every other reason
+   * re-reads, 'staff-navigation' included (a staff or admin route, decision M6-DA4); the Auth
+   * user is reloaded before comparing emails (facts.md 1e); a failed read keeps status and user
+   * (Review Focus 1); a result that lands after the identity moved on changes nothing (Astra F1).
+   */
+  const revalidateProfile = async ({ reason = 'manual' } = {}) => {
+    if (resolving !== null) {
+      await resolving
+    }
+    if (status.value !== 'signed-in' || user.value === null) {
+      return
+    }
+    const fresh =
+      profileReadAt.value !== null && Date.now() - profileReadAt.value < PROFILE_CACHE_MS
+    if (reason === 'navigation' && fresh && !emailSyncPending.value) {
+      return
+    }
+    if (revalidating !== null) {
+      return revalidating
+    }
+    const startedIn = session
+    const uid = user.value.uid
+    const isCurrent = () => startedIn === session
+    const run = (async () => {
+      const firebaseUser = currentUser()
+      if (firebaseUser === null || firebaseUser.uid !== uid) {
+        return
+      }
+      try {
+        await reloadUser(firebaseUser)
+        if (!isCurrent()) {
+          return
+        }
+        const authEmail = normalizeEmail(firebaseUser.email)
+        let profile = await fetchProfile(uid)
+        if (!isCurrent()) {
+          return
+        }
+        if (profile === null || profile.status !== 'active') {
+          await logout('account-disabled')
+          return
+        }
+        if (profile.email !== authEmail) {
+          profile = await syncEmailFor(firebaseUser, profile, isCurrent)
+          if (!isCurrent()) {
+            return
+          }
+        }
+        profileReadAt.value = Date.now()
+        if (status.value !== 'signed-in' || user.value === null || user.value.uid !== uid) {
+          return
+        }
+        const roleChanged = profile.role !== user.value.role
+        const changed =
+          roleChanged ||
+          profile.revision !== user.value.revision ||
+          profile.email !== user.value.email
+        if (changed) {
+          user.value = toUser(firebaseUser, profile)
+          bumpEpoch()
+        }
+        if (roleChanged) {
+          // The page stays mounted; only a route the new role may not see is left (decision M7).
+          enforceRouteAccess()
+        }
+        if (!emailSyncPending.value) {
+          lastError.value = null
+        }
+      } catch (error) {
+        if (!isCurrent()) {
+          return
+        }
+        const ended = endedSessionReason(error)
+        if (ended === 'account-disabled') {
+          await logout('account-disabled')
+          return
+        }
+        if (ended === 'session-expired') {
+          settleSignedOut()
+          leaveProtectedRoute()
+          return
+        }
+        lastError.value = readFailure(error)
+      }
+    })()
+    revalidating = run
+    void run.finally(() => {
+      if (revalidating === run) {
+        revalidating = null
+      }
+    })
+    return run
+  }
+
+  /** Resolves with the user once the resolution has committed the profile (spec 9.1). */
+  const login = async ({ email, password }) => {
+    const sinceSession = session
+    const eventsBefore = listenerEvents
+    const uidBefore = lastEventUid
+    const firebaseUser = await signIn(email, password)
+    // The SDK reports identity changes only: signing in as the uid of the last listener event (a
+    // failed profile read left the Auth session in place) fires no event, so the resolution runs
+    // from here (Astra F2). Any other sign-in waits for the listener's resolution.
+    const sameIdentity = listenerEvents === eventsBefore && firebaseUser.uid === uidBefore
+    let outcome = sameIdentity
+      ? await handleAuthEvent(firebaseUser)
+      : await waitForResolution(firebaseUser.uid, sinceSession)
+    if (sameIdentity && outcome === 'stale') {
+      // This run was superseded. While the newest resolution is still this uid's (the SDK fired
+      // its own event after all, or a retry is running) it owns the outcome; once another
+      // identity, B or null, has taken over, no event for this uid is coming and this sign-in
+      // ends with nothing rather than waiting forever (A2).
+      const takeover = resolutionFor(firebaseUser.uid, sinceSession)
+      outcome = takeover === null ? 'stale' : await takeover
+    }
+    if (outcome === 'signed-in') {
+      return user.value
+    }
+    if (outcome === 'email-unverified') {
+      throw new AuthError('email-unverified')
+    }
+    if (outcome === 'verification-unsent') {
+      throw verificationFailure
+    }
+    if (outcome === 'error') {
+      throw new AuthError(lastError.value === 'offline' ? 'offline' : 'profile-unavailable')
+    }
+    // 'account-disabled', 'signed-out', 'stale': the session moved on; a replace already happened.
+    return null
+  }
+
+  /**
+   * `reason` becomes the `?reason=` query the sign-in page renders (spec 9.1). The SDK delivers
+   * the null listener event before `signOut()` resolves; `loggingOut` keeps `resolveUser` from
+   * issuing its own `replace` so the one below is the only navigation. The session counter moves
+   * first, so anything still running for the identity that is leaving stops at its next await.
+   */
+  const logout = async (reason) => {
+    session += 1
+    loggingOut = true
+    try {
+      await signOut()
+    } catch {
+      // The local session ends either way; the SDK clears its persistence regardless.
+    }
+    settleSignedOut()
+    if (router) {
+      void router.replace({ name: 'login', query: reason ? { reason } : {} })
+    }
+    loggingOut = false
+  }
+
+  /**
+   * Creates the account, sends the verification email and signs out; never a silent sign-in.
+   * Resolves 'registered', or 'superseded' when another identity took over while the email was
+   * sending (a sign-in from a second tab): that identity is left signed in and untouched (A1).
+   */
+  const register = async ({ email, password, displayName, redirect = null }) => {
+    const startedIn = session
+    registration = { email: normalizeEmail(email), uid: null }
+    try {
+      const created = await createAccount({ email, password, displayName })
+      registration.uid = created.uid
+      let ownsSession = false
+      try {
+        await sendVerification(created, { redirect })
+      } finally {
+        // Only the account this call created is signed out, and only while no newer identity
+        // event has begun: otherwise the SDK's current user is somebody else's session.
+        ownsSession = currentUser()?.uid === created.uid && startedIn === session
+        if (ownsSession) {
+          await signOut()
+        }
+      }
+      return ownsSession ? 'registered' : 'superseded'
+    } finally {
+      registration = null
+    }
+  }
+
+  /** "Send the verification email again": a sign-in attempt does exactly that (C4.12). */
+  const resendVerification = async ({ email, password }) => {
+    try {
+      const signedIn = await login({ email, password })
+      return signedIn === null ? 'ended' : 'signed-in'
+    } catch (error) {
+      if (isAuthError(error) && error.code === 'email-unverified') {
+        return 'sent'
+      }
+      throw error
+    }
+  }
+
+  const requestPasswordReset = (email) => requestAuthPasswordReset(email)
+
+  const requestEmailChange = async (newEmail) => {
+    const firebaseUser = currentUser()
+    if (firebaseUser === null || !isSignedIn.value) {
+      throw new AuthError('requires-recent-login')
+    }
+    await requestAuthEmailChange(firebaseUser, newEmail)
+  }
+
+  const requireWritableProfile = () => {
+    if (!isSignedIn.value) {
+      throw new AuthError('profile-unavailable')
+    }
+    if (emailSyncPending.value) {
+      throw new RepositoryError(
+        'conflict',
+        'Your email change is still finishing. Try again in a moment.',
+        { details: { code: 'email-sync-pending' } },
+      )
+    }
+    return user.value.uid
+  }
+
+  const applyProfile = (profile) => {
+    const firebaseUser = currentUser()
+    if (
+      firebaseUser === null ||
+      firebaseUser.uid !== profile.uid ||
+      user.value === null ||
+      user.value.uid !== profile.uid
+    ) {
+      return
+    }
+    // The store's own write: updated in place, no epoch bump (spec 9.1).
+    user.value = toUser(firebaseUser, profile)
+    profileReadAt.value = Date.now()
+  }
+
+  const writeSaved = async (write, serviceId) => {
+    const uid = requireWritableProfile()
+    const startedIn = session
+    try {
+      const profile = await write(uid, serviceId)
+      if (startedIn === session) {
+        applyProfile(profile)
+      }
+    } catch (error) {
+      // A denied own write is not fed back through the window event (C4.2); re-read here.
+      if (startedIn === session && isRepositoryError(error) && error.code === 'permission') {
+        void revalidateProfile({ reason: 'write-denied' })
+      }
+      throw error
+    }
+  }
+
+  const saveService = (serviceId) => writeSaved(saveServiceRecord, serviceId)
+  const unsaveService = (serviceId) => writeSaved(unsaveServiceRecord, serviceId)
+
+  return {
+    status,
+    user,
+    lastError,
+    identityEpoch,
+    identitySignal,
+    emailSyncPending,
+    profileReadAt,
+    ready,
+    isSignedIn,
+    role,
+    canAccess,
+    init,
+    retry,
+    login,
+    logout,
+    register,
+    resendVerification,
+    requestPasswordReset,
+    requestEmailChange,
+    revalidateProfile,
+    saveService,
+    unsaveService,
+  }
+})
