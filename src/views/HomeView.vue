@@ -1,9 +1,63 @@
 <script setup>
+import { computed, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
-import SearchForm from '../features/discovery/components/SearchForm.vue'
+import SearchForm from '@/features/discovery/components/SearchForm.vue'
+import { useLastSearch } from '@/features/discovery/composables/useLastSearch.js'
+import { useServiceCatalogue } from '@/features/discovery/composables/useServiceCatalogue.js'
+import TopRatedServices from '@/features/ratings/components/TopRatedServices.vue'
+import { useRatingSummaries } from '@/features/ratings/composables/useRatingSummaries.js'
 
 const router = useRouter()
+// The last search (item, location, action chips and sort; never coordinates, never near=me)
+// prefills the form (spec 11 L1088): a saved criterion, not a saved place. The form asks for no
+// device position (decision M6-D24): the map's "Use my location" control on Find nearby is the
+// one request, so Home holds no geolocation state.
+const { lastSearch } = useLastSearch()
+
+// Top rated is loaded on request, never on mount: the ranking needs one summary read per
+// published service (spec 6.4, Q3), which the Home page should not spend on every visit.
+const catalogue = useServiceCatalogue({ autoLoad: false })
+const ranking = useRatingSummaries({ services: catalogue.services })
+// The view owns the request's in-flight state: a catalogue revalidating a saved copy (spec 11)
+// reports 'ready' while its fetch is open, so neither composable's status says a round is running.
+const topRatedRequested = ref(false)
+const loadingTopRated = ref(false)
+const topRatedStatus = computed(() => {
+  if (loadingTopRated.value) return 'loading'
+  if (!topRatedRequested.value) return 'idle'
+  return catalogue.status.value === 'error' || ranking.status.value === 'error' ? 'error' : 'ready'
+})
+const topRatedError = computed(() => {
+  if (catalogue.status.value === 'error') return catalogue.errorMessage.value
+  return ranking.status.value === 'error' ? 'Rating summaries could not be loaded.' : ''
+})
+// The ranking is only as current as its older input: a catalogue whose fetch failed keeps its
+// saved copy, so either saved copy makes the ranking a saved one, dated by the older save.
+const savedInputs = computed(() =>
+  [catalogue, ranking].filter((source) => source.freshness.value === 'cached'),
+)
+const topRatedFreshness = computed(() =>
+  savedInputs.value.length > 0 ? 'cached' : ranking.freshness.value,
+)
+const topRatedSavedAt = computed(() => {
+  const times = savedInputs.value
+    .map((source) => source.savedAt.value)
+    .filter((savedAt) => savedAt instanceof Date)
+  return times.length > 0 ? new Date(Math.min(...times)) : null
+})
+const loadTopRated = async () => {
+  if (loadingTopRated.value) return
+  topRatedRequested.value = true
+  loadingTopRated.value = true
+  try {
+    ranking.reset()
+    await (catalogue.status.value === 'idle' ? catalogue.load() : catalogue.retry())
+    if (catalogue.status.value === 'ready') await ranking.load()
+  } finally {
+    loadingTopRated.value = false
+  }
+}
 
 /**
  * Stores the item and location criteria in the results URL so refresh, sharing,
@@ -25,13 +79,17 @@ const findOptions = (search) =>
   <div class="home-page">
     <section class="home-hero" aria-labelledby="home-title">
       <div class="shell home-hero__inner">
-        <header v-motion class="home-intro">
+        <header class="home-intro">
           <h1 id="home-title">Give your things <span>another turn.</span></h1>
           <p>Find local repair, reuse and recycling options in Melbourne.</p>
         </header>
 
         <section class="home-search" aria-label="Find local options">
-          <SearchForm @submit="findOptions" />
+          <SearchForm
+            :initial-item="lastSearch?.item ?? ''"
+            :initial-location="lastSearch?.location ?? ''"
+            @submit="findOptions"
+          />
           <p class="home-search__hint">Leave either field blank to explore the catalogue.</p>
         </section>
 
@@ -64,6 +122,20 @@ const findOptions = (search) =>
           <span>Read the guides <span aria-hidden="true">→</span></span>
         </RouterLink>
       </div>
+    </section>
+
+    <section class="shell home-top-rated" aria-label="Top rated services">
+      <TopRatedServices
+        :services="catalogue.services.value"
+        :summaries-by-id="ranking.summariesById.value"
+        :status="topRatedStatus"
+        :truncated="catalogue.truncated.value"
+        :failed-ids="ranking.failedIds.value"
+        :error-message="topRatedError"
+        :freshness="topRatedFreshness"
+        :saved-at="topRatedSavedAt"
+        @load="loadTopRated"
+      />
     </section>
   </div>
 </template>
@@ -159,6 +231,10 @@ h1 span {
   padding-block: clamp(2.5rem, 5vw, 4rem);
 }
 
+.home-top-rated {
+  padding-bottom: clamp(2.5rem, 5vw, 4rem);
+}
+
 .home-explore > h2 {
   margin: 0 0 1.5rem;
   color: var(--color-heading);
@@ -207,7 +283,7 @@ h1 span {
 }
 
 .explore-link:hover {
-  background: #ededf0;
+  background: var(--color-surface-muted);
 }
 
 .explore-link:hover > span {
