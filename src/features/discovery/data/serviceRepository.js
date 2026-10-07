@@ -1,216 +1,109 @@
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore/lite'
+import { collection, doc, getDoc, query, where } from 'firebase/firestore/lite'
 
-import { firestoreLite } from '../../../firebase/firebaseFirestoreLiteClient.js'
-import { isCalendarDate, isHttpsUrl } from '../../../utils/catalogueValidation.js'
+import { firestoreLite } from '@/firebase/firebaseFirestoreLiteClient.js'
+import { CACHE_KEYS, readCache, writeCache } from '@/shared/data/localCache.js'
+import {
+  RepositoryError,
+  throwIfAborted,
+  toRepositoryError,
+} from '@/shared/data/RepositoryError.js'
+import { readAll } from '@/shared/data/readAll.js'
+import { isValidId } from '@/shared/domain/catalogueValidation.js'
 
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
-const ALLOWED_ACTIONS = new Set(['repair', 'reuse', 'recycle'])
-const SERVICE_REQUIRED_KEYS = new Set([
-  'acceptedItems',
-  'actionTypes',
-  'aliases',
-  'createdAt',
-  'id',
-  'name',
-  'postcode',
-  'searchAreas',
-  'source',
-  'status',
-  'suburb',
-  'summary',
-  'updatedAt',
-])
-const SERVICE_ALLOWED_KEYS = new Set([...SERVICE_REQUIRED_KEYS, 'address'])
-const METADATA_KEYS = new Set([
-  'catalogueType',
-  'checkedAt',
-  'coverage',
-  'datasetId',
-  'schemaVersion',
-  'updatedAt',
-])
-
-const DEFAULT_FIRESTORE_API = Object.freeze({
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  where,
-})
-
-const isPlainObject = (value) =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const hasExactKeys = (value, required, allowed = required) => {
-  const keys = Object.keys(value)
-  return (
-    [...required].every((key) => Object.hasOwn(value, key)) && keys.every((key) => allowed.has(key))
-  )
-}
-
-const isBoundedString = (value, maximum = 500) =>
-  typeof value === 'string' && value.length > 0 && value.length <= maximum
-
-const isStringList = (value, maximumEntries = 50) =>
-  Array.isArray(value) &&
-  value.length > 0 &&
-  value.length <= maximumEntries &&
-  value.every((entry) => isBoundedString(entry, 100))
-
-const toIsoTimestamp = (value) => {
-  if (typeof value?.toDate !== 'function') {
-    return null
-  }
-
-  const date = value.toDate()
-  return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString() : null
-}
-
-const projectMetadata = (candidate) => {
-  if (
-    !isPlainObject(candidate) ||
-    !hasExactKeys(candidate, METADATA_KEYS) ||
-    !isBoundedString(candidate.datasetId, 100) ||
-    !Number.isInteger(candidate.schemaVersion) ||
-    candidate.schemaVersion < 1 ||
-    !isBoundedString(candidate.catalogueType, 50) ||
-    !isCalendarDate(candidate.checkedAt) ||
-    !isBoundedString(candidate.coverage, 500)
-  ) {
-    return null
-  }
-
-  const updatedAt = toIsoTimestamp(candidate.updatedAt)
-  return updatedAt === null ? null : { ...candidate, updatedAt }
-}
-
-const projectService = (documentId, candidate) => {
-  const source = candidate?.source
-  const createdAt = toIsoTimestamp(candidate?.createdAt)
-  const updatedAt = toIsoTimestamp(candidate?.updatedAt)
-
-  if (
-    !ID_PATTERN.test(documentId) ||
-    !isPlainObject(candidate) ||
-    !hasExactKeys(candidate, SERVICE_REQUIRED_KEYS, SERVICE_ALLOWED_KEYS) ||
-    candidate.id !== documentId ||
-    !isBoundedString(candidate.name, 150) ||
-    !isStringList(candidate.actionTypes, 3) ||
-    !candidate.actionTypes.every((action) => ALLOWED_ACTIONS.has(action)) ||
-    !isStringList(candidate.acceptedItems) ||
-    !isStringList(candidate.aliases) ||
-    !isBoundedString(candidate.summary, 1000) ||
-    (candidate.address !== undefined && !isBoundedString(candidate.address, 200)) ||
-    !isBoundedString(candidate.suburb, 100) ||
-    !/^\d{4}$/u.test(candidate.postcode) ||
-    !isStringList(candidate.searchAreas) ||
-    candidate.status !== 'published' ||
-    !isPlainObject(source) ||
-    !hasExactKeys(source, new Set(['checkedAt', 'organisation', 'url'])) ||
-    !isBoundedString(source.organisation, 150) ||
-    !isHttpsUrl(source.url) ||
-    !isCalendarDate(source.checkedAt) ||
-    createdAt === null ||
-    updatedAt === null
-  ) {
-    return null
-  }
-
-  return { ...candidate, source: { ...source }, createdAt, updatedAt }
-}
-
-const throwIfAborted = (signal) => {
-  if (signal?.aborted) {
-    throw new DOMException('The catalogue request was aborted.', 'AbortError')
-  }
-}
-
-/** Error raised when the public Firestore catalogue cannot be loaded safely. */
-export class ServiceCatalogueError extends Error {
-  constructor(message, { code, cause } = {}) {
-    super(message)
-    this.name = 'ServiceCatalogueError'
-    this.code = code
-    if (cause !== undefined) {
-      this.cause = cause
-    }
-  }
-}
-
-const mapRepositoryError = (error) => {
-  if (error?.name === 'AbortError' || error instanceof ServiceCatalogueError) {
-    return error
-  }
-
-  if (
-    error?.code === 'unavailable' ||
-    error?.code === 'deadline-exceeded' ||
-    error?.code === 'resource-exhausted'
-  ) {
-    return new ServiceCatalogueError('The service catalogue could not be reached.', {
-      code: 'network',
-      cause: error,
-    })
-  }
-
-  return new ServiceCatalogueError('The service catalogue has an unexpected structure.', {
-    code: 'invalid-data',
-  })
-}
+import { projectCatalogueMetadata, projectService } from '../domain/serviceSchema.js'
 
 /**
- * Creates the public Firestore catalogue repository while preserving the
- * existing `{ metadata, services }` interface used by Vue components.
+ * Public catalogue reads (Q1, Q3). One module-level cache for five minutes, shared by the list
+ * and the detail page so list -> detail -> Back is one read (spec 6.6). Plain exports, no factory.
+ * A successful read is also persisted under CACHE_KEYS.services (the public projection of the
+ * published services, spec 11) so the next visit can paint it before the fetch; the composable
+ * decides when to show it.
  */
-export function createFirestoreServiceRepository(dependencies = {}) {
-  const settings = isPlainObject(dependencies) ? dependencies : {}
-  const db = settings.db ?? firestoreLite
-  const firestoreApi = settings.firestoreApi ?? DEFAULT_FIRESTORE_API
 
-  const fetchServiceCatalogue = async ({ signal } = {}) => {
-    try {
-      throwIfAborted(signal)
+const CACHE_TTL_MS = 5 * 60 * 1000
+let catalogueCache = null
 
-      const metadataSnapshot = await firestoreApi.getDoc(
-        firestoreApi.doc(db, 'catalogues', 'current'),
-      )
-      throwIfAborted(signal)
-      if (!metadataSnapshot.exists()) {
-        throw new ServiceCatalogueError('The service catalogue has an unexpected structure.', {
-          code: 'invalid-data',
-        })
-      }
-
-      const servicesQuery = firestoreApi.query(
-        firestoreApi.collection(db, 'services'),
-        firestoreApi.where('status', '==', 'published'),
-        firestoreApi.limit(100),
-      )
-      const servicesSnapshot = await firestoreApi.getDocs(servicesQuery)
-      throwIfAborted(signal)
-
-      const metadata = projectMetadata(metadataSnapshot.data())
-      const services = servicesSnapshot.docs.map((snapshot) =>
-        projectService(snapshot.id, snapshot.data()),
-      )
-      if (metadata === null || services.some((service) => service === null)) {
-        throw new ServiceCatalogueError('The service catalogue has an unexpected structure.', {
-          code: 'invalid-data',
-        })
-      }
-
-      return { metadata, services }
-    } catch (error) {
-      throw mapRepositoryError(error)
-    }
-  }
-
-  return Object.freeze({ fetchServiceCatalogue })
+export function clearServiceCache() {
+  catalogueCache = null
 }
 
-const runtimeRepository = createFirestoreServiceRepository()
+/** The persisted copy of the last successful public read, or null (spec 11, cached paint). */
+export function readCachedServiceCatalogue() {
+  const hit = readCache(CACHE_KEYS.services)
+  return hit && Array.isArray(hit.value?.services) ? hit : null
+}
 
-/** Loads the public catalogue from Firestore through a validated boundary. */
-export const fetchServiceCatalogue = (options) => runtimeRepository.fetchServiceCatalogue(options)
+const cachedCatalogue = () =>
+  catalogueCache && Date.now() - catalogueCache.at < CACHE_TTL_MS ? catalogueCache.value : null
+
+const invalidCatalogue = () =>
+  new RepositoryError('invalid-data', 'The service catalogue has an unexpected structure.')
+
+/**
+ * @returns {Promise<{ metadata: object, services: object[], skippedCount: number, truncated: boolean }>}
+ */
+export async function fetchServiceCatalogue({ signal, force = false } = {}) {
+  const cached = force ? null : cachedCatalogue()
+  if (cached) {
+    return cached
+  }
+  try {
+    throwIfAborted(signal)
+    const metadataSnapshot = await getDoc(doc(firestoreLite, 'catalogues', 'current'))
+    throwIfAborted(signal)
+    const metadata = metadataSnapshot.exists()
+      ? projectCatalogueMetadata(metadataSnapshot.data())
+      : null
+    if (metadata === null) {
+      throw invalidCatalogue()
+    }
+
+    const published = query(
+      collection(firestoreLite, 'services'),
+      where('status', '==', 'published'),
+    )
+    const { docs, truncated } = await readAll(published, { signal })
+    const services = []
+    let skippedCount = 0
+    for (const snapshot of docs) {
+      const record = projectService(snapshot.id, snapshot.data())
+      if (record === null) skippedCount += 1
+      else services.push(record)
+    }
+    // Development only: a skipped document is a seed or schema fault the owner should see; the
+    // public copy carries the count without the noise.
+    if (import.meta.env.DEV && skippedCount > 0) {
+      console.warn(`[turnagain] ${skippedCount} malformed services document(s) skipped`)
+    }
+
+    const value = { metadata, services, skippedCount, truncated }
+    catalogueCache = { at: Date.now(), value }
+    writeCache(CACHE_KEYS.services, value)
+    return value
+  } catch (error) {
+    throw toRepositoryError(error)
+  }
+}
+
+/** One published service by id: the catalogue cache first, then `getDoc` (Q3). */
+export async function fetchService(serviceId, { signal } = {}) {
+  if (!isValidId(serviceId)) {
+    throw new RepositoryError('not-found')
+  }
+  const cached = cachedCatalogue()?.services.find((service) => service.id === serviceId)
+  if (cached) {
+    return cached
+  }
+  try {
+    throwIfAborted(signal)
+    const snapshot = await getDoc(doc(firestoreLite, 'services', serviceId))
+    throwIfAborted(signal)
+    const record = snapshot.exists() ? projectService(snapshot.id, snapshot.data()) : null
+    if (record === null || record.status !== 'published') {
+      throw new RepositoryError('not-found')
+    }
+    return record
+  } catch (error) {
+    throw toRepositoryError(error)
+  }
+}
