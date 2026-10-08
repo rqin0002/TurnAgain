@@ -57,8 +57,9 @@ const entry = computed(() =>
   ),
 )
 
-// A saved copy without this id proves nothing (the activity may be newer than the copy): keep
-// loading while the copy is revalidated, and report a failed fetch rather than "not found".
+// A missing id is not proof the activity is gone. While a saved copy is being revalidated the
+// page keeps loading, a failed fetch shows the error, and a read cut off at the 1,000-record cap
+// says the results are incomplete.
 const awaitingEntry = computed(
   () =>
     status.value === 'loading' || status.value === 'idle' || (!entry.value && revalidating.value),
@@ -311,6 +312,8 @@ watch(
         <div>
           <h1>We could not find that activity.</h1>
           <p>It may have been removed from the catalogue or the link may be incomplete.</p>
+          <!-- A read cut off at the cap may have missed this activity: never a definite not-found. -->
+          <p v-if="truncated">Results incomplete: showing the first 1,000 records.</p>
           <RouterLink class="button button--primary" :to="{ name: 'activities' }">
             Browse activities
           </RouterLink>

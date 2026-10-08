@@ -216,6 +216,7 @@ const searchInput = useSearchDraft({
             :activity="entry.activity"
             :next-session="entry.nextSession"
             :session-count="entry.sessions.length"
+            :now="now"
           />
         </div>
         <div v-else class="state-panel">

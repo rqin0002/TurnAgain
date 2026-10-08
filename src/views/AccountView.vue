@@ -1,7 +1,7 @@
 <script setup>
 import '@/features/auth/styles/auth.css'
 
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { useAuthForm } from '@/features/auth/composables/useAuthForm.js'
@@ -15,9 +15,22 @@ import ThemeSwitch from '@/shared/components/ThemeSwitch.vue'
 import { describeError } from '@/shared/domain/errorCopy.js'
 
 const authStore = useAuthStore()
-// Saved services resolve against the public catalogue, painted from its saved copy
-// first while the fresh read runs.
-const { status: catalogueStatus, services, retry: retryCatalogue } = useServiceCatalogue()
+// Saved services are looked up in the public catalogue. A saved copy paints first, then a
+// forced network read replaces it when it succeeds. An id missing from a saved copy, a failed
+// read, a truncated read or a read that skipped records it could not read is never reported as
+// no longer listed; only a complete network read can say that (see unlistedState below).
+const {
+  status: catalogueStatus,
+  services,
+  freshness,
+  truncated: catalogueTruncated,
+  skippedCount: catalogueSkippedCount,
+  error: catalogueError,
+  revalidating,
+  load: loadCatalogue,
+  retry: retryCatalogue,
+} = useServiceCatalogue({ autoLoad: false })
+onMounted(() => void loadCatalogue({ force: true }))
 
 const savedIds = computed(() => authStore.user?.savedServiceIds ?? [])
 const savedServices = computed(() =>
@@ -26,11 +39,45 @@ const savedServices = computed(() =>
     .filter((service) => service !== undefined),
 )
 const unlistedCount = computed(() => savedIds.value.length - savedServices.value.length)
-const unlistedNote = computed(() =>
-  unlistedCount.value === 1
+// What the page may say about saved ids the catalogue on screen lacks: "checking" while a saved
+// copy is revalidated; "unconfirmed" when the read failed and Try again may help; "truncated"
+// when the network read stopped at the catalogue's cap, and "unreadable" when it skipped records
+// it could not read (a saved service may be one of them; reading again gives the same records,
+// so neither offers Try again); "unlisted" only after a complete network read with no record
+// skipped.
+const unlistedState = computed(() => {
+  if (unlistedCount.value === 0) return 'none'
+  if (revalidating.value) return 'checking'
+  if (catalogueError.value || freshness.value !== 'fresh') return 'unconfirmed'
+  if (catalogueTruncated.value) return 'truncated'
+  return catalogueSkippedCount.value > 0 ? 'unreadable' : 'unlisted'
+})
+const savedCountLabel = (count) => (count === 1 ? '1 saved service' : `${count} saved services`)
+const unlistedNote = computed(() => {
+  const count = unlistedCount.value
+  if (unlistedState.value === 'none') return ''
+  if (unlistedState.value === 'checking') return `Checking ${savedCountLabel(count)}…`
+  if (unlistedState.value === 'unconfirmed') {
+    return `${savedCountLabel(count)} can't be shown right now.`
+  }
+  if (unlistedState.value === 'truncated') {
+    return `${savedCountLabel(count)} can't be checked because the catalogue was only partly loaded.`
+  }
+  if (unlistedState.value === 'unreadable') {
+    return `${savedCountLabel(count)} can't be checked because some listings could not be read.`
+  }
+  return count === 1
     ? '1 saved service is no longer listed.'
-    : `${unlistedCount.value} saved services are no longer listed.`,
-)
+    : `${count} saved services are no longer listed.`
+})
+
+// Try again leaves as soon as the read restarts (the note turns to "Checking…"), so focus moves
+// first to the status line that stays mounted and announces the outcome, never to <body>.
+const unlistedStatus = ref(null)
+const retryUnlisted = () => {
+  unlistedStatus.value?.focus()
+  void retryCatalogue()
+}
 
 const removing = ref('')
 const savedError = ref('')
@@ -167,7 +214,22 @@ const logOut = async () => {
               </AppButton>
             </li>
           </ul>
-          <p v-if="unlistedCount > 0" class="account-page__note">{{ unlistedNote }}</p>
+          <p
+            ref="unlistedStatus"
+            class="account-page__note account-page__unlisted"
+            role="status"
+            tabindex="-1"
+          >
+            {{ unlistedNote }}
+          </p>
+          <AppButton
+            v-if="unlistedState === 'unconfirmed'"
+            variant="secondary"
+            type="button"
+            @click="retryUnlisted"
+          >
+            Try again
+          </AppButton>
         </template>
         <p v-if="savedError" class="account-page__error" role="alert">{{ savedError }}</p>
       </section>
@@ -357,6 +419,10 @@ const logOut = async () => {
   margin: 0 0 1rem;
   color: var(--color-text-muted);
   line-height: 1.6;
+}
+
+.account-page__unlisted:empty {
+  margin: 0;
 }
 
 .account-page__actions {

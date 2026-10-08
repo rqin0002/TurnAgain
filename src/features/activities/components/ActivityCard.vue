@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import { describeSessionAvailability } from '@/features/bookings/domain/bookingRules.js'
+
 import {
   formatActivityType,
   formatSessionAvailability,
@@ -10,6 +12,10 @@ import {
   formatSessionTime,
 } from '../domain/activityCatalogue.js'
 
+// One activity in the Activities list: its type, title, summary, up to five suitable items and
+// its next current-or-future session (date, time, place, status and availability), with links
+// to the activity page. It makes no requests: the list passes the activity, that session, how
+// many sessions are listed and the page's clock.
 const props = defineProps({
   activity: {
     type: Object,
@@ -23,9 +29,24 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  /** The page's clock: a session that has started is no longer offered as bookable. */
+  now: {
+    type: Date,
+    default: () => new Date(),
+  },
 })
 
-const availabilityLabel = computed(() => formatSessionAvailability(props.nextSession))
+// A TurnAgain session is summarised by the booking rules its own row uses (waitlist, start time,
+// waitlist limit), so the card never offers a place the row would refuse; a bookable one keeps the
+// remaining-places count. Provider and drop-in sessions keep the catalogue's text.
+const availabilityLabel = computed(() => {
+  const session = props.nextSession
+  if (!session) return ''
+  const { action, tone, label } = describeSessionAvailability(session, props.now)
+  if (action === 'external' || action === 'book') return formatSessionAvailability(session)
+  if (action === 'waitlist') return 'Waitlist open'
+  return tone === 'cancelled' ? '' : label
+})
 </script>
 
 <template>
