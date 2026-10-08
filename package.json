@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:api": "firebase emulators:exec --only auth,firestore --project demo-turnagain \"vitest run --config tests/api/vitest.config.js\"",
     "test:rules": "firebase emulators:exec --only firestore --project demo-turnagain \"vitest run --config tests/rules/vitest.config.js\"",
+    "test:e2e": "playwright test",
+    "test:e2e:emulators": "firebase emulators:exec --only auth,firestore,functions --project demo-turnagain \"playwright test\"",
     "functions:dev": "firebase emulators:start --only functions",
     "emulators": "firebase emulators:start --only auth,firestore,functions --project demo-turnagain",
     "deploy:backend": "firebase deploy --only functions,firestore:rules,firestore:indexes",
@@ -36,6 +38,7 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "5.0.2",
     "@playwright/test": "^1.61.1",

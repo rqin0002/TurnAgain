@@ -1,37 +1,66 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-// The accessibility statement. The evidence (axe and Lighthouse reports, screenshots) is
-// docs/ACCESSIBILITY.md; the table below says so rather than claiming it exists.
+// The accessibility statement: what the site aims for, which checks were run and when, and where
+// the records are. The two tables below are static copy kept in step with docs/ACCESSIBILITY.md,
+// which holds the same facts next to the raw evidence (axe and Lighthouse reports, screenshots)
+// under docs/evidence. A check that has not been run says so instead of disappearing.
+const CHECKED_ON = '2026-10-08'
+
 const tested = [
   {
     method: 'Keyboard only',
-    what: 'Every page is operable without a mouse: the skip link, the menu, forms, filters, the map list and the rating form, with a visible focus ring on each control.',
+    what: 'Tab order from the skip link through the header, main content and footer on the six main pages, a visible focus ring on every stop, no keyboard trap, and Escape on the menu and the My bookings cancel dialog.',
+    result: `Checked ${CHECKED_ON} on the six main pages in Chromium: the skip link is the first Tab stop, every stop shows a focus ring, Tab never gets stuck, and Escape closes the menu and the cancel dialog with focus returned.`,
   },
   {
     method: 'NVDA with Firefox',
     what: 'Headings, landmarks, form labels, error messages, live regions for result counts and status messages, and the names of the map and chart alternatives.',
+    result: 'Not run yet. The checklist and the transcript template are in docs/ACCESSIBILITY.md.',
   },
   {
     method: 'TalkBack with Chrome on Android',
     what: 'Touch exploration of the same pages, 44 px targets, and the menu button announcing its state.',
+    result: 'Not run.',
   },
   {
     method: 'axe in both themes',
-    what: 'Automated checks on the six main pages in the light and the dark theme, including colour contrast at AA.',
+    what: 'Automated checks on twelve pages (the six main pages and six further states) in the light and the dark theme, including colour contrast at AA.',
+    result: `Checked ${CHECKED_ON} with axe-core 4.13.0 on twelve pages (the six main pages, the map view, an activity, a service, My bookings and the two staff registers) in both themes: no serious, critical, moderate or minor issue; the details are in docs/ACCESSIBILITY.md.`,
   },
   {
     method: '200% zoom',
-    what: 'Text-only zoom and browser zoom to 200% without loss of content or horizontal scrolling at the contract breakpoints.',
+    what: 'Layout at the recorded viewport widths, including a 200% browser-zoom layout proxy.',
+    result: `Checked ${CHECKED_ON}: no horizontal page scrolling at the recorded widths. Text-only zoom and loss of content or functionality under actual browser zoom have not been checked.`,
   },
 ]
 
 const evidence = [
-  { item: 'axe reports (light and dark theme)', where: 'docs/ACCESSIBILITY.md, docs/evidence/' },
-  { item: 'Lighthouse accessibility reports', where: 'docs/ACCESSIBILITY.md, docs/evidence/' },
-  { item: 'Screen-reader pass notes (NVDA, TalkBack)', where: 'docs/ACCESSIBILITY.md' },
-  { item: 'Keyboard walkthrough of the six main pages', where: 'docs/ACCESSIBILITY.md' },
-  { item: 'Screenshots at 200% zoom and at each breakpoint', where: 'docs/evidence/' },
+  {
+    item: 'axe reports (light and dark theme)',
+    where: 'docs/ACCESSIBILITY.md, docs/evidence/axe/',
+    lastRun: CHECKED_ON,
+  },
+  {
+    item: 'Lighthouse reports (light and dark theme)',
+    where: 'docs/ACCESSIBILITY.md, docs/evidence/lighthouse/',
+    lastRun: CHECKED_ON,
+  },
+  {
+    item: 'Screen-reader pass notes (NVDA, TalkBack)',
+    where: 'docs/ACCESSIBILITY.md',
+    lastRun: 'Not run',
+  },
+  {
+    item: 'Keyboard walkthrough of the six main pages',
+    where: 'docs/ACCESSIBILITY.md',
+    lastRun: CHECKED_ON,
+  },
+  {
+    item: 'Screenshots at each breakpoint and at the 200% zoom layout proxy',
+    where: 'docs/evidence/screenshots/',
+    lastRun: CHECKED_ON,
+  },
 ]
 </script>
 
@@ -51,13 +80,14 @@ const evidence = [
       <section aria-labelledby="a11y-tested-title">
         <h2 id="a11y-tested-title" class="section-title">What is tested</h2>
         <p>
-          Each release is checked in these five ways before it goes live. The results are recorded
-          in the evidence table below.
+          Five checks, each with its latest result. The keyboard, zoom and axe runs carry the date
+          they were made; a screen-reader pass that has not been run says so.
         </p>
         <dl class="accessibility-page__list">
           <div v-for="entry in tested" :key="entry.method">
             <dt>{{ entry.method }}</dt>
             <dd>{{ entry.what }}</dd>
+            <dd class="accessibility-page__result">{{ entry.result }}</dd>
           </div>
         </dl>
       </section>
@@ -100,20 +130,22 @@ const evidence = [
         <h2 id="a11y-evidence-title" class="section-title">Evidence</h2>
         <table class="accessibility-page__table">
           <caption>
-            Where each piece of evidence lives. The evidence folder and docs/ACCESSIBILITY.md arrive
-            with milestone 7 of the project plan; until then this statement is the target, not a
-            record of a completed audit.
+            Where each piece of evidence lives and when it was last produced. The evidence folder
+            and docs/ACCESSIBILITY.md belong to the project's documentation and travel with the
+            submission.
           </caption>
           <thead>
             <tr>
               <th scope="col">Evidence</th>
               <th scope="col">Location</th>
+              <th scope="col">Last run</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in evidence" :key="row.item">
               <th scope="row">{{ row.item }}</th>
               <td>{{ row.where }}</td>
+              <td>{{ row.lastRun }}</td>
             </tr>
           </tbody>
         </table>
@@ -183,6 +215,11 @@ const evidence = [
 
 .accessibility-page__list dd {
   margin: 0;
+}
+
+.accessibility-page__result {
+  color: var(--color-heading);
+  font-size: 0.9375rem;
 }
 
 .accessibility-page__bullets {
