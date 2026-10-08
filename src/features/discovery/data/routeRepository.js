@@ -3,12 +3,15 @@ import { RepositoryError, isAbortError, throwIfAborted } from '@/shared/data/Rep
 import { isCoordinate } from '../domain/nearbyServices.js'
 
 /**
- * The OSRM fetch: FOSSGIS's routed-{foot|bike|car} servers, from the browser,
- * no key. The policy is one request per second and attribution, so a module-level gate refuses a
- * second request inside the window, a module-level memo (memory only, never storage) answers a
- * repeat without a request, and every fetch carries an 8 s timeout. Every failure maps to
- * `RepositoryError`: `unavailable` for anything the server or the parse says, `offline` only when
- * the fetch itself rejected while `navigator.onLine` was false at that moment.
+ * Walking, cycling and driving routes for the trip panel of Service Detail, from the public OSRM
+ * servers FOSSGIS runs at routing.openstreetmap.de (no key; called from the browser). Their usage
+ * policy asks for at most one request a second and attribution, so a module-level gate refuses a
+ * second request inside a second, a module-level memo (memory only, never storage) answers a
+ * repeat without a request, and every fetch has an 8 s timeout.
+ * Failures become `RepositoryError`: `invalid-data` for an unknown mode or a missing point,
+ * `unavailable` for a refusal, a failed fetch, a timeout or an unreadable answer, and `offline`
+ * only when the fetch rejected while `navigator.onLine` was false. The caller's own abort is
+ * rethrown unchanged.
  */
 
 export const ROUTE_HOST = 'https://routing.openstreetmap.de'
@@ -19,10 +22,17 @@ export const ROUTE_TIMEOUT_MS = 8000
 const memo = new Map()
 let lastRequestAt = null
 
-const memoKey = ({ origin, mode, serviceId }) =>
-  `${mode}|${origin.latitude.toFixed(3)}|${origin.longitude.toFixed(3)}|${serviceId}`
+// One remembered route per travel mode, start point (rounded to 3 dp, as sent to the router) and
+// destination coordinates, so a venue that moves gets a fresh route.
+const memoKey = ({ origin, destination, mode }) =>
+  `${mode}|${origin.latitude.toFixed(3)}|${origin.longitude.toFixed(3)}|${destination.latitude}|${destination.longitude}`
 
-/** `/routed-foot/route/v1/driving/{lon},{lat};{lon},{lat}?overview=full&geometries=geojson` */
+/**
+ * The FOSSGIS request URL. The travel mode is chosen by the server name (routed-foot,
+ * routed-bike, routed-car); `/route/v1/driving/` is the fixed OSRM path all three expect, whatever
+ * the mode. Points are `longitude,latitude`; the origin is rounded to 3 dp before it leaves the
+ * browser.
+ */
 export function routeUrl({ origin, destination, mode }) {
   const profile = ROUTE_PROFILES[mode]
   const from = `${origin.longitude.toFixed(3)},${origin.latitude.toFixed(3)}`
@@ -34,6 +44,19 @@ const unavailable = (message, cause) =>
   new RepositoryError('unavailable', message, cause === undefined ? {} : { cause })
 
 const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false
+
+const isDistance = (value) => Number.isFinite(value) && value >= 0
+/** A GeoJSON position, [longitude, latitude], inside the coordinate ranges. */
+const isPosition = (position) =>
+  Array.isArray(position) &&
+  position.length >= 2 &&
+  isCoordinate({ latitude: position[1], longitude: position[0] })
+/** An Ok route the page can draw and describe: real distance and time, a line of 2+ points. */
+const isUsableRoute = (route) =>
+  isDistance(route.distance) &&
+  isDistance(route.duration) &&
+  route.geometry.coordinates.length >= 2 &&
+  route.geometry.coordinates.every(isPosition)
 
 /**
  * The fetch signal: the caller's abort plus the 8 s timeout, and a `dispose` for the fallback's
@@ -63,12 +86,13 @@ function requestSignal(signal) {
 }
 
 /**
- * @param {{ origin: { latitude: number, longitude: number }, destination: { latitude: number, longitude: number }, mode: 'walking' | 'cycling' | 'driving', serviceId: string }} request
+ * @param {{ origin: { latitude: number, longitude: number }, destination: { latitude: number, longitude: number }, mode: 'walking' | 'cycling' | 'driving', serviceId?: string }} request
+ *   `serviceId` is accepted and ignored: the route depends on the coordinates only.
  * @param {{ signal?: AbortSignal, fetchImpl?: typeof fetch, now?: () => number }} [options]
  * @returns {Promise<{ mode: string, distanceKm: number, durationMinutes: number, geometry: Array<[number, number]>, provider: 'fossgis' }>}
  */
 export async function getRoute(
-  { origin, destination, mode, serviceId },
+  { origin, destination, mode },
   { signal, fetchImpl = fetch, now = Date.now } = {},
 ) {
   throwIfAborted(signal)
@@ -78,7 +102,7 @@ export async function getRoute(
   if (!isCoordinate(origin) || !isCoordinate(destination)) {
     throw new RepositoryError('invalid-data', 'A route needs a start point and a venue.')
   }
-  const key = memoKey({ origin, mode, serviceId })
+  const key = memoKey({ origin, destination, mode })
   if (memo.has(key)) return memo.get(key)
 
   const at = now()
@@ -120,6 +144,11 @@ export async function getRoute(
   const route = body?.routes?.[0]
   if (body?.code !== 'Ok' || !route || !Array.isArray(route.geometry?.coordinates)) {
     throw unavailable(`The routing service found no route (${body?.code ?? 'no code'}).`)
+  }
+  // Checked before anything is remembered, so a malformed answer falls back to the estimate and
+  // the next request asks again.
+  if (!isUsableRoute(route)) {
+    throw unavailable('The routing service answered with something that is not a route.')
   }
   const result = Object.freeze({
     mode,
