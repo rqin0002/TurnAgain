@@ -14,20 +14,24 @@ const PAGE_RESETTING_KEYS = [
   'location',
   'near',
   'actionTypes',
+  'open',
   'sort',
   'radius',
   'pageSize',
 ]
 
 /**
- * The `/find-nearby` query as state: `state` is the parsed route query, `update(patch)`
- * is the only writer (always `router.replace`, so Back leaves the results page in one step), and
- * the canonical watcher rewrites the URL at most once per navigation when the origin status or
- * the device's answer makes `near=me` or `sort=nearest` impossible. `settled` is the
- * view's: true once its `restoreIfGranted()` has resolved (at once when the URL carries no
- * `near=me`) and no typed lookup is resolving (`!resolvingTyped`). The watcher runs after the
- * render flush, so a lookup the view starts for a new `location` in the same flush is already
- * resolving when the URL is judged.
+ * The Find nearby filters live in the page URL, so a search can be shared, bookmarked and
+ * reloaded. On the Find nearby page this composable is the only code that parses or changes
+ * them; Home and the guides only link in with a starting query, and the app shell keeps a copy
+ * of the whole URL for its Find nearby link. `state` is the parsed route query. `update(patch)`
+ * is how the page changes a filter: always `router.replace`, so Back leaves the results page in
+ * one step, and a changed filter starts the list at page 1. A canonical watcher also rewrites the
+ * URL, at most once per navigation, when the origin status or the device's answer makes
+ * `near=me` or `sort=nearest` impossible; it waits for `settled`, the view's flag that its
+ * `restoreIfGranted()` has resolved (at once when the URL carries no `near=me`) and no typed
+ * location lookup is running. The watcher runs after the render flush, so a lookup the view
+ * starts for a new `location` in the same flush is already running when the URL is judged.
  *
  * @param {{ originStatus: import('vue').MaybeRefOrGetter<string>, deviceStatus?: import('vue').MaybeRefOrGetter<string | null>, settled: import('vue').MaybeRefOrGetter<boolean> }} options
  * @returns {{ state: import('vue').ComputedRef<object>, update: (patch: object) => Promise<unknown>, canonical: import('vue').ComputedRef<object> }}

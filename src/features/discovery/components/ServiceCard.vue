@@ -12,8 +12,9 @@ import { formatCardTrip } from '../domain/trip.js'
 /**
  * One result: the number badge in the brand colour (the pin's number), action
  * tags, the name, the address line, the distance with the walking estimate, the match label,
- * the first opening-hours line, the compact rating (Top rated and highest-rated
- * sorts) and the source. An `area` record shows "In the 3168 area (exact venue not published)"
+ * the first opening-hours line (with "Hours not checked" under it when "Open now" is on and the
+ * hours could not be read), the compact rating (Top rated and "Rating: high to low") and the
+ * source. An `area` record shows "In the 3168 area (exact venue not published)"
  * and no minutes. Directions left the card for Service Detail's TripPlanner;
  * the card never requests a route. `TopRatedServices` passes `service`, `show-rating` and
  * `rating-summary` only.
@@ -29,6 +30,8 @@ const props = defineProps({
   showMapAction: { type: Boolean, default: false },
   showRating: { type: Boolean, default: false },
   ratingSummary: { type: Object, default: null },
+  /** "Open now" is on and this place's hours could not be read: say so instead of hiding it. */
+  hoursUnchecked: { type: Boolean, default: false },
   /** The name's heading level: 3 under a section's h2, 4 under the Other options h3. */
   headingLevel: { type: Number, default: 3, validator: (level) => level >= 2 && level <= 4 },
 })
@@ -76,6 +79,7 @@ const openingHours = computed(() => props.service.openingHours?.[0] ?? '')
       <p v-if="matchLabel" class="service-card__match">{{ matchLabel }}</p>
       <p class="service-card__summary">{{ service.summary }}</p>
       <p v-if="openingHours" class="service-card__hours">{{ openingHours }}</p>
+      <p v-if="hoursUnchecked" class="service-card__hours-unchecked">Hours not checked</p>
       <div v-if="showRating" class="service-card__rating">
         <RatingSummary compact :summary="ratingSummary" />
       </div>
@@ -157,6 +161,13 @@ const openingHours = computed(() => props.service.openingHours?.[0] ?? '')
   margin: 0.625rem 0 0;
   color: var(--color-text-muted);
   font-size: 0.9375rem;
+}
+
+.service-card__hours-unchecked {
+  margin: 0.25rem 0 0;
+  color: var(--color-heading);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .service-card__match {

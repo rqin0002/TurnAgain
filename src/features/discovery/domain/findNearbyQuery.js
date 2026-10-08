@@ -3,8 +3,9 @@ import { normalizePagination } from '@/shared/domain/pagination.js'
 import { validateSearchInput } from './searchValidation.js'
 
 /**
- * The `/find-nearby` URL contract, one serialiser. `parseFindNearbyQuery` is the only
- * reader of the route query and `toFindNearbyQuery` the only writer; the in-memory state below is
+ * The `/find-nearby` URL contract, one serialiser. On the Find nearby page,
+ * `parseFindNearbyQuery` is the only reader of the route query and `toFindNearbyQuery` the only
+ * writer (Home and the guides only link in with a starting query); the in-memory state below is
  * the single truth every discovery composable and component works from. Invalid values are
  * dropped in memory (the form shows the field error), nothing ever redirects, coordinates never
  * appear, and `radius: null` means "not chosen" (the origin's default, `effectiveRadius`).
@@ -30,6 +31,7 @@ const list = (value) => (Array.isArray(value) ? value : value === undefined ? []
  * @property {string} location
  * @property {boolean} near
  * @property {Array<'repair' | 'reuse' | 'recycle'>} actionTypes
+ * @property {boolean} open   the "Open now" chip: `open=1` in the URL
  * @property {'name-asc' | 'name-desc' | 'nearest' | 'highest-rated'} sort
  * @property {2 | 5 | 10 | 20 | 0 | null} radius
  * @property {'list' | 'map'} view
@@ -55,6 +57,7 @@ export function parseFindNearbyQuery(query = {}) {
     location: checked.errors.location ? '' : checked.values.location,
     near: firstString(source.near) === 'me',
     actionTypes: FIND_NEARBY_ACTIONS.filter((action) => actions.includes(action)),
+    open: firstString(source.open) === '1',
     sort: FIND_NEARBY_SORTS.includes(sort) ? sort : 'name-asc',
     radius:
       /^(?:2|5|10|20|0)$/u.test(firstString(source.radius)) && FIND_NEARBY_RADII.includes(radius)
@@ -75,6 +78,7 @@ export function toFindNearbyQuery(state) {
   if (state.location) query.location = state.location
   if (state.near) query.near = 'me'
   if (state.actionTypes.length > 0) query.action = [...state.actionTypes]
+  if (state.open) query.open = '1'
   if (state.sort !== 'name-asc') query.sort = state.sort
   if (state.radius !== null) query.radius = String(state.radius)
   if (state.view !== 'list') query.view = state.view
@@ -88,6 +92,7 @@ const COMPARED_KEYS = [
   'item',
   'location',
   'near',
+  'open',
   'sort',
   'radius',
   'view',

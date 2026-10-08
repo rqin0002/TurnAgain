@@ -8,13 +8,15 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 
 import { isMappableGeo } from '../domain/nearbyServices.js'
-import { formatMatchLabel } from '../domain/resultsCopy.js'
+import { formatMatchLabel, formatNoneOpenNow } from '../domain/resultsCopy.js'
 import ServiceCard from './ServiceCard.vue'
 
 /**
  * The results list: one `role="status"` live region (the status line), the
  * numbered cards of the current page, the "Other options" block of the relaxed verb hint,
- * the three list states on StatePanel and the pagination. Everything arrives as
+ * the list states on StatePanel and the pagination. With "Open now" on and nothing in range open,
+ * a panel says so above any place whose hours could not be read (those stay listed, marked
+ * "Hours not checked") and offers to turn the chip off. Everything arrives as
  * props from `FindNearbyView`, the composition root: this component calls no
  * composable and imports no data module, so the ratings call is the view's.
  */
@@ -47,6 +49,12 @@ const props = defineProps({
   radius: { type: Number, default: 10 },
   /** A map area is applied: the empty list offers to clear it instead of widening. */
   viewportApplied: { type: Boolean, default: false },
+  /** The "Open now" chip is on. */
+  openNow: { type: Boolean, default: false },
+  /** Each listed place's opening status at the current minute: 'open' | 'closed' | 'unknown'. */
+  openingById: { type: Object, default: () => ({}) },
+  /** How many places in range have hours that could not be read (the none-open-now message). */
+  hoursUncheckedCount: { type: Number, default: 0 },
 })
 const emit = defineEmits([
   'retry',
@@ -56,6 +64,7 @@ const emit = defineEmits([
   'update:page',
   'update:pageSize',
   'update:radius',
+  'update:open',
 ])
 
 const errorVariant = computed(() => (props.error?.code === 'offline' ? 'offline' : 'error'))
@@ -81,9 +90,11 @@ const noneInRadiusMessage = computed(() =>
 )
 const missingLabel = computed(
   () =>
-    `Include ${props.missingLocationCount} ${props.missingLocationCount === 1 ? 'place' : 'places'} without a map position`,
+    `Show every distance (includes ${props.missingLocationCount} ${props.missingLocationCount === 1 ? 'place' : 'places'} without a map position)`,
 )
 const labelFor = (id) => formatMatchLabel(props.matches[id])
+const hoursUnchecked = (id) => props.openNow && props.openingById[id] === 'unknown'
+const noneOpenNowMessage = computed(() => formatNoneOpenNow(props.hoursUncheckedCount))
 // A summary still loading would read "Rating unavailable" on every card; the header's loading
 // note speaks for the ratings until they arrive.
 const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !== 'loading')
@@ -155,6 +166,20 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
         >'
       </p>
 
+      <StatePanel
+        v-if="listState === 'none-open-now'"
+        variant="empty"
+        :live="false"
+        title="No places open right now"
+        :message="noneOpenNowMessage"
+      >
+        <div class="results-empty__actions">
+          <AppButton variant="secondary" @click="emit('update:open', false)">
+            Turn off Open now
+          </AppButton>
+        </div>
+      </StatePanel>
+
       <div v-if="paged.items.length" data-testid="result-list">
         <ServiceCard
           v-for="entry in paged.items"
@@ -169,6 +194,7 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
           :show-map-action="showMapAction && isMappableGeo(entry.service.geo)"
           :show-rating="cardRatingsReady"
           :rating-summary="summariesById[entry.service.id] ?? null"
+          :hours-unchecked="hoursUnchecked(entry.service.id)"
           @select="emit('select', entry.service.id)"
         />
       </div>
@@ -229,6 +255,7 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
           :distance-km="entry.distanceKm"
           :match-label="labelFor(entry.service.id)"
           :selected="selectedId === entry.service.id"
+          :hours-unchecked="hoursUnchecked(entry.service.id)"
           :heading-level="4"
         />
       </section>

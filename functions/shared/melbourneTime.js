@@ -86,6 +86,36 @@ export function melbourneDayKey(value) {
   return `${parts.year}-${parts.month}-${parts.day}`
 }
 
+const clockFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: MELBOURNE_TIME_ZONE,
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+/**
+ * The Melbourne wall clock of an instant: the weekday as 'mon' to 'sun' and the minutes since
+ * Melbourne midnight (0-1439), daylight saving included. Null for a value that is not an
+ * instant, so a caller can say "unknown" instead of guessing a day.
+ *
+ * @param {Date | string} value
+ * @returns {{ weekday: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', minutes: number } | null}
+ */
+export function melbourneClock(value) {
+  const date = toDate(value)
+  if (!date) {
+    return null
+  }
+  const parts = Object.fromEntries(
+    clockFormat.formatToParts(date).map(({ type, value: part }) => [type, part]),
+  )
+  return {
+    weekday: parts.weekday.toLowerCase(),
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+  }
+}
+
 /**
  * The first instant of the Melbourne calendar day after `now` (a Date or an ISO string). Days are
  * 23 or 25 hours long across the two daylight-saving changes, so the answer is searched, never

@@ -3,10 +3,10 @@ import { shallowRef } from 'vue'
 import { CACHE_KEYS, clearCache, readCache, writeCache } from '@/shared/data/localCache.js'
 
 /**
- * The last search (`turnagain:v1:lastSearch`): `item`, `location`, `actionTypes` and a
- * `sort` other than nearest, nothing else, so Home can prefill the form. Never `near`, never
- * coordinates, never the view, the follow flag or the page. A composable so no view imports
- * `shared/data` directly.
+ * The last search (`turnagain:v1:lastSearch`): `item`, `location`, `actionTypes`, the
+ * "Open now" chip (`open`) and a `sort` other than nearest, nothing else, so Home can prefill
+ * the form. Never `near`, never coordinates, never the view, the follow flag or the page. A
+ * composable so no view imports `shared/data` directly.
  */
 
 const LAST_SEARCH_SORTS = ['name-asc', 'name-desc', 'highest-rated']
@@ -23,13 +23,14 @@ const project = (value) => {
     item: text(value.item),
     location: text(value.location),
     actionTypes,
+    open: value.open === true,
     sort: LAST_SEARCH_SORTS.includes(value.sort) ? value.sort : 'name-asc',
   }
 }
 
 /**
  * @returns {{
- *   lastSearch: import('vue').ShallowRef<{ item: string, location: string, actionTypes: string[], sort: string } | null>,
+ *   lastSearch: import('vue').ShallowRef<{ item: string, location: string, actionTypes: string[], open: boolean, sort: string } | null>,
  *   remember: (state: object) => boolean,
  *   forget: () => void
  * }}
@@ -37,10 +38,12 @@ const project = (value) => {
 export function useLastSearch() {
   const lastSearch = shallowRef(project(readCache(CACHE_KEYS.lastSearch)?.value))
 
-  /** Writes the four keys; an empty search (no item, place or chip) is not worth remembering. */
+  /** Writes the five keys; an empty search (no item, place or chip) is not worth remembering. */
   const remember = (state) => {
     const value = project({ ...state, sort: state?.sort === 'nearest' ? 'name-asc' : state?.sort })
-    if (!value.item && !value.location && value.actionTypes.length === 0) return false
+    if (!value.item && !value.location && value.actionTypes.length === 0 && !value.open) {
+      return false
+    }
     const written = writeCache(CACHE_KEYS.lastSearch, value)
     if (written) lastSearch.value = value
     return written

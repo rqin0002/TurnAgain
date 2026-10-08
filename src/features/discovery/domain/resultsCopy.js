@@ -26,8 +26,10 @@ const places = (count) => `${count} ${count === 1 ? 'place' : 'places'}`
 
 /**
  * "12 places within 5 km of Clayton 3168; 8 match 'microwave', 4 may take small appliances".
+ * With "Open now" on, the places whose hours could not be read stay in the list and the count
+ * says so: "...; 2 with hours not checked".
  *
- * @param {{ count: number, scope: { kind: 'radius', radiusKm: number, originLabel: string } | { kind: 'viewport' } | { kind: 'all' }, item?: string, directCount?: number, categoryCount?: number, categoryLabel?: string, truncated?: boolean }} options
+ * @param {{ count: number, scope: { kind: 'radius', radiusKm: number, originLabel: string } | { kind: 'viewport' } | { kind: 'all' }, item?: string, directCount?: number, categoryCount?: number, categoryLabel?: string, hoursUncheckedCount?: number, truncated?: boolean }} options
  */
 export function formatResultsStatus({
   count,
@@ -36,6 +38,7 @@ export function formatResultsStatus({
   directCount = 0,
   categoryCount = 0,
   categoryLabel = '',
+  hoursUncheckedCount = 0,
   truncated = false,
 }) {
   let where
@@ -55,8 +58,20 @@ export function formatResultsStatus({
     if (categoryLabel) clauses.push(`${categoryCount} may take ${categoryLabel}`)
     sentence += `; ${clauses.join(', ')}`
   }
+  if (hoursUncheckedCount > 0) sentence += `; ${hoursUncheckedCount} with hours not checked`
   if (truncated) sentence += ', sorted within the first 1,000 loaded records'
   return sentence
+}
+
+/**
+ * The message of the empty "Open now" list: no place in range is open by its published hours.
+ * The places whose hours could not be read are still listed, and the sentence counts them.
+ */
+export function formatNoneOpenNow(uncheckedCount) {
+  const first = 'No places open right now by their published hours.'
+  if (uncheckedCount === 1) return `${first} 1 has hours that could not be checked.`
+  if (uncheckedCount > 1) return `${first} ${uncheckedCount} have hours that could not be checked.`
+  return first
 }
 
 /**

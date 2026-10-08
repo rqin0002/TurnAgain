@@ -8,16 +8,18 @@ import { FIND_NEARBY_ACTIONS, FIND_NEARBY_RADII } from '../domain/findNearbyQuer
 import { formatActionType } from '../domain/servicePresentation.js'
 
 /**
- * The refinement rows of Find nearby: the toolbar row holds the
- * action chips with counts and, at its right end, the one Map | List button (a real button whose
- * label names the other view: "Map" in list view, "List" in map view; shown only while the view
- * says a search has results); then the location chip with the radius and sort as native selects
- * styled as chips; then, in map view only, "Update as map moves". Props in, events out; the view
- * owns the URL state (`view=list|map` stays the single truth).
+ * The refinement rows of Find nearby: the toolbar row holds the action chips with counts, the
+ * "Open now" chip and, at its right end, the one Map | List button (a real button whose label
+ * names the other view: "Map" in list view, "List" in map view; shown only while the view says a
+ * search has results); then the location chip with the radius and sort as native selects styled
+ * as chips; then, in map view only, "Update as map moves". Props in, events out; the view owns the
+ * URL state (`view=list|map` stays the single truth).
  */
 const props = defineProps({
   actionTypes: { type: Array, default: () => [] },
   counts: { type: Object, default: () => ({}) },
+  /** The "Open now" chip (`open=1`). */
+  open: { type: Boolean, default: false },
   /** The effective radius (`effectiveRadius`): 2 | 5 | 10 | 20 | 0. */
   radius: { type: Number, default: 10 },
   viewportApplied: { type: Boolean, default: false },
@@ -33,6 +35,7 @@ const props = defineProps({
 })
 const emit = defineEmits([
   'update:actionTypes',
+  'update:open',
   'update:radius',
   'update:sort',
   'update:follow',
@@ -49,7 +52,7 @@ const SORT_OPTIONS = [
   { value: 'name-asc', label: 'Name: A–Z' },
   { value: 'name-desc', label: 'Name: Z–A' },
   { value: 'nearest', label: 'Nearest' },
-  { value: 'highest-rated', label: 'Highest rated' },
+  { value: 'highest-rated', label: 'Rating: high to low' },
 ]
 
 const actionChips = computed(() =>
@@ -99,6 +102,7 @@ const toggleView = () => emit('update:view', isMapView.value ? 'list' : 'map')
           @toggle="toggleAction(chip.action)"
         />
       </div>
+      <Chip label="Open now" :pressed="open" @toggle="emit('update:open', !open)" />
       <AppButton
         v-if="showViewToggle"
         variant="secondary"

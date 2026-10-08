@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 
 import { useActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
 import { selectRelatedActivities } from '@/features/activities/domain/activityCatalogue.js'
@@ -73,7 +73,19 @@ const { remember } = useLastSearch()
 const activities = useActivityCatalogue({ autoLoad: false })
 const { online } = useOnlineStatus()
 
-// Highest rated: the candidate ids go to the ratings feature from
+// "Open now" compares the published hours with the clock, so the time is read again each minute
+// on a page left open; the results pipeline reads it through a getter.
+const now = ref(new Date())
+const readClock = () => {
+  now.value = new Date()
+}
+let clock = null
+onMounted(() => {
+  clock = window.setInterval(readClock, 60000)
+})
+onBeforeUnmount(() => window.clearInterval(clock))
+
+// "Rating: high to low": the candidate ids go to the ratings feature from
 // here and the summaries come back in. The ids are handed over only when the set itself changes
 // (a new array of the same ids starts no read), and the pipeline sees 'loading', so it keeps the
 // previous order, until the round for the ids listed now is ready; it also receives those ids as
@@ -95,6 +107,7 @@ const results = useDiscoveryResults({
   ratingStatus: () => ratingStatus.value,
   ratingIds: rankedIds,
   truncated: catalogue.truncated,
+  now: () => now.value,
 })
 const ratingStatus = computed(() =>
   keyOf(rankedIds.value) === keyOf(results.candidateIds.value) ? ranking.status.value : 'loading',
@@ -229,6 +242,15 @@ const onRadius = async (radius) => {
 }
 const onFollow = (follow) => update({ follow })
 const onActions = (actionTypes) => update({ actionTypes })
+const onOpen = (open) => update({ open })
+// "Turn off Open now" sits in the empty-state panel that turning the filter off removes, so focus
+// moves to the results heading once the list is back, never <body> (the toolbar chip stays and
+// keeps focus).
+const onTurnOffOpen = async () => {
+  await update({ open: false })
+  await nextTick()
+  document.getElementById('results-heading')?.focus()
+}
 const onClearOrigin = async () => {
   locationOrigin.clearOrigin()
   supersedeViewport({ type: 'clear-viewport' })
@@ -415,6 +437,7 @@ onMounted(async () => {
           <DiscoveryChips
             :action-types="state.actionTypes"
             :counts="results.counts.value"
+            :open="state.open"
             :radius="results.effectiveRadius.value"
             :viewport-applied="appliedViewport !== null"
             :sort="state.sort"
@@ -424,6 +447,7 @@ onMounted(async () => {
             :view="state.view"
             :show-view-toggle="showViewToggle"
             @update:action-types="onActions"
+            @update:open="onOpen"
             @update:radius="onRadius"
             @update:sort="onSort"
             @update:follow="onFollow"
@@ -501,6 +525,9 @@ onMounted(async () => {
             :saved-at="catalogue.savedAt.value"
             :radius="results.effectiveRadius.value"
             :viewport-applied="appliedViewport !== null"
+            :open-now="results.openNow.value"
+            :opening-by-id="results.openingById.value"
+            :hours-unchecked-count="results.openCounts.value.unknown"
             @retry="catalogue.retry"
             @retry-ratings="ranking.retry"
             @clear-viewport="onClearViewport"
@@ -508,6 +535,7 @@ onMounted(async () => {
             @update:page="update({ page: $event })"
             @update:page-size="update({ pageSize: $event })"
             @update:radius="onRadius"
+            @update:open="onTurnOffOpen"
           />
         </div>
 
