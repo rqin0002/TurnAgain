@@ -1,6 +1,5 @@
 import {
   Timestamp,
-  deleteField,
   doc,
   getDoc,
   runTransaction,
@@ -18,9 +17,9 @@ import { COLLECTION_OF_KIND } from '../domain/staffRecords.js'
 /**
  * The staff content writes, built on a Firestore Lite `db`
  * the caller passes, so the app hands in its singleton (staffRepository.js) and tests/api hands in
- * an emulator client signed in as staff (the bookingTransactions.js pattern). Every update carries
+ * an emulator client signed in as staff, as bookingTransactions.js does. Every update carries
  * the content fields, `revision: loaded + 1` and `updatedAt`, never a counter; a create writes
- * `revision: 1` and both stamps; a new service writes its zero rating summary in the same batch
+ * `revision: 1` and both stamps; a new service writes its zero rating summary in the same batch.
  * Nothing is ever deleted. A refused write is classified by re-reading the record:
  * a stored revision that moved is a conflict, an invalid record is invalid-data, anything
  * else stays permission. Writes never take the identity signal: a sent write cannot be
@@ -122,14 +121,12 @@ const contentOf = (kind, record) => {
 }
 
 /**
- * A session update also drops the legacy title and adds the notice key when the stored session
- * lacks it. Once the key exists only the email function and "Mark participants
- * notified" set it, so an update never sends it.
+ * A session update adds the notice key, as null, when the stored session lacks it. Once the key
+ * exists only the email function and "Mark participants notified" set it, so an update never
+ * sends it.
  */
-const sessionUpdateExtras = (noticeFieldStored) => ({
-  activityTitle: deleteField(),
-  ...(noticeFieldStored ? {} : { cancellationNoticeAt: null }),
-})
+const sessionUpdateExtras = (noticeFieldStored) =>
+  noticeFieldStored ? {} : { cancellationNoticeAt: null }
 
 const duplicateId = (cause) =>
   new RepositoryError('invalid-data', DUPLICATE_ID_MESSAGE, {
@@ -416,7 +413,6 @@ export async function writeParticipantsNotified(db, session) {
   await commit(db, 'sessions', session, {}, (batch) => {
     batch.update(doc(db, 'activitySessions', session.id), {
       cancellationNoticeAt: serverTimestamp(),
-      activityTitle: deleteField(),
       revision,
       updatedAt: serverTimestamp(),
     })

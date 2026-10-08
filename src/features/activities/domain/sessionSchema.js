@@ -12,9 +12,9 @@ import {
 
 /**
  * The session vocabulary: no `activityTitle` (the UI joins activities), no
- * `geo` (venue text only). `projectSession` tolerates the legacy `activityTitle` key on the six
- * live documents until the migration removes it, and defaults the fields the seed
- * adds later (`revision`, `cancellationNoticeAt`).
+ * `geo` (venue text only). A document with any key outside this vocabulary, `activityTitle`
+ * included, is refused like any other malformed record. `projectSession` defaults the two keys
+ * older documents may lack (`revision`, `cancellationNoticeAt`).
  */
 
 export const SESSION_STATUSES = Object.freeze(['scheduled', 'full', 'cancelled', 'completed'])
@@ -43,9 +43,7 @@ const REQUIRED_KEYS = new Set([
 ])
 const OPTIONAL_KEYS = new Set(['cancellationNoticeAt', 'revision'])
 export const SESSION_KEYS = Object.freeze([...REQUIRED_KEYS, ...OPTIONAL_KEYS].sort())
-// Tolerated on read only (legacy key on the live documents, removed by the migration).
-const LEGACY_KEYS = new Set(['activityTitle'])
-const ALLOWED_KEYS = new Set([...SESSION_KEYS, ...LEGACY_KEYS])
+const ALLOWED_KEYS = new Set(SESSION_KEYS)
 
 export const hasKnownCapacity = (session) =>
   Number.isInteger(session?.capacity) &&
@@ -143,11 +141,8 @@ export function projectSession(documentId, candidate) {
   ) {
     return null
   }
-  // The legacy key is discarded on purpose: sessions carry no title.
-  const record = { ...candidate }
-  delete record.activityTitle
   return {
-    ...record,
+    ...candidate,
     revision: candidate.revision ?? 1,
     cancellationNoticeAt:
       candidate.cancellationNoticeAt == null
