@@ -15,7 +15,8 @@ import { compareText } from '@/shared/domain/tableQuery.js'
 /**
  * The column specs of the two registers. Each column's `text(row)` is what the cell shows and
  * what the CSV and JSON carry, so the export equals the screen; `value(row)` is what it sorts
- * on. Every data column has a sort and its own filter. Pure.
+ * on. Every data column has a sort and its own filter; Actions filters on any of several actions.
+ * `width`, `nowrap` and `wrap` are layout hints for the wide table and change no data. Pure.
  */
 
 const DAY_MS = 86_400_000
@@ -87,6 +88,9 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'text',
     searchValues: (row) => [row.name, row.aliases],
+    placeholder: 'Name or alias…',
+    width: 'wide',
+    wrap: true,
   },
   {
     key: 'actions',
@@ -94,9 +98,10 @@ export const SERVICE_COLUMNS = Object.freeze([
     value: actionsText,
     text: actionsText,
     sort: 'text',
-    filter: 'select',
+    filter: 'multi',
     options: ACTION_OPTIONS,
     matchValues: (row) => [...(row.actionTypes ?? [])],
+    nowrap: true,
   },
   {
     key: 'location',
@@ -106,6 +111,8 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'text',
     searchValues: (row) => [row.suburb, row.postcode, row.address, row.searchAreas],
+    placeholder: 'Suburb or postcode…',
+    nowrap: true,
   },
   {
     key: 'items',
@@ -115,6 +122,8 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'number',
     filter: 'text',
     searchValues: (row) => [row.acceptedItems, (row.itemCategories ?? []).map(categoryLabel)],
+    width: 'narrow',
+    nowrap: true,
   },
   {
     key: 'source',
@@ -123,6 +132,7 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'text',
     searchValues: (row) => [row.source?.organisation, row.source?.url],
+    wrap: true,
   },
   {
     key: 'checked',
@@ -142,6 +152,9 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'select',
     options: ON_MAP_OPTIONS,
+    anyLabel: 'On map: any',
+    width: 'narrow',
+    nowrap: true,
   },
   {
     key: 'status',
@@ -151,6 +164,8 @@ export const SERVICE_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'select',
     options: SERVICE_STATUS_OPTIONS,
+    width: 'narrow',
+    nowrap: true,
   },
 ])
 
@@ -174,6 +189,8 @@ export const SESSION_COLUMNS = Object.freeze([
     value: (row) => row.activityTitle,
     sort: 'text',
     filter: 'text',
+    width: 'wide',
+    wrap: true,
   },
   {
     key: 'date',
@@ -183,6 +200,7 @@ export const SESSION_COLUMNS = Object.freeze([
     sort: 'date',
     filter: 'text',
     searchValues: (row) => [whenText(row)],
+    nowrap: true,
   },
   {
     key: 'location',
@@ -192,6 +210,9 @@ export const SESSION_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'text',
     searchValues: (row) => [row.venueName, row.address, row.suburb, row.postcode],
+    placeholder: 'Venue or suburb…',
+    width: 'wide',
+    wrap: true,
   },
   {
     key: 'booked',
@@ -212,6 +233,8 @@ export const SESSION_COLUMNS = Object.freeze([
     filter: 'text',
     nullsLast: true,
     searchValues: (row) => [waitlistText(row)],
+    width: 'narrow',
+    nowrap: true,
   },
   {
     key: 'type',
@@ -221,6 +244,8 @@ export const SESSION_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'select',
     options: SESSION_TYPE_OPTIONS,
+    width: 'narrow',
+    nowrap: true,
   },
   {
     key: 'status',
@@ -230,6 +255,8 @@ export const SESSION_COLUMNS = Object.freeze([
     sort: 'text',
     filter: 'select',
     options: SESSION_STATUS_OPTIONS,
+    width: 'narrow',
+    nowrap: true,
   },
 ])
 

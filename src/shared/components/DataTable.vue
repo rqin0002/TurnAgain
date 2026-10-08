@@ -8,12 +8,16 @@ import { useSearchDraft } from '../composables/useSearchDraft.js'
 import { cellText } from '../domain/tableQuery.js'
 
 /**
- * The staff tables (WAI-ARIA APG sortable table): a native table with a caption,
- * one sort button per data column (`aria-sort` on the sorted header only), a labelled filter per
- * column, 10 rows a page through `ResultPagination` (its polite output is the count), and below
- * 992 px cards with the filters in a `<details>` and the sort as a `<select>`. The table holds no
- * state: `state` and `result` come from `useTableState`, every change is an event. The column
- * list is read once for the text-filter drafts, so views pass a constant list.
+ * The staff tables' shared table (WAI-ARIA APG sortable table). From 992 px up: a native table
+ * with a caption, one sort button per column header (`aria-sort` on the sorted one) and a filter
+ * row; below: cards, with the filters in a `<details>` and the sort as a `<select>`. It queries
+ * nothing: `state` and `result` come from `useTableState`, and every filter, sort and page change
+ * is emitted for the owner to apply. Its own state is limited to the text being typed in each
+ * filter, the layout, and where focus returns. Text-filter drafts are created once from
+ * `columns`, so pass a constant list.
+ * In the wide layout the table scrolls sideways inside its own box while the row headers stay
+ * pinned at the left (unless a select column comes first); the actions column never wraps; a
+ * column's `width`, `nowrap` and `wrap` hints become cell classes.
  */
 const props = defineProps({
   columns: { type: Array, required: true },
@@ -57,6 +61,14 @@ const filterSummary = computed(() =>
 )
 const firstColumn = computed(() => props.columns[0])
 const otherColumns = computed(() => props.columns.slice(1))
+
+// The layout hints of a column as classes for its header, filter and body cells.
+const cellClasses = (column) => ({
+  'data-table__col--narrow': column.width === 'narrow',
+  'data-table__col--wide': column.width === 'wide',
+  'data-table__cell--nowrap': column.nowrap === true,
+  'data-table__cell--wrap': column.wrap === true,
+})
 
 // One cell's content for both layouts (the card and the table row): the view's `cell-<key>` slot
 // with the row and its cell text, or the text in a `dir="auto"` span, since cells hold typed text.
@@ -203,7 +215,7 @@ const selectSort = (event) => {
     </template>
 
     <div v-else class="data-table__scroll">
-      <table class="data-table__table">
+      <table class="data-table__table" :class="{ 'data-table__table--sticky': !$slots.select }">
         <caption>
           {{
             captionText
@@ -216,6 +228,7 @@ const selectSort = (event) => {
               v-for="column in columns"
               :key="column.key"
               scope="col"
+              :class="cellClasses(column)"
               :aria-sort="ariaSort(column)"
             >
               <button type="button" class="data-table__sort-button" @click="toggleSort(column)">
@@ -223,21 +236,20 @@ const selectSort = (event) => {
                 <span class="data-table__sort-icon" aria-hidden="true">{{ sortIcon(column) }}</span>
               </button>
             </th>
-            <th v-if="$slots.actions" scope="col">Actions</th>
+            <th v-if="$slots.actions" scope="col" class="data-table__actions">Actions</th>
           </tr>
           <tr class="data-table__filter-row">
             <td v-if="$slots.select"></td>
-            <td v-for="column in columns" :key="column.key">
+            <td v-for="column in columns" :key="column.key" :class="cellClasses(column)">
               <DataTableFilter
                 :id="filterId(column)"
                 :column="column"
                 :value="state.filters?.[column.key] ?? ''"
                 :search-draft="textDrafts[column.key]"
-                hide-label
                 @change="changeFilter(column.key, $event)"
               />
             </td>
-            <td v-if="$slots.actions"></td>
+            <td v-if="$slots.actions" class="data-table__actions"></td>
           </tr>
         </thead>
         <tbody>
@@ -249,11 +261,15 @@ const selectSort = (event) => {
           <template v-else>
             <tr v-for="row in result.rows" :key="rowKey(row)">
               <td v-if="$slots.select"><slot name="select" :row="row" /></td>
-              <th scope="row"><ColumnCell :column="firstColumn" :row="row" /></th>
-              <td v-for="column in otherColumns" :key="column.key">
+              <th scope="row" :class="cellClasses(firstColumn)">
+                <ColumnCell :column="firstColumn" :row="row" />
+              </th>
+              <td v-for="column in otherColumns" :key="column.key" :class="cellClasses(column)">
                 <ColumnCell :column="column" :row="row" />
               </td>
-              <td v-if="$slots.actions"><slot name="actions" :row="row" /></td>
+              <td v-if="$slots.actions" class="data-table__actions">
+                <slot name="actions" :row="row" />
+              </td>
             </tr>
           </template>
         </tbody>
@@ -324,7 +340,7 @@ const selectSort = (event) => {
   gap: 0.5rem;
 }
 
-.data-table__field :deep(label) {
+.data-table__field :deep(.data-table-filter__label) {
   color: var(--color-heading);
   font-size: 0.875rem;
   font-weight: 600;
@@ -409,32 +425,38 @@ const selectSort = (event) => {
   margin-top: 1rem;
 }
 
+/* The table scrolls sideways inside this box, never the page. It is positioned so that it contains
+   the absolutely positioned visually hidden labels in its cells; otherwise those labels escape
+   the scroll box and widen the page. */
 .data-table__scroll {
+  position: relative;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-medium);
+  background: var(--color-surface);
   overflow-x: auto;
 }
 
+/* Separate borders (with no spacing) so a pinned cell keeps its own borders while it scrolls. */
 .data-table__table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.9375rem;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .data-table__table th,
 .data-table__table td {
   border-bottom: 1px solid var(--color-border);
-  padding: 0.875rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: middle;
-  overflow-wrap: anywhere;
 }
 
 .data-table__table thead th {
   background: var(--color-surface-muted);
   color: var(--color-text-muted);
-  padding-block: 0.5rem;
+  padding-block: 0.375rem;
   font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
@@ -442,11 +464,50 @@ const selectSort = (event) => {
 
 .data-table__filter-row td {
   background: var(--color-surface-muted);
-  padding-block: 0 0.75rem;
+  padding-block: 0 0.5rem;
+  vertical-align: top;
+}
+
+/* Compact, visibly labelled filters: smaller than the site's 3.125rem form control. */
+.data-table__filter-row :deep(.data-table-filter__label) {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .data-table__filter-row :deep(.form-control) {
   min-width: 8rem;
+  min-height: 2.25rem;
+  padding-block: 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Width hints: a cell's width is the least its column gets in an auto-layout table (min-width is
+   not applied to table cells consistently across browsers). */
+.data-table__col--narrow {
+  width: 6rem;
+}
+
+.data-table__col--wide {
+  width: 14rem;
+}
+
+.data-table__cell--nowrap,
+.data-table__actions {
+  white-space: nowrap;
+}
+
+/* The view's action group (the slot's root element) stays on one line in the table; the table
+   class makes this rule outrank a flex-wrap the view sets on that element. */
+.data-table__table .data-table__actions > :deep(*) {
+  flex-wrap: nowrap;
+}
+
+.data-table__cell--wrap {
+  overflow-wrap: anywhere;
 }
 
 .data-table__table tbody th {
@@ -454,11 +515,25 @@ const selectSort = (event) => {
   font-weight: 600;
 }
 
+/* The row headers and the header cells above them stay at the left while the table scrolls; the
+   inset shadow draws their right edge, which a border cannot do on a pinned cell. */
+.data-table__table--sticky tbody th[scope='row'],
+.data-table__table--sticky thead tr > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: inset -1px 0 0 var(--color-border);
+}
+
+.data-table__table--sticky tbody th[scope='row'] {
+  background: var(--color-surface);
+}
+
 .data-table__table tbody tr:last-child > * {
   border-bottom: 0;
 }
 
-.data-table__table tbody tr:focus-within {
+.data-table__table tbody tr:focus-within > * {
   background: var(--color-surface-muted);
 }
 

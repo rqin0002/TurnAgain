@@ -91,11 +91,19 @@ export function applyTableQuery(
  * @property {(row: object) => string} [text]                  cell text = export text;
  *                                                             default String(value(row) ?? '')
  * @property {'text' | 'number' | 'date'} sort                 required on every data column
- * @property {'text' | 'select'} filter                        required on every data column
- * @property {Array<{ value: string, label: string }>} [options]  required for filter 'select'
+ * @property {'text' | 'select' | 'multi'} filter              required on every data column; 'multi'
+ *                                                             picks any number of options
+ * @property {Array<{ value: string, label: string }>} [options]  required for 'select' and 'multi'
  * @property {(row: object) => unknown[]} [searchValues]       text filter haystack; default [value(row)]
- * @property {(row: object) => string[]} [matchValues]         select filter values; default [String(value(row) ?? '')]
+ * @property {(row: object) => string[]} [matchValues]         select/multi filter values;
+ *                                                             default [String(value(row) ?? '')]
  * @property {boolean} [nullsLast]                              null/invalid values last in both directions
+ * @property {'narrow' | 'wide'} [width]                        table layout hint for the column
+ * @property {boolean} [nowrap]                                 the cell text never wraps
+ * @property {boolean} [wrap]                                   long words may break anywhere
+ * @property {string} [placeholder]                             text filter placeholder
+ * @property {string} [anyLabel]                                select filter's "no filter" option;
+ *                                                             default "Any <label in lower case>"
  */
 
 /** @typedef {{ filters: Record<string, string>, sort: { key: string, direction: 'asc' | 'desc' } | null, page: number }} TableState */
@@ -115,6 +123,31 @@ const firstValue = (value) => (Array.isArray(value) ? value[0] : value)
 const cleanFilter = (value) => value.trim().replace(/\s+/gu, ' ').slice(0, FILTER_MAX_LENGTH)
 
 const isOption = (column, value) => (column.options ?? []).some((option) => option.value === value)
+
+/** The character that joins a multi filter's chosen values in its URL form. */
+export const MULTI_SEPARATOR = ','
+
+/**
+ * The canonical value of a multi filter: the chosen values that are options of the column, each
+ * once, in the column's option order, joined with commas; '' when none is left. Values that are
+ * not options are dropped, so a stale or hand-edited URL never empties the table.
+ *
+ * @param {Column} column - a column with `filter: 'multi'`
+ * @param {string | string[]} values - a comma-joined string (the URL form) or a list of values
+ * @returns {string}
+ */
+export function multiFilterValue(column, values) {
+  const list = Array.isArray(values) ? values : String(values ?? '').split(MULTI_SEPARATOR)
+  const chosen = new Set(list.map((value) => String(value).trim()))
+  return (column.options ?? [])
+    .map((option) => option.value)
+    .filter((value) => chosen.has(value))
+    .join(MULTI_SEPARATOR)
+}
+
+/** The option values a canonical multi filter value names; [] for ''. */
+export const multiFilterValues = (value) =>
+  typeof value === 'string' && value !== '' ? value.split(MULTI_SEPARATOR) : []
 
 /** The text a cell shows and the export writes: `text(row)`, else the value. */
 export function cellText(column, row) {
@@ -137,11 +170,13 @@ function readPage(raw) {
 }
 
 /**
- * The table state a route query names. Filters are allow-listed to the column
- * keys: the first value of a repeated key, trimmed, whitespace collapsed, at most 100 characters;
- * an empty value is dropped and so is a select value that is not one of the column's options (a
- * stale or hand-edited `?status=draft` must not empty the table). `sort` is `<key>:asc|desc` on a
- * column key, else `defaultSort`; `page` is a positive integer of at most five digits, else 1.
+ * The table state a route query names. Filters are allow-listed to the column keys: the first value
+ * of a repeated key, trimmed, whitespace collapsed, at most 100 characters; an empty value is
+ * dropped and so is a select value that is not one of the column's options (a stale or hand-edited
+ * `?status=draft` must not empty the table). A multi value is a comma-joined subset of the options
+ * in option order (`actions=repair,recycle`), cleaned by `multiFilterValue`. `sort` is
+ * `<key>:asc|desc` on a column key, else `defaultSort`; `page` is a positive integer of at most
+ * five digits, else 1.
  *
  * @param {Record<string, unknown>} query - `route.query`
  * @param {Column[]} columns
@@ -156,7 +191,7 @@ export function normalizeTableState(query, columns, { defaultSort = null } = {})
     if (typeof raw !== 'string') {
       continue
     }
-    const value = cleanFilter(raw)
+    const value = column.filter === 'multi' ? multiFilterValue(column, raw) : cleanFilter(raw)
     if (value === '' || (column.filter === 'select' && !isOption(column, value))) {
       continue
     }
@@ -201,9 +236,11 @@ export function toTableQuery(state, columns, { defaultSort = null } = {}) {
 }
 
 function matchesColumn(column, row, filterValue) {
-  if (column.filter === 'select') {
+  if (column.filter === 'select' || column.filter === 'multi') {
     const values = column.matchValues?.(row) ?? [String(column.value(row) ?? '')]
-    return values.includes(filterValue)
+    // A multi filter keeps a row that has any one of the chosen values.
+    const chosen = column.filter === 'multi' ? multiFilterValues(filterValue) : [filterValue]
+    return chosen.some((value) => values.includes(value))
   }
   return matchesTokens(column.searchValues?.(row) ?? [column.value(row)], filterValue)
 }
@@ -248,9 +285,10 @@ function comparatorFor(column, direction) {
 
 /**
  * Filter every column independently (text: every token in `searchValues ?? [value]`; select: the
- * filter value is one of `matchValues ?? [String(value)]`), sort stably on `state.sort` (ties and
- * an absent sort keep the source order), then slice page `state.page` of TABLE_PAGE_SIZE rows,
- * clamped to the last page. `allRows` is every filtered, sorted row (what the exports carry).
+ * filter value is one of `matchValues ?? [String(value)]`; multi: any chosen value is one of them),
+ * sort stably on `state.sort` (ties and an absent sort keep the source order), then slice page
+ * `state.page` of TABLE_PAGE_SIZE rows, clamped to the last page. `allRows` is every filtered,
+ * sorted row (what the exports carry).
  *
  * @param {object[]} rows
  * @param {Column[]} columns

@@ -1,7 +1,12 @@
 import { computed, toValue } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { applyTableState, normalizeTableState, toTableQuery } from '../domain/tableQuery.js'
+import {
+  MULTI_SEPARATOR,
+  applyTableState,
+  normalizeTableState,
+  toTableQuery,
+} from '../domain/tableQuery.js'
 
 /**
  * The URL is the single source of truth of a table: filters, sort and page live
@@ -41,10 +46,15 @@ export function useTableState(columns, { defaultSort = null, rows = null } = {})
     })
   }
 
+  // A multi column's filter arrives as the list of chosen option values; the URL holds it
+  // comma-joined, and the round-trip in `write` puts it in the column's option order.
   const setFilter = (key, value) =>
     write({
       ...state.value,
-      filters: { ...state.value.filters, [key]: String(value ?? '') },
+      filters: {
+        ...state.value.filters,
+        [key]: Array.isArray(value) ? value.join(MULTI_SEPARATOR) : String(value ?? ''),
+      },
       page: 1,
     })
   const clearFilters = () => write({ ...state.value, filters: {}, page: 1 })
