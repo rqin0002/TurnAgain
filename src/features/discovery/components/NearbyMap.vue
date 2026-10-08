@@ -424,6 +424,9 @@ const buildOverlays = () => {
     // top. The help sentence carries the same meaning for assistive technology.
     leaflet
       .circle(centre, {
+        // Radius: the device's reported accuracy clamped to 150-800 m; a typed place has no
+        // accuracy and gets 150 m. The circle marks the origin, not its full error: a fix worse
+        // than 800 m is drawn smaller than its real uncertainty.
         radius: Math.max(150, Math.min(props.origin.accuracyM ?? 150, 800)),
         className: 'nearby-origin',
         interactive: false,
@@ -862,8 +865,10 @@ onBeforeUnmount(() => {
   color: var(--color-text);
 }
 
+/* Underlined so the credit links are told apart from the surrounding text by more than colour. */
 .nearby-map__canvas :deep(.leaflet-control-attribution a) {
   color: var(--color-brand-strong);
+  text-decoration: underline;
 }
 
 .nearby-map__canvas :deep(.leaflet-bar a) {

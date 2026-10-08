@@ -4,7 +4,7 @@
       <p class="eyebrow">404</p>
       <h1 class="page-title">That page could not be found.</h1>
       <p>The link may be out of date, or the address may have been typed incorrectly.</p>
-      <RouterLink class="button button--primary" to="/">Return to Find nearby</RouterLink>
+      <RouterLink class="button button--primary" to="/">Go to the home page</RouterLink>
     </div>
   </section>
 </template>

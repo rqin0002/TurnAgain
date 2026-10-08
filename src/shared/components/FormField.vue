@@ -3,8 +3,9 @@ import { computed } from 'vue'
 
 // Label, hint and error around one control. The control itself is the default slot
 // so any input, select or textarea fits; it binds the slot's `control` object (id, required,
-// aria-invalid, aria-describedby) and aria-describedby names only the hint and error that are
-// rendered with text, never an empty element.
+// aria-invalid, aria-describedby). The error paragraph is an alert region that stays mounted
+// with empty text, so assistive technology is already watching it when a message arrives; only
+// its text changes. aria-describedby names the hint and the error only while they have text.
 const props = defineProps({
   id: { type: String, required: true },
   label: { type: String, required: true },
@@ -37,31 +38,37 @@ const control = computed(() => ({
     <label class="form-field__label" :for="id">{{ label }}</label>
     <p v-if="hint" :id="hintId" class="form-field__hint">{{ hint }}</p>
     <slot :control="control" />
-    <p v-if="error" :id="errorId" class="form-field__error" role="alert">{{ error }}</p>
+    <p :id="errorId" class="form-field__error" role="alert">{{ error }}</p>
   </div>
 </template>
 
 <style scoped>
+/* Spacing sits on the field's own parts rather than a grid gap, so the always-mounted error
+   paragraph adds no space under the control while it is empty. */
 .form-field {
   display: grid;
-  gap: 0.35rem;
 }
 
 .form-field__label {
+  margin-bottom: 0.35rem;
   color: var(--color-heading);
   font-weight: 600;
 }
 
 .form-field__hint {
-  margin: 0;
+  margin: 0 0 0.35rem;
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
 
 .form-field__error {
-  margin: 0;
+  margin: 0.35rem 0 0;
   color: var(--color-danger);
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.form-field__error:empty {
+  margin: 0;
 }
 </style>

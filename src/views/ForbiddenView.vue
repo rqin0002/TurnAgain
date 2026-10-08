@@ -5,7 +5,7 @@
       <p>Please contact your administrator if you believe you should have access.</p>
       <div class="page-actions">
         <RouterLink class="button button--primary" to="/account">Go to your account</RouterLink>
-        <RouterLink class="button button--secondary" to="/">Return to Find nearby</RouterLink>
+        <RouterLink class="button button--secondary" to="/">Go to the home page</RouterLink>
       </div>
     </div>
   </section>

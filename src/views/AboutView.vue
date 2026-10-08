@@ -269,7 +269,12 @@ const goToSection = async (event, hash) => {
             <strong>{{ content.api.baseUrlLabel }}:</strong>
             <code class="about-api__base">{{ content.api.baseUrl }}</code>
           </p>
-          <pre class="about-api__example"><code>{{ content.api.curl }}</code></pre>
+          <pre
+            class="about-api__example"
+            tabindex="0"
+            role="region"
+            aria-label="Example request"
+          ><code>{{ content.api.curl }}</code></pre>
           <p>
             <a :href="content.api.docs.href">{{ content.api.docs.label }}</a>
           </p>
@@ -405,9 +410,12 @@ const goToSection = async (event, hash) => {
   text-underline-offset: 0.2em;
 }
 
+/* One shrinkable column below 992 px: an implicit auto column would grow to its widest content
+   (the curl example) and widen the page. */
 .content-layout,
 .before-panel__layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   max-width: 64rem;
 }
