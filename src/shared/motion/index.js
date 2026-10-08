@@ -1,12 +1,12 @@
 /**
- * TurnAgain's three explicit motion effects. Each one reads the DOM it is given,
- * no-ops under `prefers-reduced-motion` (or when the preference cannot be read, or the tab is
- * hidden) and only then imports anime.js, so the library is a lazy chunk a reduced-motion visitor
- * never downloads. Everything else in the interface is a CSS transition on `--duration-fast`.
- * Components call these from `onMounted` or a watcher and never await them: a failed chunk load
- * never rejects; the effects render their end state (offline before the chunk was cached). A
- * second call on the same element supersedes the first, so a re-trigger never fights a running
- * effect.
+ * The app's three JavaScript animations: the header nav underline, the rating-summary count-up
+ * and the booking-reference reveal. Every other transition is plain CSS.
+ * Each effect does nothing when the user prefers reduced motion, the preference cannot be read,
+ * or the tab is hidden, and only otherwise imports anime.js, so visitors who get no motion never
+ * download it. Callers do not await these functions and they never reject; if the library fails
+ * to load, the content keeps its final, readable state.
+ * The nav and rating-summary effects keep their running animation per element and cancel it
+ * when called again. The booking reference is revealed once per booking by its caller.
  */
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
@@ -153,12 +153,17 @@ const cancelSummary = (el) => {
  */
 export async function animateRatingSummary(el, { average = null, count = 0 } = {}) {
   if (!el) return
+  const superseded = summaryRuns.has(el)
   cancelSummary(el)
-  if (shouldSkip(el)) return
   const bars = Array.from(el.querySelectorAll('[data-rating-bar]'))
   const averageElement = el.querySelector('[data-rating-average]')
   const target = count > 0 ? Number(average) : Number.NaN
   const countsUp = averageElement !== null && Number.isFinite(target)
+  const finalText = typeof average === 'string' ? average.trim() : target.toFixed(1)
+  // A cancelled count stops on whatever number it last wrote, and that text replaced the one the
+  // component renders: write the new value now, so a call that does not animate still ends on it.
+  if (superseded && countsUp) averageElement.textContent = finalText
+  if (shouldSkip(el)) return
   if (bars.length === 0 && !countsUp) return
   // First use: the summary is already painted at its final state, and growing it once the chunk
   // lands would replay it from zero. This call only warms the chunk for the next summary.
@@ -180,7 +185,6 @@ export async function animateRatingSummary(el, { average = null, count = 0 } = {
     )
   }
   if (countsUp) {
-    const finalText = typeof average === 'string' ? average.trim() : target.toFixed(1)
     const decimals = (finalText.split('.')[1] ?? '').length
     const format = new Intl.NumberFormat('en-AU', {
       minimumFractionDigits: decimals,

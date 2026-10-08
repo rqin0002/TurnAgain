@@ -38,8 +38,6 @@ const snapshotInput = (input) => {
   }
 }
 
-const codePointLength = (value) => Array.from(value).length
-
 const normalizeReview = (value) => value.trim().replace(/\s+/gu, ' ')
 
 const hasUnsupportedControlCharacter = (value) =>
@@ -88,7 +86,8 @@ export function validateRatingInput(input) {
       errors.reviewText = 'Review contains unsupported control characters.'
     } else {
       reviewText = normalizeReview(fields.reviewText) || null
-      if (reviewText !== null && codePointLength(reviewText) > REVIEW_MAX_LENGTH) {
+      // String length counts UTF-16 code units, as the rules' size() does, so an emoji is two.
+      if (reviewText !== null && reviewText.length > REVIEW_MAX_LENGTH) {
         errors.reviewText = 'Review must be 1,000 characters or fewer.'
       }
     }

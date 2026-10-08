@@ -19,7 +19,9 @@ const errors = reactive({ score: '', reviewText: '' })
 const isPending = computed(() => props.pending || isSubmitting.value)
 const selectedOption = computed(() => RATING_SCALE.find((option) => option.score === fields.score))
 const validation = computed(() => validateRatingInput({ ...fields }))
-const reviewCount = computed(() => Array.from(fields.reviewText).length)
+// The same unit as the validator and the rules (UTF-16 code units), so the counter never reads
+// "1,000 / 1,000" for a note the save refuses.
+const reviewCount = computed(() => fields.reviewText.length)
 const formattedReviewCount = computed(() =>
   new Intl.NumberFormat('en-AU').format(reviewCount.value),
 )
