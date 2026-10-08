@@ -139,10 +139,14 @@ export function selectIds(bookings, mode) {
     .map((booking) => booking.id)
 }
 
+/** "1 participant", "3 participants". */
+export const formatParticipantCount = (count) =>
+  `${count} ${count === 1 ? 'participant' : 'participants'}`
+
 /** The live count line beside the selection buttons. */
 export function selectionCountText(count, liveCount) {
   return count > 0 && count === liveCount
-    ? `All ${count} participants selected`
+    ? `All ${formatParticipantCount(count)} selected`
     : `${count} selected`
 }
 
@@ -155,7 +159,7 @@ export function recipientSummary(selectedBookings, liveCount) {
     sentence:
       count === 0
         ? 'No participants selected; only your copy will be sent'
-        : `Send to ${count} of ${liveCount} participants`,
+        : `Send to ${count} of ${formatParticipantCount(liveCount)}`,
     names: selectedBookings.map((booking) => booking.contactName),
   }
 }

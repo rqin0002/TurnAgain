@@ -7,7 +7,7 @@ import { formatDate } from '@/shared/domain/formatDate.js'
 
 import { sendSessionEmail } from '../data/emailRepository.js'
 import { isStaffFunctionsEnabled } from '../data/staffCapabilities.js'
-import { recipientSummary } from '../domain/participants.js'
+import { formatParticipantCount, recipientSummary } from '../domain/participants.js'
 
 /** The form's states; the page's `loading` is the participants' load. */
 export const EMAIL_FORM_STATES = Object.freeze([
@@ -34,15 +34,21 @@ export const EMAIL_LOG_STATUS_LABELS = Object.freeze({
 /** A log row that may have reached people offers New send only. */
 export const offersNewSendFromLog = (log) => ['unknown', 'partial', 'sending'].includes(log?.status)
 
+// "1 selected participant" or "N selected participants", for the "M of N ..." confirm lines.
+const selectedPhrase = (count) =>
+  `${count} selected ${count === 1 ? 'participant' : 'participants'}`
+
 export const PARTICIPANT_EMAIL_MESSAGES = Object.freeze({
   unknown:
     "We can't tell whether this was sent; Check status or Send again (participants may receive it twice)",
   failed: "Couldn't send; Retry sends the same message again",
   retryRefused: 'This retry no longer matches the earlier send, so nothing was sent. Use New send.',
   notParticipants: (count) =>
-    `${count} selected people are no longer on this session and were not emailed. The participant list has been reloaded.`,
+    count === 1
+      ? '1 selected person is no longer on this session and was not emailed. The participant list has been reloaded.'
+      : `${count} selected people are no longer on this session and were not emailed. The participant list has been reloaded.`,
   fromLog: (log) =>
-    `An earlier send to ${log.recipientCount} participants may have reached them; they may receive this one too.`,
+    `An earlier send to ${formatParticipantCount(log.recipientCount)} may have reached them; they may receive this one too.`,
 })
 
 /** The form's field copy. */
@@ -108,8 +114,9 @@ export function sessionSendBanner(response) {
   let text
   if (response.status === 'accepted') {
     if (participants.status === 'skipped') text = 'Copy sent to you'
-    else if (copy) text = `Sent to the email provider for ${count} participants; copy sent to you`
-    else text = `Sent to the email provider for ${count} participants`
+    else if (copy)
+      text = `Sent to the email provider for ${formatParticipantCount(count)}; copy sent to you`
+    else text = `Sent to the email provider for ${formatParticipantCount(count)}`
   } else if (response.status === 'partial' && !pending) {
     if (participants.status === 'accepted') {
       text = "Participants: sent; your copy: couldn't send, Retry copy"
@@ -124,9 +131,10 @@ export function sessionSendBanner(response) {
     text = PARTICIPANT_EMAIL_MESSAGES.unknown
   }
   const skipped = participants.skippedCount ?? 0
-  return skipped > 0
-    ? `${text}. ${skipped} participants have addresses that can't receive mail and were skipped.`
-    : text
+  if (skipped === 0) return text
+  return skipped === 1
+    ? `${text}. 1 participant has an address that can't receive mail and was skipped.`
+    : `${text}. ${skipped} participants have addresses that can't receive mail and were skipped.`
 }
 
 const fingerprint = (values) =>
@@ -136,11 +144,16 @@ const fingerprint = (values) =>
   })
 
 /**
- * The participant email form. The operation lives
- * in memory only: `operationId` is made when the form starts and kept until a send whose every
- * requested part is accepted or dry-run. Retry repeats the last operation exactly (its id and
- * content) and is withdrawn as soon as the subject, the message, the selection or a box changes;
- * New send takes a fresh id on confirm and says who may already have the earlier message. A Retry
+ * The participant email form of a staff session page: compose a subject and message, confirm,
+ * then send through the sendSessionEmail function to the selected participants and, if asked, a
+ * copy to the sender. Each send is one operation with an `operationId`, which lets Retry repeat a
+ * send without mailing anyone twice (the function recognises the id). The operation lives in
+ * memory only: `operationId` is made when the form starts and kept until a send whose every
+ * requested part is accepted or dry-run.
+ *
+ * Retry repeats the last operation exactly (its id and content) and is withdrawn as soon as the
+ * subject, the message, the selection or a box changes; New send takes a fresh id on confirm and
+ * says who may already have the earlier message. A Retry
  * the function refuses (`operation-mismatch`) is reported and leaves New send, never turning into
  * a new operation by itself. "Previous emails" rows that may have reached people (`unknown`,
  * `partial`, `sending`) offer New send with a warning built from the row. With nobody selected,
@@ -276,7 +289,7 @@ export function useParticipantEmail({
     if (!composing.value || !checkContent()) return
     const { count, total } = recipientSummary(selected.value, toValue(liveCount))
     const copy = copyToSender.value ? ' and a copy to you' : ''
-    confirmText.value = `Send "${validation.value.values.subject}" to ${count} of ${total} participants${copy}?`
+    confirmText.value = `Send "${validation.value.values.subject}" to ${count} of ${formatParticipantCount(total)}${copy}?`
     pending = {
       action: 'send',
       returnTo: state.value,
@@ -301,14 +314,22 @@ export function useParticipantEmail({
           recipientCount:
             participants?.recipientCount ?? lastSend.value.values.recipientBookingIds.length,
         })
-      } else {
-        // Of the current selection, the people the earlier send reached (never its count alone).
+      } else if (participants.status === 'accepted') {
+        // Of the current selection, the people who were also in the earlier request. The provider
+        // accepted that request, which does not prove delivery, and skipped addresses are not
+        // reported per person, so the text says they may receive this one too, not that they
+        // received the first.
         const earlier = new Set(lastSend.value.values.recipientBookingIds)
-        const reached =
-          participants.status === 'accepted'
-            ? selected.value.filter((booking) => earlier.has(booking.id)).length
-            : 0
-        confirmText.value = `${reached} of ${selected.value.length} selected participants already received the earlier message and may receive this one too`
+        const inEarlier = selected.value.filter((booking) => earlier.has(booking.id)).length
+        const skipped = participants.skippedCount ?? 0
+        let skippedNote = ''
+        if (skipped === 1) skippedNote = " (1 earlier address couldn't receive mail)"
+        else if (skipped > 1) skippedNote = ` (${skipped} earlier addresses couldn't receive mail)`
+        confirmText.value = `${inEarlier} of ${selectedPhrase(selected.value.length)} ${inEarlier === 1 ? 'was' : 'were'} in the earlier send, which the email provider accepted${skippedNote}; they may receive this one too`
+      } else {
+        // The provider accepted no part of the earlier participants' send (failed, test mode or
+        // skipped), so nobody selected can have it from there.
+        confirmText.value = `0 of ${selectedPhrase(selected.value.length)} were in an earlier send the email provider accepted`
       }
     }
     pending = {

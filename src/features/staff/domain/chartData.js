@@ -1,5 +1,5 @@
 import { compareText } from '@/shared/domain/tableQuery.js'
-import { formatDate } from '@/shared/domain/formatDate.js'
+import { formatDate, formatTime } from '@/shared/domain/formatDate.js'
 
 /**
  * The numbers behind the Overview's two charts. Pure, and never Chart.js: each
@@ -42,6 +42,7 @@ const toChartData = (labels, series) => ({
 
 /**
  * The next eight TurnAgain sessions that take bookings: booked places, waitlist and capacity.
+ * Each label is "<activity title>, <medium date>, <start time>" in Melbourne time.
  *
  * @param {object[]} sessions - StaffSession records
  * @param {Map<string, { title: string }>} activitiesById
@@ -58,9 +59,11 @@ export function toBookingsChartData(sessions, activitiesById, now) {
     )
     .sort((left, right) => Date.parse(left.startsAt) - Date.parse(right.startsAt))
     .slice(0, BOOKINGS_CHART_LIMIT)
+  // The start time is part of the label: two sessions of one activity on one day would otherwise
+  // read the same on the canvas and in the table.
   const labels = upcoming.map(
     (session) =>
-      `${activitiesById?.get(session.activityId)?.title ?? 'Activity'}, ${formatDate(session.startsAt, { dateStyle: 'medium' })}`,
+      `${activitiesById?.get(session.activityId)?.title ?? 'Activity'}, ${formatDate(session.startsAt, { dateStyle: 'medium' })}, ${formatTime(session.startsAt)}`,
   )
   return toChartData(
     labels,

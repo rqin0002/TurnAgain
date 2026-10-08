@@ -15,10 +15,12 @@ import { buildAttentionList, overviewTiles } from '@/features/staff/domain/atten
 import { aggregateRatingSummaries } from '@/features/staff/domain/chartData.js'
 import StatePanel from '@/shared/components/StatePanel.vue'
 
-// The operations Overview: the composition root over the staff
-// catalogue the layout loads. It calls the ratings composable for the published services and
-// hands the summaries down (a staff component never imports a ratings composable), and loads the
-// role counts for administrators on mount and after an identity change.
+// The staff Overview page: the count tiles, the "Needs attention" list, the bookings and ratings
+// charts and, for administrators, the role counts. Its records come from the staff catalogue the
+// staff layout loads. The page itself loads only two things: the rating summaries of the
+// published services, whenever that list changes (and hands them down, since a staff component
+// never imports a ratings composable), and the role counts, on mount and after an identity
+// change.
 const authStore = useAuthStore()
 const catalogue = useStaffCatalogue()
 const { services, activities, sessions, corrections, emailLogs, activitiesById } = catalogue
@@ -47,6 +49,12 @@ watch(
   { immediate: true },
 )
 
+// A failed refresh keeps the lists loaded earlier with status 'ready'; this line says so.
+const refreshNotice = computed(() =>
+  catalogueError.value
+    ? `Showing the overview loaded earlier. ${catalogue.errorMessage.value}`
+    : '',
+)
 const anyTruncated = computed(() => Object.values(truncated.value).some(Boolean))
 const groups = computed(() =>
   buildAttentionList({
@@ -125,69 +133,76 @@ watch(
       :error="catalogueError"
       @retry="retryCatalogue"
     />
-    <div v-else class="staff-overview">
-      <dl class="staff-overview__tiles">
-        <div class="staff-overview__tile">
-          <dt>Open corrections</dt>
-          <dd>{{ tiles.openCorrections }}</dd>
-        </div>
-        <div class="staff-overview__tile">
-          <dt>Upcoming sessions</dt>
-          <dd>{{ tiles.upcomingSessions }}</dd>
-        </div>
-        <div class="staff-overview__tile">
-          <dt>Emails sent in 30 days</dt>
-          <dd>{{ tiles.emailsLast30Days }}</dd>
-        </div>
-        <div class="staff-overview__tile staff-overview__tile--ratings">
-          <dt>All rated services</dt>
-          <dd>
-            <RatingSummary v-if="allRated" :summary="allRated" />
-            <span v-else-if="ratingsStatus === 'error'">The ratings could not be loaded</span>
-            <span v-else-if="ratingsStatus === 'loading'">Loading the ratings…</span>
-            <span v-else-if="ratingsGap">No ratings among the summaries that loaded</span>
-            <span v-else>No ratings yet</span>
-            <span v-if="ratingsGap" class="staff-overview__ratings-gap">{{ ratingsGap }}</span>
-          </dd>
-        </div>
-      </dl>
+    <template v-else>
+      <!-- Mounted with the Overview; only its text changes. It sits outside the gapped grid below,
+           so while it is empty it takes no space. -->
+      <p class="staff-overview__notice" role="status">{{ refreshNotice }}</p>
+      <div class="staff-overview">
+        <dl class="staff-overview__tiles">
+          <div class="staff-overview__tile">
+            <dt>Open corrections</dt>
+            <dd>{{ tiles.openCorrections }}</dd>
+          </div>
+          <div class="staff-overview__tile">
+            <dt>Upcoming sessions</dt>
+            <dd>{{ tiles.upcomingSessions }}</dd>
+          </div>
+          <div class="staff-overview__tile">
+            <dt>Emails sent in 30 days</dt>
+            <dd>{{ tiles.emailsLast30Days }}</dd>
+          </div>
+          <div class="staff-overview__tile staff-overview__tile--ratings">
+            <dt>All rated services</dt>
+            <dd>
+              <RatingSummary v-if="allRated" :summary="allRated" />
+              <span v-else-if="ratingsStatus === 'error'">The ratings could not be loaded</span>
+              <span v-else-if="ratingsStatus === 'loading'">Loading the ratings…</span>
+              <span v-else-if="ratingsGap">No ratings among the summaries that loaded</span>
+              <span v-else>No ratings yet</span>
+              <span v-if="ratingsGap" class="staff-overview__ratings-gap">{{ ratingsGap }}</span>
+            </dd>
+          </div>
+        </dl>
 
-      <!-- Mounted with the Overview; only its text changes. -->
-      <p ref="statusLine" class="staff-overview__status" role="status" tabindex="-1">
-        {{ statusMessage }}
-      </p>
-      <AttentionList
-        :groups="groups"
-        :truncated="anyTruncated"
-        :pending-id="pendingId"
-        @mark-completed="markCompleted"
-      />
-
-      <section class="staff-overview__chart" aria-labelledby="overview-bookings-heading">
-        <h3 id="overview-bookings-heading">Bookings for the next TurnAgain sessions</h3>
-        <BookingsChart :sessions="sessions" :activities-by-id="activitiesById" :now="now" />
-      </section>
-      <section class="staff-overview__chart" aria-labelledby="overview-ratings-heading">
-        <h3 id="overview-ratings-heading" ref="ratingsHeading" tabindex="-1">Ratings by service</h3>
-        <StatePanel
-          v-if="ratingsStatus === 'error'"
-          variant="error"
-          message="The rating summaries could not be loaded."
-          @retry="retryRatings"
+        <!-- Mounted with the Overview; only its text changes. -->
+        <p ref="statusLine" class="staff-overview__status" role="status" tabindex="-1">
+          {{ statusMessage }}
+        </p>
+        <AttentionList
+          :groups="groups"
+          :truncated="anyTruncated"
+          :pending-id="pendingId"
+          @mark-completed="markCompleted"
         />
-        <template v-else>
-          <p v-if="ratingsGap" class="staff-overview__ratings-gap">{{ ratingsGap }}</p>
-          <RatingsChart :services="publishedServices" :summaries-by-id="summariesById" />
-        </template>
-      </section>
 
-      <RoleCounts
-        :counts="counts"
-        :status="countsStatus"
-        :is-admin="isAdmin"
-        @retry="roleCounts.load()"
-      />
-    </div>
+        <section class="staff-overview__chart" aria-labelledby="overview-bookings-heading">
+          <h3 id="overview-bookings-heading">Bookings for the next TurnAgain sessions</h3>
+          <BookingsChart :sessions="sessions" :activities-by-id="activitiesById" :now="now" />
+        </section>
+        <section class="staff-overview__chart" aria-labelledby="overview-ratings-heading">
+          <h3 id="overview-ratings-heading" ref="ratingsHeading" tabindex="-1">
+            Ratings by service
+          </h3>
+          <StatePanel
+            v-if="ratingsStatus === 'error'"
+            variant="error"
+            message="The rating summaries could not be loaded."
+            @retry="retryRatings"
+          />
+          <template v-else>
+            <p v-if="ratingsGap" class="staff-overview__ratings-gap">{{ ratingsGap }}</p>
+            <RatingsChart :services="publishedServices" :summaries-by-id="summariesById" />
+          </template>
+        </section>
+
+        <RoleCounts
+          :counts="counts"
+          :status="countsStatus"
+          :is-admin="isAdmin"
+          @retry="roleCounts.load()"
+        />
+      </div>
+    </template>
   </section>
 </template>
 
@@ -237,8 +252,14 @@ watch(
   font-size: 0.9375rem;
 }
 
+.staff-overview__notice,
 .staff-overview__status {
   margin: 0;
+}
+
+/* The same space the grid's gap puts between its items, only while the notice has text. */
+.staff-overview__notice:not(:empty) {
+  margin-block-end: 1.5rem;
 }
 
 .staff-overview__chart {

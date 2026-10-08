@@ -7,17 +7,22 @@ import { formatDate } from '@/shared/domain/formatDate.js'
 import { daysSinceChecked, isStaleSource } from './registerColumns.js'
 
 /**
- * The Overview's "Needs attention" panel: ordered groups of the
- * records a staff member should act on, each with its count, up to five item links and a deep
- * link into the register that lists them all. Pure: the catalogue's lists and `now` in, groups
- * out. A cancelled session leaves its group only when `cancellationNoticeAt` is set (an email log
- * proves only that some recipients were attempted, so `emailLogs` never clears an item).
+ * The Overview's "Needs attention" panel: ordered groups of records a staff member should act
+ * on. Each group has its total count, links to its first five records and a View all link into
+ * the register, filtered as closely as the register's filters allow (for some groups that list is
+ * wider than the group). Pure: the catalogue's lists and `now` in, groups out. A cancelled session
+ * leaves its group only when `cancellationNoticeAt` is set; an email log never clears it, because
+ * a log does not prove every participant was reached.
  */
 
 export const NEAR_CAPACITY_DAYS = 14
 export const ATTENTION_ITEM_LIMIT = 5
 
 const DAY_MS = 24 * 60 * 60 * 1000
+// The email-log statuses the 30-day tile counts: `accepted`, and `partial`, which a send records
+// whenever the participants' and the copy's outcomes differ, so at least one part may have been
+// accepted. Test-mode (dry-run), failed, unknown and unfinished sends are left out.
+const COUNTED_SEND_STATUSES = Object.freeze(['accepted', 'partial'])
 const OPEN_STATUSES = Object.freeze(['scheduled', 'full'])
 
 const startMs = (session) => Date.parse(session.startsAt)
@@ -159,8 +164,11 @@ export function buildAttentionList({ services, activities, sessions, corrections
 }
 
 /**
- * The three staff tiles: open corrections, upcoming TurnAgain sessions and the
- * participant emails sent in the last 30 days.
+ * The three Overview count tiles: open corrections, upcoming open TurnAgain sessions, and the
+ * emails sent from session pages in the last 30 days, counted once per send (not per recipient)
+ * when its log status is `accepted` or `partial`. `partial` only means the participants' and the
+ * copy's outcomes differed, so at least one part may have been accepted. A copy-only send (no
+ * participants emailed) counts the same way. Promotion emails are not logged and not counted.
  */
 export function overviewTiles({ corrections, sessions, emailLogs, now }) {
   const nowMs = now.getTime()
@@ -171,6 +179,7 @@ export function overviewTiles({ corrections, sessions, emailLogs, now }) {
       (session) => isTurnAgain(session) && isOpen(session) && notStarted(session, now),
     ).length,
     emailsLast30Days: (emailLogs ?? []).filter((log) => {
+      if (!COUNTED_SEND_STATUSES.includes(log.status)) return false
       const sentMs = Date.parse(log.sentAt)
       return sentMs > nowMs - 30 * DAY_MS && sentMs <= nowMs
     }).length,

@@ -1,11 +1,11 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import AppButton from '@/shared/components/AppButton.vue'
 
 // Accounts by role: administrators see the member, staff, admin and total
 // counts from three count queries; staff see that the figures are for administrators only.
-defineProps({
+const props = defineProps({
   counts: { type: Object, default: null },
   status: { type: String, required: true },
   isAdmin: { type: Boolean, required: true },
@@ -28,6 +28,14 @@ const TILES = Object.freeze([
   Object.freeze({ key: 'total', label: 'Total' }),
 ])
 const number = (value) => new Intl.NumberFormat('en-AU').format(value)
+
+// The one line the status region reads: a loading message, the failure, or nothing once the
+// tiles are on screen.
+const statusText = computed(() => {
+  if (props.status === 'loading' || props.status === 'idle') return 'Loading the role counts…'
+  if (props.status === 'error') return 'The role counts could not be loaded.'
+  return ''
+})
 </script>
 
 <template>
@@ -35,10 +43,9 @@ const number = (value) => new Intl.NumberFormat('en-AU').format(value)
     <h3 id="role-counts-heading">Accounts by role</h3>
     <p v-if="!isAdmin" class="role-counts__note">Available to administrators</p>
     <template v-else>
-      <!-- Mounted for administrators; only its text changes. -->
-      <p ref="statusLine" class="role-counts__note" role="status" tabindex="-1">
-        {{ status === 'loading' || status === 'idle' ? 'Loading the role counts…' : '' }}
-      </p>
+      <!-- Mounted for administrators; only its text changes, so the loading message and the
+           failure are both announced by the one live region assistive technology already watches. -->
+      <p ref="statusLine" class="role-counts__note" role="status" tabindex="-1">{{ statusText }}</p>
       <dl v-if="status === 'ready' && counts" class="role-counts__tiles">
         <div v-for="tile in TILES" :key="tile.key" class="role-counts__tile">
           <dt>{{ tile.label }}</dt>
@@ -46,7 +53,6 @@ const number = (value) => new Intl.NumberFormat('en-AU').format(value)
         </div>
       </dl>
       <div v-if="status === 'error'" class="role-counts__error">
-        <p role="alert">The role counts could not be loaded.</p>
         <AppButton variant="secondary" @click="retry">Try again</AppButton>
       </div>
     </template>
@@ -60,8 +66,7 @@ const number = (value) => new Intl.NumberFormat('en-AU').format(value)
 }
 
 .role-counts h3,
-.role-counts__note,
-.role-counts__error p {
+.role-counts__note {
   margin: 0;
 }
 
@@ -98,7 +103,6 @@ const number = (value) => new Intl.NumberFormat('en-AU').format(value)
 
 .role-counts__error {
   display: grid;
-  gap: 0.5rem;
   justify-items: start;
 }
 
