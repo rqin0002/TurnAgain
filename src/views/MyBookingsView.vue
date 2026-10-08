@@ -1,9 +1,10 @@
 <script setup>
 import { formatSessionWhen } from '@shared/melbourneTime.js'
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import { invalidateActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
 import BookingStatusBadge from '@/features/bookings/components/BookingStatusBadge.vue'
 import CancelBookingDialog from '@/features/bookings/components/CancelBookingDialog.vue'
 import {
@@ -30,6 +31,20 @@ const page = ref(null)
 const notice = ref('')
 const showsOffline = computed(() => isConnectionError(error.value))
 let refreshAfterClose = false
+
+// The cancel dialog, its error and the status line belong to the account that opened them: a
+// change of signed-in account (or a sign-out) closes the dialog, so its Cancel booking can never
+// send the previous account's booking id.
+const authStore = useAuthStore()
+watch(
+  () => authStore.identityEpoch,
+  () => {
+    refreshAfterClose = false
+    target.value = null
+    cancelling.clearError()
+    notice.value = ''
+  },
+)
 
 const sections = computed(() => [
   { id: 'upcoming', title: 'Upcoming', entries: split.value.upcoming, actions: true },
@@ -70,14 +85,21 @@ const addToCalendar = (booking, session) => {
 // follows the entry's title link instead of falling to <body>, and the status line says why. The
 // line empties before the reload, so a second cancel in the same visit is announced again.
 const confirmCancel = async (bookingId) => {
+  // The account the cancel starts under: after any wait, a change of account stops the rest, so
+  // the next account's dialog, list, status line and focus are never touched by this cancel.
+  const epoch = authStore.identityEpoch
+  const sameAccount = () => authStore.identityEpoch === epoch
   const cancelled = await cancelling.cancel(bookingId)
+  if (!sameAccount()) return
   refreshAfterClose = !cancelled && cancelling.error.value?.details?.reason === 'started'
   if (!cancelled) return
   target.value = null
   invalidateActivityCatalogue()
   notice.value = ''
   await mine.load()
+  if (!sameAccount()) return
   await nextTick()
+  if (!sameAccount()) return
   notice.value = BOOKING_MESSAGES.cancelledHeading
   page.value?.querySelector(`[data-booking-link="${bookingId}"]`)?.focus()
 }

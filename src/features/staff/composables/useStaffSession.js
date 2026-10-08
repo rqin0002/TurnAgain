@@ -18,9 +18,12 @@ const NOTIFY_CONFLICT =
  * configuration, never from an error. `now` is the page's clock, so a page left open past
  * the start takes Promote next away.
  *
- * The notified state belongs to one session: a change of `sessionId` clears it, and an answer that
- * arrives after that change still updates the shared catalogue but leaves the state of the session
- * now shown alone. `markNotified` resolves to whether its outcome was shown.
+ * The notified state belongs to one session and one identity: changing `sessionId` or the
+ * signed-in identity clears it. A save that finishes after a session change still updates the
+ * catalogue's copy of the session it started on, but not the message of the session now shown;
+ * a save that finishes after an identity change changes nothing (no catalogue update, no message,
+ * no reload). `markNotified` resolves to whether its outcome was shown, so the page moves focus
+ * only for a result it displayed.
  *
  * @param {import('vue').MaybeRefOrGetter<string>} sessionId
  * @param {{ now?: () => Date }} [options]
@@ -61,17 +64,14 @@ export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
   const notifyState = ref('idle')
   const notifyMessage = ref('')
 
-  // Counts session changes; a write remembers the count it started under and reports its outcome
-  // only while the count is unchanged.
+  // Counts session and identity changes; a write remembers the count it started under and reports
+  // its outcome only while the count is unchanged.
   let generation = 0
-  watch(
-    () => toValue(sessionId),
-    () => {
-      generation += 1
-      notifyState.value = 'idle'
-      notifyMessage.value = ''
-    },
-  )
+  watch([() => toValue(sessionId), () => catalogue.currentEpoch()], () => {
+    generation += 1
+    notifyState.value = 'idle'
+    notifyMessage.value = ''
+  })
 
   const refresh = async () => {
     try {
@@ -85,24 +85,36 @@ export function useStaffSession(sessionId, { now = () => new Date() } = {}) {
     const current = session.value
     if (!current || notifyState.value === 'saving') return false
     const run = generation
+    // The identity epoch the save starts under. After any identity-epoch change (another account,
+    // a sign-out, or a re-read profile whose role, revision or email changed, the same account's
+    // included) this save changes nothing more (no catalogue update, no message, no reload), and
+    // the catalogue drops a late local update too.
+    const epoch = catalogue.currentEpoch()
+    const sameIdentity = () => catalogue.currentEpoch() === epoch
     notifyState.value = 'saving'
     notifyMessage.value = ''
     try {
       const saved = await markParticipantsNotified(current)
+      if (!sameIdentity()) return false
       // Shown at once, so a failed reload never leaves the button beside its own success holding a
       // stale revision; the client's clock stands in for the server's stamp until the next read.
-      catalogue.applyLocal('sessions', {
-        ...current,
-        revision: saved.revision,
-        cancellationNoticeAt: new Date().toISOString(),
-        noticeFieldStored: true,
-      })
+      catalogue.applyLocal(
+        'sessions',
+        {
+          ...current,
+          revision: saved.revision,
+          cancellationNoticeAt: new Date().toISOString(),
+          noticeFieldStored: true,
+        },
+        { epoch },
+      )
       if (run === generation) {
         notifyState.value = 'saved'
         notifyMessage.value = 'Participants marked as notified.'
       }
       await refresh()
     } catch (caught) {
+      if (!sameIdentity()) return false
       if (run === generation) {
         notifyState.value = 'failed'
         notifyMessage.value =

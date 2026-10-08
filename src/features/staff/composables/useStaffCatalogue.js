@@ -12,13 +12,17 @@ import {
 } from '../data/staffRepository.js'
 
 /**
- * The staff catalogue: module-level state shared by every staff page, not a
- * second Pinia store. It is keyed by the auth store's identity epoch: a load records
- * the epoch it started under, reads with `authStore.identitySignal` and drops its result when the
- * epoch moved; an epoch change (sign-out, another uid, a role or profile revision change) empties
- * the lists synchronously, so a downgraded account never repopulates staff data from a late
- * response. Writes never come through here and never take the identity signal.
- * Nothing reaches localStorage: offline, a page keeps what this session loaded.
+ * The staff catalogue: the services, activities, sessions, corrections and email logs every
+ * staff page reads, held in module-level state shared by those pages (not a Pinia store) and in
+ * memory only.
+ *
+ * load() reads once per identity epoch and reload() always reads; both need a staff or admin
+ * role. A read records the auth store's identity epoch and is dropped if the epoch has moved when
+ * it returns, and an epoch change (sign-out, another account, a role or profile change) empties
+ * every list at once. A failed first read sets status 'error'; a failed later read keeps the
+ * lists and status 'ready' and sets `error`, so a page must say it shows data loaded earlier.
+ * applyLocal() puts a record the caller has just saved into a list without waiting for a reload;
+ * it drops the record when the identity epoch it was started under is no longer current.
  */
 
 const STAFF_ROLES = Object.freeze(['staff', 'admin'])
@@ -171,8 +175,19 @@ function reload() {
   return mayRead() ? read() : Promise.resolve()
 }
 
-/** Replaces the record with the same id, or prepends it (optimistic table update). */
-function applyLocal(kind, record) {
+/** The auth store's identity epoch now: read it before a save and hand it to applyLocal. */
+function currentEpoch() {
+  return authStore?.identityEpoch ?? null
+}
+
+/**
+ * Replaces the record with the same id, or prepends it (optimistic table update). `epoch` is what
+ * currentEpoch() returned before the caller's save started: when the identity has changed since,
+ * or this identity may not read the catalogue, the record is dropped. A call without an epoch is
+ * never current, so it applies nothing.
+ */
+function applyLocal(kind, record, { epoch } = {}) {
+  if (epoch !== currentEpoch() || !mayRead()) return
   if (!LOCAL_KINDS.includes(kind) || typeof record?.id !== 'string') return
   const list = lists[kind]
   const index = list.value.findIndex((entry) => entry.id === record.id)
@@ -198,6 +213,7 @@ export function useStaffCatalogue() {
     skippedCount,
     load,
     reload,
+    currentEpoch,
     applyLocal,
   }
 }

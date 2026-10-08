@@ -20,14 +20,15 @@ const unreadableAsNull = (caught) => {
 }
 
 /**
- * The review step: loads the session, its activity and the member's bookings in
- * parallel, then settles on one state: `loading -> not-found | closed | duplicate | overlap |
- * ready -> submitting -> session-filled | duplicate | closed | failed | booked`. A success returns
- * the transaction's result and leaves `submitting` set (the view navigates away, or settles
- * `booked` through `markBooked` when that navigation fails). Every answer that lands after the
- * page is gone, or after a newer load, is ignored. A session the rules refuse (finished or never
- * public, and not booked) is `not-found`; an activity they refuse is `closed(external)`; neither
- * reaches the failed panel.
+ * State for the booking review page. Reads the session, its activity and the member's own
+ * bookings in parallel, then settles on one state: loading -> not-found / closed / duplicate /
+ * overlap / ready; ready -> submitting -> session-filled / duplicate / closed / not-found /
+ * failed. "overlap" only warns: acceptOverlap() moves on to "ready". A session the rules refuse
+ * is "not-found"; an activity they refuse is "closed" with reason "external". A successful
+ * submit returns the transaction result and stays "submitting" while the view navigates;
+ * markBooked() settles "booked" when that navigation fails. Results that arrive after unmount or
+ * after a newer load are ignored. A change of signed-in account reloads it, so results for the
+ * previous account are ignored too (a sign-out clears it and reads nothing).
  *
  * @param {{ activityId: import('vue').MaybeRefOrGetter<string>, sessionId: import('vue').MaybeRefOrGetter<string> }} options
  */
@@ -72,6 +73,8 @@ export function useBookingReview({ activityId, sessionId }) {
     existingBooking.value = null
     overlapping.value = null
     offeredWaitlist.value = false
+    // Signed out: the auth guard is about to leave this page, so nothing is read.
+    if (!authStore.user) return
     try {
       const [loadedSession, loadedActivity, mine] = await Promise.all([
         fetchBookingSession(requestedSessionId),
@@ -149,6 +152,7 @@ export function useBookingReview({ activityId, sessionId }) {
   const submit = async (values) => {
     if (state.value === 'submitting' || session.value === null) return null
     const run = generation
+    const epoch = authStore.identityEpoch
     const requestedIntent = intent.value
     // Set before the first await, so a second click finds the review already submitting.
     settle('submitting')
@@ -163,8 +167,10 @@ export function useBookingReview({ activityId, sessionId }) {
       })
       if (disposed || run !== generation) {
         // The page whose ?new=1 visit would have asked for the confirmation is gone; the callable
-        // is idempotent per series, so asking here can never send it twice.
-        if (isBookingEmailEnabled()) {
+        // is idempotent per series, so asking here can never send it twice. After a sign-out or an
+        // account switch the booking belongs to the previous account, so nothing is asked in its
+        // name.
+        if (epoch === authStore.identityEpoch && isBookingEmailEnabled()) {
           requestBookingEmail({ bookingId: result.bookingId, kind: result.outcome }).catch(
             () => undefined,
           )
@@ -191,9 +197,13 @@ export function useBookingReview({ activityId, sessionId }) {
     }
   }
 
-  watch([() => toValue(activityId), () => toValue(sessionId)], () => void load(), {
-    immediate: true,
-  })
+  // A new identity epoch (another account signed in, or a sign-out) reloads like a new session:
+  // the previous account's bookings, overlap and contact name go, and its late answers are dropped.
+  watch(
+    [() => toValue(activityId), () => toValue(sessionId), () => authStore.identityEpoch],
+    () => void load(),
+    { immediate: true },
+  )
   onBeforeUnmount(() => {
     disposed = true
   })
