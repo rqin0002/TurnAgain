@@ -20,13 +20,12 @@ const connectToEmulator = (auth) => {
 }
 
 /**
- * Shared Firebase Authentication client.
- *
- * Authentication is required during application bootstrap so the shell can
- * restore an existing session before role-aware navigation is rendered.
- * Choose the same persistence before restoration in every tab: getAuth's
- * IndexedDB-first defaults would migrate a localStorage session out and back
- * when our repository selects local persistence, briefly signing other tabs out.
+ * The app's one shared Firebase Auth instance (`firebaseAuth`), connected to the local Auth
+ * emulator when VITE_USE_EMULATORS is set. It exists at import so the shell can restore a session
+ * before it renders role-aware navigation. It is created with initializeAuth and
+ * browserLocalPersistence rather than getAuth, so every tab restores the session from
+ * localStorage; getAuth's IndexedDB-first default could move a stored session between the two
+ * stores and briefly sign the other tabs out. getCleanupAuth below is the only other instance.
  */
 export const firebaseAuth = initializeAuth(firebaseApp, {
   persistence: browserLocalPersistence,

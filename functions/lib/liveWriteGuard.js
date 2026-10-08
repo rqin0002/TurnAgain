@@ -1,8 +1,12 @@
 import { HttpsError } from 'firebase-functions/v2/https'
 
 /**
- * The development-mode guard, shared by every callable that writes across users: under `npm run dev` the Functions emulator runs against the real project, so a
- * promotion or an access change would be a live write. Refused unless ALLOW_LIVE_ADMIN is '1'.
+ * A guard for the callables that write across users (promoteNextBooking, adminSetUserAccess).
+ * `npm run functions:dev` starts the Functions emulator against the real project's Firestore and
+ * Auth, and `npm run dev` points the app at it, so a promotion or an access change made there
+ * would be a live write. This refuses such a call when it runs in the emulator against any
+ * project other than demo-turnagain, unless ALLOW_LIVE_ADMIN is '1'. Deployed functions are not
+ * emulated, so the guard never blocks them.
  */
 export const EMULATOR_PROJECT_ID = 'demo-turnagain'
 export const LIVE_WRITE_DISABLED = 'live-admin-disabled'

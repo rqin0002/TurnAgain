@@ -15,12 +15,13 @@ import {
 } from '../domain/bookingRules.js'
 
 /**
- * The booking write path: two Lite transactions that take their Firestore and Auth instances as
- * arguments and import nothing from @/firebase, so
- * the emulator test drives two signed-in apps at once while bookingRepository wires the
- * singletons. Each callback reads before it writes and is pure over its reads, so every run
- * decides again from fresh data. A refusal is a RepositoryError('conflict') with
- * `details.outcome`; it is not a FirebaseError, so the SDK never retries it.
+ * The two booking writes, create (or rebook) and cancel. Each is one Firestore Lite transaction
+ * that writes the booking and moves the session's bookedCount/waitlistCount in the same commit.
+ * Firestore and Auth are parameters, not imports, so a test can drive two signed-in users at
+ * once; bookingRepository passes the app's instances. Every run of a callback reads the documents
+ * it needs before deciding what to write, so a rerun decides again from fresh data. A refusal
+ * decided here (session full or closed, duplicate, already cancelled, missing) is thrown as a
+ * RepositoryError, not a Firestore error, so the SDK does not retry it.
  */
 
 /**

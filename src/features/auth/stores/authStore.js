@@ -32,10 +32,14 @@ import {
 import { decideRouteAccess } from '../router/routeAccess.js'
 
 /**
- * The only Pinia store. One `onAuthStateChanged` listener feeds
- * `resolveUser`, the single state machine; navigation, tab visibility and denied repository calls
- * re-validate the profile. The router is handed in by `main.js` (`init({ router })`) and kept in
- * a module variable, never imported, so router -> guard -> store -> router is not a cycle.
+ * Owns who is signed in. Firebase Auth proves the identity; users/{uid} supplies the name,
+ * role, status and saved services. The status becomes 'signed-in' only after the Auth email is
+ * verified and an active profile has been read (or created on the first verified sign-in).
+ * The profile is re-read after each navigation to a signed-in page (at most once a minute), on
+ * each new staff page, when the tab becomes visible and after a denied request, so a role change
+ * or a disabled account takes effect without a reload. Results that arrive after the identity
+ * changed are dropped.
+ * main.js passes the router to init() so this module never imports it (no import cycle).
  */
 
 export const READY_TIMEOUT_MS = 8000
@@ -100,9 +104,11 @@ export const useAuthStore = defineStore('auth', () => {
   let settleReady = () => undefined
   let readyTimer = null
   /**
-   * The session counter: +1 at the start of every resolution and of `logout()`. Every
-   * async entry point captures it and, after each await, stops when it has moved on, so work
-   * begun for one identity never writes state, signs out or navigates for the next one.
+   * Counts identity changes inside this store: +1 when a resolution or logout() starts.
+   * handleAuthEvent (for resolveUser), login, revalidateProfile, writeSaved and register capture it
+   * and check it again before they change store state, sign out or navigate, so a slow result for
+   * one identity never lands on the next. It is private: pages holding their own private data
+   * watch identityEpoch or identitySignal instead.
    */
   let session = 0
   let resolving = null
@@ -120,7 +126,13 @@ export const useAuthStore = defineStore('auth', () => {
   let loggingOut = false
   const waiters = []
 
-  /** Every identity change aborts the previous signal so late requests are discarded. */
+  /**
+   * Moves to a new identity epoch: aborts the current identitySignal, hands out a fresh one and
+   * adds 1 to identityEpoch. A request that took the old signal can stop early and code that
+   * recorded the old epoch can drop a late result; nothing is cancelled unless the caller checks.
+   * Runs when a different uid (or the first) signs in, on sign-out, and when a re-read profile
+   * changes role, revision or email.
+   */
   const bumpEpoch = () => {
     controller.abort()
     controller = new AbortController()
@@ -495,6 +507,8 @@ export const useAuthStore = defineStore('auth', () => {
           return
         }
         const roleChanged = profile.role !== user.value.role
+        // A revision or email change bumps the epoch even for the same account, so a page that
+        // guards an in-flight request on the epoch drops its result as it would for a new account.
         const changed =
           roleChanged ||
           profile.revision !== user.value.revision ||
@@ -536,7 +550,15 @@ export const useAuthStore = defineStore('auth', () => {
     return run
   }
 
-  /** Resolves with the user once the resolution has committed the profile. */
+  /**
+   * Signs in with email and password and waits until the store has settled on that identity.
+   * Resolves with the signed-in user once the profile is committed, or with null when the session
+   * moved on without it (a disabled account, a sign-out or a newer sign-in); the store has then
+   * already replaced the route. Rejects with an AuthError when the sign-in is refused, with
+   * AuthError 'email-unverified' while the email is not verified, with the error that stopped a
+   * new verification email from being sent, or with AuthError 'offline' or 'profile-unavailable'
+   * when the profile could not be read.
+   */
   const login = async ({ email, password }) => {
     const sinceSession = session
     const eventsBefore = listenerEvents

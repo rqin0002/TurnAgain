@@ -16,9 +16,11 @@ import { normalizeEmail } from '@/shared/domain/catalogueValidation.js'
 import { toAuthError } from './AuthError.js'
 
 /**
- * Plain wrappers over Firebase Auth: one function per SDK call, every
- * rejection mapped to AuthError, no profile logic (that is userRepository.js and the store),
- * no factory.
+ * The app's only door to Firebase Auth: sign-in, sign-out, registration, verification, password
+ * reset, email change and the ID token. Each export wraps the SDK calls it needs and turns every
+ * rejection into an AuthError; profile documents are not handled here (userRepository.js and the
+ * auth store do that). Registration is the one export that runs several SDK calls: it creates the
+ * account, stores the typed name and, if the name cannot be stored, removes the new account again.
  */
 
 /**
@@ -33,8 +35,8 @@ const SILENT_RESET_CODES = new Set([
 
 /**
  * Verification links return to the sign-in page with `?verified=1`. The origin is the
- * running site's: localhost and the emulator are authorised by default; `turnagain.pages.dev` is
- * added to the Auth authorised domains when Pages exists (docs/DEPLOYMENT.md). When the
+ * running site's: localhost and the emulator are authorised by default; the Cloudflare Pages host
+ * must be added to the Auth authorised domains (docs/DEPLOYMENT.md, go-live step 6). When the
  * registration had one, the link also carries its already-resolved `redirect`.
  */
 const continueSettings = (redirect = null) => {
@@ -98,10 +100,11 @@ const removeNamelessAccount = async (user, email, password) => {
 }
 
 /**
- * Creates the account and folds `updateProfile`; the SDK signs the new user in. When
- * the name cannot be stored the registration fails as a whole: the nameless account is signed
- * out and removed (removeNamelessAccount) so its profile is never created as 'Member', and the
- * caller sees the name failure's code whether or not the removal succeeds.
+ * Creates the Auth account (the SDK signs it in) and stores the typed display name on it.
+ * If the name cannot be stored, this rejects with that error and removeNamelessAccount tries to
+ * delete the account without signing out a newer session. The removal is skipped when another
+ * identity already holds the session, and it can fail; the unverified, nameless account then
+ * remains and would be named 'Member' if it is verified later.
  */
 export function createAccount({ email, password, displayName }) {
   return guarded(async () => {
@@ -146,7 +149,10 @@ export function reloadUser(user) {
   })
 }
 
-/** `force` refreshes the ID token so the rules see new claims. */
+/**
+ * The user's ID token. With `force` it asks Auth for a new one, so the token carries the current
+ * email and email_verified claims the rules read; roles are not claims (they live in users/{uid}).
+ */
 export function getIdToken(user, force = false) {
   return guarded(() => user.getIdToken(force))
 }

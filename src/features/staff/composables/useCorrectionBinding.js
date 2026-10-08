@@ -9,8 +9,11 @@ import { useStaffCatalogue } from './useStaffCatalogue.js'
 const CORRECTION_NOT_OPEN = 'correction-not-open'
 
 /**
- * The `?correction=<id>` of a record edit, for StaffRecordView:
- * the bound correction (or null) and the notice the page shows above the form. `saveWith(run)`
+ * Ties a record edit to the correction report it was opened from: when a Service edit is opened
+ * from a report (`?correction=<id>`), one save updates the service and marks that report applied
+ * in the same batch. Only an open report about the same service binds; otherwise the bound
+ * correction is null and the notice says why. For StaffRecordView it returns the bound correction
+ * (or null) and the notice the page shows above the form. `saveWith(run)`
  * runs the page's save with the bound id (null unless bound), so the correction is marked applied
  * in that save's batch; after a save that carried it, the query key is dropped, and while that
  * save runs the notice is silent, so the page never goes on to say the correction "is already

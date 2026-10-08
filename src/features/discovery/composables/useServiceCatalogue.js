@@ -10,12 +10,16 @@ import { fetchServiceCatalogue, readCachedServiceCatalogue } from '../data/servi
  * `'fresh'`, and a failed fetch keeps whatever is showing (the view says "Showing results saved
  * {relative time}"). Nothing is cleared when a load starts; the error panel is for a failure
  * with nothing to show. The load state itself is useStaleWhileRevalidate's.
+ * `status: 'ready'` only means a catalogue is on screen: it may be the saved copy
+ * (`freshness: 'cached'`), still being refreshed (`revalidating`), kept after a failed refresh
+ * (`error`), cut at the read limit (`truncated`) or missing records that failed validation
+ * (`skippedCount`). An id absent from `services` is not proof that the service was removed.
  *
  * @param {object} [options]
  * @param {(options: { signal: AbortSignal, force: boolean }) => Promise<object>} [options.loader]
  *   Injectable loader used by production code and deterministic component tests.
  * @param {(() => { value: object, savedAt: Date } | null) | null} [options.cached]
- *   Reads the persisted copy; pass null where the public cache must never paint (staff views).
+ *   Reads the saved copy; pass null so that no saved copy ever paints.
  * @param {boolean} [options.autoLoad=true]
  *   Set false when a route must redirect before making a network request.
  * @returns {{

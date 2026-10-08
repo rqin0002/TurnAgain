@@ -1,15 +1,17 @@
 /**
- * The reserved-domain guard for undeliverable addresses: addresses under the reserved
- * top-level names never route, so neither email function ever hands one to Brevo and no bounce
- * reaches the free account. Runs only when the call is not a dry run, so the emulator's `.test`
- * demo accounts still get `dry-run`.
+ * Recognises addresses under the reserved top-level names (.test, .invalid, .example,
+ * .localhost), which never route. The email functions apply it only on a real send and skip such
+ * an address instead of handing it to Brevo; a dry run keeps them, so the emulator's .test demo
+ * accounts still record dry-run. Passing it does not show that the mailbox exists or accepts
+ * mail.
  */
 
 export const UNDELIVERABLE_TLDS = Object.freeze(['test', 'invalid', 'example', 'localhost'])
 
 /**
- * False for a non-string, an address without exactly one `@` (or an empty side) and a domain whose
- * last label is reserved; `member@example.com` is deliverable, `member@turnagain.test` is not.
+ * False for a non-string, an address without exactly one '@' (or with an empty side), or a domain
+ * whose last label is reserved. Only the last label is checked: member@example.com passes,
+ * member@turnagain.test does not.
  */
 export function isDeliverableAddress(email) {
   if (typeof email !== 'string') return false

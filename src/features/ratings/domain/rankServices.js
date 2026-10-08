@@ -5,6 +5,12 @@ import { describeRatingSummary } from './ratingPresentation.js'
 const validSummary = (summary) =>
   describeRatingSummary(summary) !== null && summary.ratingCount <= 1000000
 
+/**
+ * Orders services by rating for display: services with at least one rating first (higher exact
+ * average first, then more ratings, then name), then services with zero ratings, then services
+ * whose summary is missing or invalid (both by name). Averages are compared by cross-multiplying
+ * sum and count, so two averages that round to the same displayed value still sort exactly.
+ */
 export function sortServicesByRating(services, summariesById = {}) {
   return [...services].sort((left, right) => {
     const a = summariesById[left.id]
@@ -23,6 +29,7 @@ export function sortServicesByRating(services, summariesById = {}) {
   })
 }
 
+/** The first "limit" (at most 5) services that have at least one rating, in that order. */
 export function rankRatedServices(services, summariesById = {}, { limit = 5 } = {}) {
   return sortServicesByRating(services, summariesById)
     .filter(
@@ -32,7 +39,14 @@ export function rankRatedServices(services, summariesById = {}, { limit = 5 } = 
     .slice(0, Math.max(0, Math.min(5, limit)))
 }
 
-/** Strict public aggregate boundary, shared by discovery and individual ratings. */
+/**
+ * Turns a stored rating-summary document into the summary the app shows, or null when it cannot
+ * be trusted. It needs exactly the keys ratingCount, ratingSum, histogram and updatedAt: a count
+ * from 0 to 1,000,000, a non-negative sum, five non-negative bucket counts (one star first) that
+ * add up to the count and to the sum, and an updatedAt that converts to a time. The result adds
+ * averageRating (null with no ratings) and keys the histogram by score. Both rating repositories
+ * use it, so the public pages and the ranking agree on what a valid summary is.
+ */
 export function projectRatingSummary(candidate) {
   const keys = ['ratingCount', 'ratingSum', 'histogram', 'updatedAt']
   if (

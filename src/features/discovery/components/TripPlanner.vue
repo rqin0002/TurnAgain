@@ -8,12 +8,12 @@ import StatePanel from '@/shared/components/StatePanel.vue'
 import { TRIP_MODES, buildGoogleMapsUrl, buildPtvUrl, formatTrip } from '../domain/trip.js'
 
 /**
- * The trip panel of Service Detail: the travel modes as one native
- * radio group (one Tab stop, the arrow keys move the choice, as every browser does for radios
- * sharing a name), the From line, one Directions request per click (the composable gates it to one request per
- * second), the route sentence or the straight-line estimate with the Google Maps and PTV links,
- * public transport as links only, and no Directions control at all for an `area` record. The
- * fixed copy says where the start point goes. Props in, events out: the view owns
+ * The trip panel of Service Detail: the travel modes as one native radio group (one Tab stop,
+ * the arrow keys move the choice, as every browser does for radios sharing a name), the From
+ * line, one Directions request per click (the route repository allows one a second), the route
+ * sentence or the straight-line estimate with the Google Maps and PTV links, public transport as
+ * links only, and no Directions control at all for an `area` record. The fixed copy says where
+ * the start point goes. Props in, events out: the view owns
  * `useTripRoute` and `useLocationOrigin`; this component imports no data module. Choosing a mode
  * emits `select-mode` so the view retires the previous mode's trip, and a result renders only
  * under the mode it was requested for.

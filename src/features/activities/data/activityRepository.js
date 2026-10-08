@@ -14,10 +14,14 @@ import { projectActivity } from '../domain/activitySchema.js'
 import { PUBLIC_SESSION_STATUSES, projectSession } from '../domain/sessionSchema.js'
 
 /**
- * Activity and session reads (the by-id session reader is bookingRepository's). Public reads share a five-minute module cache and persist the last successful read
- * under CACHE_KEYS.activities (published activities and public-status sessions); the
- * staff reads live in staff/data/staffRepository.js and are never cached. Plain
- * exports, no factory. Malformed documents are skipped and counted, never fatal.
+ * Firestore reads for the public activity catalogue. The app uses three exports:
+ * fetchPublicActivityCatalogue (published activities and their public-status sessions, read
+ * together), readCachedActivityCatalogue (the saved copy) and clearActivityCache. Public reads
+ * share a five-minute module cache, and the last successful read is saved under
+ * CACHE_KEYS.activities for the next visit's first paint. The readers fetchPublicSessions (all
+ * public-status sessions), fetchActivity and fetchSession (by id) have no caller in src/; a
+ * booking reads its session through bookingRepository. Staff reads live in staff/data/staffRepository.js and are never cached.
+ * Malformed documents are skipped and counted, never fatal.
  */
 
 const CACHE_TTL_MS = 5 * 60 * 1000
@@ -100,7 +104,10 @@ export async function fetchPublicActivityCatalogue({ signal, force = false } = {
   }
 }
 
-/** Public sessions only (the Activities calendar). */
+/**
+ * Every public-status session. No caller in src/: the Activities calendar is built from
+ * fetchPublicActivityCatalogue.
+ */
 export async function fetchPublicSessions({ signal } = {}) {
   try {
     throwIfAborted(signal)

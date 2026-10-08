@@ -7,7 +7,9 @@ import { setGlobalOptions } from 'firebase-functions/v2'
  * The only place that initialises the Admin SDK and sets the global function options.
  * Every function module imports this file first: onCall/onRequest read the global options when
  * they are defined, so a setGlobalOptions placed in index.js would run after the imports it
- * follows. Sized to stay inside the Blaze free tier: three instances, 256 MiB, 60 s.
+ * follows. Every function runs in australia-southeast1 with at most three instances, 256 MiB and
+ * a 60-second timeout. These caps limit how far one function scales; they are not a spending
+ * limit, and staying inside the free allowance depends on traffic.
  */
 setGlobalOptions({
   region: 'australia-southeast1',

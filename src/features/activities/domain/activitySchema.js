@@ -9,7 +9,14 @@ import {
   toIsoTimestamp,
 } from '@/shared/domain/catalogueValidation.js'
 
-/** The activity vocabulary; the rules mirror it. */
+/**
+ * The shape of an activity document (activities/{id}) and the checks the app applies before it
+ * trusts one; the rules' isValidActivity mirrors them. validateActivity(candidate) returns
+ * `{ isValid, errors }` with one 'invalid' entry per failing field (or `keys` / `record` when the
+ * shape is wrong). projectActivity(id, candidate) returns a copy safe to render (lists copied,
+ * revision defaulting to 1, timestamps as ISO strings), or null when the document is invalid or
+ * its id field does not match the document id.
+ */
 
 export const ACTIVITY_TYPES = Object.freeze(['repair', 'reuse', 'workshop'])
 export const ACTIVITY_STATUSES = Object.freeze(['published', 'archived'])

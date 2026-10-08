@@ -12,11 +12,13 @@ import {
 } from '../domain/profileSchema.js'
 
 /**
- * users/{uid} on Firestore Lite. Plain async functions; every
- * write runs inside `runTransaction` so `revision` is read and written as `current + 1` in one
- * round trip (the rules refuse anything else) and `updatedAt` is always `serverTimestamp()`.
- * Every error is a RepositoryError; a denied call dispatches `turnagain:permission-denied` with
- * `detail.source = 'users'` so the auth store can tell its own denials from everyone else's.
+ * Reads and writes users/{uid} on Firestore Lite. Every write is a transaction that reads the
+ * current document first: an update stores revision + 1 and updatedAt = serverTimestamp()
+ * (the rules refuse any other step); a create writes revision 1 only when no document exists.
+ * The SDK may run the callback more than once if the document changes underneath it.
+ * A document whose uid field names another user is rejected as malformed. Errors become
+ * RepositoryError; a denied call also dispatches `turnagain:permission-denied` with
+ * `detail.source = 'users'`, which the auth store ignores for its own calls.
  */
 
 const SOURCE = 'users'

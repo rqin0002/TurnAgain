@@ -178,9 +178,11 @@ export function buildBookingIcs(booking, { stamp }) {
 }
 
 /**
- * session.ics for the staff broadcast: METHOD:PUBLISH with the sender as organizer; a
- * cancelled session publishes STATUS:CANCELLED with SEQUENCE:1, so a calendar that imported the
- * first file retracts the event. `session` holds ISO instants.
+ * session.ics for the staff broadcast: METHOD:PUBLISH with the sender as organizer. A cancelled
+ * session is published under the same session UID with STATUS:CANCELLED and SEQUENCE:1; whether
+ * a calendar that imported an earlier session.ics removes the event is up to that calendar. The
+ * booking's own file uses a different UID, so this file never updates it. session holds ISO
+ * instants.
  */
 export function buildSessionIcs({ sessionId, session, activityTitle, organizer, stamp }) {
   const cancelled = session.status === 'cancelled'

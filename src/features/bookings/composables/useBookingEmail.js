@@ -14,11 +14,15 @@ const RESEND_INTERVAL_MS = 60_000
 const ATTEMPTS_PER_DAY = 3
 
 /**
- * The booking email status line. The server enforces the
- * 60-second rule and the three attempts a Melbourne day; the countdown here is feedback only. A
- * refusal the function names (`details.code`) keeps the last known status and adds its sentence;
- * any other failure is an error that never claims the email failed. With functions off this
- * build never calls anything (the CapabilityNotice speaks instead).
+ * Asks the sendBookingEmail function about one booking's email and holds what the booking page
+ * shows about it. With `requestOnMount` it asks once when the page mounts; `request` and
+ * `checkStatus` ask again without forcing a send, and `resend` asks for a new attempt. `status` is
+ * 'idle' before any call, 'requesting' while one runs, then the function's answer ('sending',
+ * 'accepted', 'failed', 'unknown' or 'dry-run'); 'refused' when the function named a reason
+ * (`details.code`: `result` keeps the last answer and `refusal` its sentence), or 'error' for any
+ * other failure, which never claims the email failed. The server enforces one resend a minute and
+ * three attempts a Melbourne day; the countdown here is feedback only. A build without functions
+ * never calls anything (CapabilityNotice explains instead).
  *
  * @param {{ bookingId: import('vue').MaybeRefOrGetter<string>, kind: import('vue').MaybeRefOrGetter<string>, requestOnMount?: boolean }} options
  */

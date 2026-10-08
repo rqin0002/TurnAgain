@@ -1,10 +1,11 @@
 /**
- * URL-facing pagination: `normalizePagination` reads route-query values, and
- * `paginateRecords` keeps the `items/total/pageCount/from/to` vocabulary its four consumers
- * (activityCatalogue, SearchResults, ActivitiesView, FindNearbyView) render. The slicing itself
- * lives in `tableQuery.js` (`paginateRows`), the canonical page-slicer; this module only maps
- * that result onto these names. The staff tables use `applyTableState` instead; this module
- * stays for its four consumers.
+ * Page numbers and page slices for the public result lists (Find nearby and Activities).
+ * `normalizePagination` reads the `page` and `pageSize` route-query values: page is a decimal
+ * integer of 1 or more (anything else is 1), pageSize is 20 when asked for and otherwise 10, and
+ * a repeated key counts by its first value. `paginateRecords` slices a list with tableQuery.js's
+ * `paginateRows` (a page past the end becomes the last page) and returns `items`, `total`,
+ * `page`, `pageSize`, `pageCount`, `from` and `to`. The staff tables page with
+ * `applyTableState` instead.
  */
 
 import { paginateRows } from './tableQuery.js'

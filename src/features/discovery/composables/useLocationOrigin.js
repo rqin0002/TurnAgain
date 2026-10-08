@@ -6,10 +6,11 @@ import { resolveTypedOrigin } from '../domain/postcodeCentroids.js'
 export { placeLookupFailedCopy, unknownPlaceCopy } from '../domain/postcodeCentroids.js'
 
 /**
- * The search origin: one module-level state for the page session, memory only. It
- * survives View details -> Back and disappears on reload, which is the one reading that keeps
- * "never stored" literally true; nothing here is cleared on unmount. Coordinates are rounded to
- * 3 dp before they enter state and the device accuracy is floored at 150 m. `requestLocation`
+ * The search origin, the point a Find nearby search measures from: one module-level state for
+ * the page session, held in memory only. Device coordinates never go to storage, the URL or
+ * Firestore, as the About page's "What is never stored" list promises; the state survives View
+ * details -> Back and disappears on reload, and nothing here is cleared on unmount. Coordinates
+ * are rounded to 3 dp before they enter state and the device accuracy is floored at 150 m. `requestLocation`
  * must be called from the user's click (the prompt appears on the call); `restoreIfGranted`
  * re-acquires silently only when the permission is already granted and never prompts on load.
  *

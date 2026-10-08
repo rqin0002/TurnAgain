@@ -3,20 +3,23 @@ import { onBeforeUnmount, shallowRef, toValue, watch } from 'vue'
 import { fetchRatingSummaries, readCachedRatingSummaries } from '../data/ratingSummaryRepository.js'
 
 /**
- * Rating summaries for the services a page shows; the view passes them down.
- * Stale-while-revalidate: the persisted summaries for the requested ids paint first
- * with `freshness: 'cached'`, and the read replaces them. What a failed id shows depends on why
- * it failed: a transport failure (offline, unreachable) keeps the saved copy, while a summary the
- * server confirmed missing or invalid is removed and the id stays in `failedIds`, the incomplete
- * set, so a ranking never counts its coverage as complete because of it. The last results this
- * composable resolved for an id set are the other fallback: a refresh of the same ids that fails
- * while the storage copy is unavailable keeps them on screen, dated to when they were obtained,
- * and when both copies exist the newer one wins for the ids it holds and the other fills only the
- * ids it lacks, so an older stored envelope (readable, but the latest persist failed on quota)
- * never overwrites what this page resolved later. Superseding a request in flight and clearing
- * what is shown are separate: `load()` clears only when the id set differs from the one on screen.
- * A round merges into what is shown: a summary already on screen outranks the saved copy, a
- * transport failure or a failed read keeps it, and `savedAt` dates the oldest summary shown.
+ * The rating summaries for the services a page shows (Home's top rated, Find nearby's rating
+ * sort, the staff Overview); the page passes them down to its components. The saved summaries
+ * for the requested ids paint first (`freshness: 'cached'`), then a read replaces them;
+ * `failedIds` lists the ids with no summary to show, so a ranking never treats its coverage as
+ * complete.
+ *
+ * Fallbacks, by why an id failed: a transport failure (offline, unreachable) keeps the saved
+ * copy; a summary the server confirmed missing or invalid is removed and its id stays in
+ * `failedIds`. The last results this composable resolved for an id set are the other fallback: a
+ * refresh of the same ids that fails while the storage copy is unavailable keeps them on screen,
+ * dated to when they were obtained, and when both copies exist the newer one wins for the ids it
+ * holds and the other fills only the ids it lacks, so an older stored envelope (readable, but the
+ * latest save failed on quota) never overwrites what this page resolved later. Superseding a
+ * request in flight and clearing what is shown are separate: `load()` clears only when the id set
+ * differs from the one on screen. A round (one load) merges into what is shown: a summary already
+ * on screen outranks the saved copy, a transport failure or a failed read keeps it, and `savedAt`
+ * dates the oldest summary shown.
  *
  * Two ways to name the ids (exactly one): `services` (records, as Home passes them: a change
  * resets everything) or `ids` (the discovery candidate set: a change prunes only

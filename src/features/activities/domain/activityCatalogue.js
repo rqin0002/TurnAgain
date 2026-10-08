@@ -34,6 +34,8 @@ const toTime = (value) => {
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
 }
 
+// A public session stays listed until it ends, so one already under way still shows. Listed does
+// not mean bookable: booking closes when the session starts.
 const isCurrentOrFuture = (session, now) =>
   PUBLIC_SESSION_STATUSES.has(session?.status) && toTime(session?.endsAt) > now.getTime()
 
@@ -220,7 +222,13 @@ export const getRemainingCapacity = (session) => {
   return Math.max(0, capacity - bookedCount)
 }
 
-/** Builds public availability copy without inventing external capacity data. */
+/**
+ * Availability text from a session's own counts: the remaining places when capacity and
+ * bookedCount are known, otherwise the provider or drop-in wording; null counts are never shown
+ * as zero. It ignores the waitlist and the start time, so for a TurnAgain session the Activities
+ * card calls it only after describeSessionAvailability (bookings domain), which applies those and
+ * the waitlist limit, has found the session bookable.
+ */
 export const formatSessionAvailability = (session) => {
   if (!session || ['full', 'cancelled', 'completed'].includes(session.status)) {
     return ''

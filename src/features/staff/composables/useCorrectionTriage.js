@@ -5,12 +5,12 @@ import { resolveCorrection } from '../data/staffRepository.js'
 import { useStaffCatalogue } from './useStaffCatalogue.js'
 
 /**
- * Mark applied and Dismiss on the corrections queue. One triage at a time; after any
- * answer the catalogue reloads, so a card that someone else handled moves to its new status
- * instead of offering a second triage the rules would refuse. The result line is plain text for
- * a mounted `role="status"` element; with `focusTarget` (a ref to that line, which carries
- * tabindex="-1"), focus moves there once a started triage settles, because the card's buttons are
- * gone by then and would leave focus on <body>.
+ * Mark applied and Dismiss for the corrections queue, one correction at a time.
+ * After a success, or a conflict (another staff member already handled it), the catalogue
+ * reloads so the queue shows the new status; any other failure keeps the loaded queue and
+ * reports the error. `message` is plain text for a mounted role="status" line; with
+ * `focusTarget` (a ref to that line, tabindex="-1"), focus moves there when a started triage
+ * settles, because the card's buttons may be gone and focus would otherwise fall to <body>.
  */
 export function useCorrectionTriage({ focusTarget = null } = {}) {
   const catalogue = useStaffCatalogue()

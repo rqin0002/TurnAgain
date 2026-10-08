@@ -169,7 +169,7 @@ const DYNAMIC_RESTRICTIONS = {
 }
 
 const violation = (name) =>
-  `boundaries/${name}: this import crosses a layer boundary (spec 3.3-3.4).`
+  `boundaries/${name}: this import crosses a layer boundary; "The layering rule" in docs/ARCHITECTURE.md lists what each layer may import.`
 
 const patterns = (...names) =>
   names.map((name) => ({ group: RESTRICTIONS[name], message: violation(name) }))

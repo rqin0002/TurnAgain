@@ -3,6 +3,9 @@ import { RouterLink } from 'vue-router'
 
 import { formatCheckedDate } from '../domain/guidancePresentation.js'
 
+// One guidance topic on the Guides page: its scope, title, summary and steps, the official
+// sources with the date each was last checked, and an optional link to a matching Find nearby
+// search. It reads nothing; the topic comes from guidanceTopics.js.
 defineProps({
   topic: {
     type: Object,

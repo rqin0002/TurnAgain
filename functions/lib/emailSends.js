@@ -6,10 +6,18 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { melbourneDayKey, nextMelbourneMidnight } from '../shared/melbourneTime.js'
 
 /**
- * The email-send records: the create-only
- * `emailSends` document is the only idempotency lock (Brevo has none). The pure helpers
- * come first and are unit-tested; the four transaction helpers take the Admin `db` as their first
- * argument and are exercised against the emulator by tests/api.
+ * The send records behind the two email functions, in the emailSends collection. The email
+ * provider (Brevo) has no idempotency of its own, so a create-only document is the lock that
+ * stops one email going out twice. Two kinds of record:
+ * - a booking email attempt, id `<bookingId>:<kind>:<updatedAtMs>:<attempt>`; the attempts of one
+ *   booking version and kind form a series (sendBookingEmail);
+ * - a session broadcast, id = the client's operationId, with two sub-sends, `participants` and
+ *   `copy` (sendSessionEmail).
+ * Statuses: 'sending' (in flight; read as 'unknown' after 120 s), 'accepted' (the provider took
+ * it), 'failed', 'unknown', 'dry-run' (nothing was sent), 'skipped' (a sub-send with no
+ * deliverable address) and, for a broadcast whose sub-sends differ, 'partial'.
+ * The pure helpers come first and are unit-tested; the four transaction helpers take the Admin
+ * `db` as their first argument and are exercised against the emulator by tests/api.
  */
 
 export const SENDING_STALE_MS = 120_000
@@ -162,10 +170,11 @@ function resendRefusal({ code, retryAfterMs }) {
 
 /**
  * Claims the next attempt of a booking email series in one Admin transaction (in order:
- * the send key, then the create-only record). The transaction first re-reads the booking: one
- * whose `updatedAt` moved since the caller's read (a cancel that committed in between) is refused
- * `kind-mismatch`, and a vanished one `not-found`, so no email goes out for a booking that has
- * changed. A non-empty series is answered with its latest attempt and nothing is created when
+ * the send key, then the create-only record). The transaction re-reads the booking first: one
+ * whose updatedAt moved since the caller's read (a cancel that committed in between) is refused
+ * kind-mismatch, and a vanished one not-found. That covers changes up to the claim only; a
+ * booking that changes after it, while the provider request is in flight, still gets this email.
+ * A non-empty series is answered with its latest attempt and nothing is created when
  * `resend` is false, and also when the latest attempt is not `failed` or `unknown` (an accepted,
  * dry-run or in-flight email is never sent again). A racing first call whose create fails with
  * ALREADY_EXISTS is answered the same way (`claimed: false`), so two tabs never send twice.

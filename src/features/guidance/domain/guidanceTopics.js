@@ -13,7 +13,8 @@ import { deepFreeze } from '@/shared/domain/deepFreeze.js'
  * @property {string} title
  * @property {string} organisation
  * @property {string} url
- * @property {string} checkedAt ISO calendar date in YYYY-MM-DD form.
+ * @property {string} checkedAt The date (YYYY-MM-DD) an editor last read this source. The app
+ *   never refetches or rechecks it; the date changes only when this file is edited.
  */
 
 /**

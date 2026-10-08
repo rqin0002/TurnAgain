@@ -3,17 +3,20 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RepositoryError, isRepositoryError } from '../data/RepositoryError.js'
 
 /**
- * The stale-while-revalidate load state shared by the public catalogues: a persisted
- * copy paints first with `freshness: 'cached'`, the fetch replaces it with `'fresh'`, and a
- * failed fetch keeps whatever is showing (the views say "Showing results saved {relative time}").
- * Nothing is cleared when a load starts; the error status is for a failure with nothing to show.
- * The caller owns its data refs and hands over how to fill them (`apply`) and empty them
- * (`reset`).
+ * Load-state coordinator for the public catalogues (services, activities, one service). While
+ * nothing is showing it first paints the saved copy (`cached`), then fetches a fresh one. The
+ * caller owns the data refs; this only calls `apply` (fill them) and `reset` (empty them) and
+ * tracks status, freshness, savedAt and error.
+ * `status === 'ready'` means the refs hold a catalogue, saved or fresh, possibly empty; it says
+ * nothing about freshness (`freshness`) or completeness (the loader's own truncation flag).
+ * A failed fetch keeps whatever is showing (now 'cached', with `error` set); with nothing
+ * showing it calls `reset` and sets status 'error'. Only the latest `load` may apply a result;
+ * an older request is aborted and its late result discarded, as are results after unmount.
  *
  * @param {object} options
  * @param {(options: { signal: AbortSignal, force: boolean }) => Promise<object>} options.loader
  * @param {(() => { value: object, savedAt: Date } | null) | null} options.cached
- *   Reads the persisted copy; null where the public cache must never paint (staff views).
+ *   Reads the saved copy; null never paints one.
  * @param {(catalogue: object) => void} options.apply Copies a catalogue into the caller's refs.
  * @param {() => void} options.reset Empties the caller's refs when a load fails with no copy.
  * @param {boolean} options.autoLoad Loads on mount when true.

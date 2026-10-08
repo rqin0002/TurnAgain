@@ -9,10 +9,9 @@ import TopRatedServices from '@/features/ratings/components/TopRatedServices.vue
 import { useRatingSummaries } from '@/features/ratings/composables/useRatingSummaries.js'
 
 const router = useRouter()
-// The last search (item, location, action chips and sort; never coordinates, never near=me)
-// prefills the form: a saved criterion, not a saved place. The form asks for no
-// device position: the map's "Use my location" control on Find nearby is the
-// one request, so Home holds no geolocation state.
+// The search form starts from the item and location of the last search in this browser (the
+// saved search also holds chips and sort, which Home does not use, and never coordinates or
+// near=me). The form never asks for the device position, so Home holds no geolocation state.
 const { lastSearch } = useLastSearch()
 
 // Top rated is loaded on request, never on mount: the ranking needs one summary read per

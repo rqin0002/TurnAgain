@@ -11,13 +11,27 @@ import { isLiveAdminAllowed } from './lib/params.js'
 import { assertEnum, assertId, assertNonNegativeInt, requestData } from './lib/validate.js'
 
 /**
- * adminSetUserAccess. An admin changes another
- * account's role or status; a call with neither is a Check. The transition is serialised per
- * target uid by a lease in accessLocks/{uid}. Firestore writes are fenced by the lease inside
- * their own transactions; Auth writes cannot be fenced, so they run only while the lease is
- * believed held (re-checked immediately before and after each) and never after it is known to be
- * lost. The reconcile sets Auth `disabled` from the profile and completes the revocation of a
- * disabled account. The role lives in users/{uid} only: no custom claims.
+ * adminSetUserAccess: an admin changes another account's role or status (active or disabled); a
+ * call with neither is a Check, which only brings Auth in line with the profile. The role lives
+ * in users/{uid} only (no custom claims); a disabled status also disables the Auth account and
+ * revokes its refresh tokens. One change per target account at a time: a lease document,
+ * accessLocks/{uid}, serialises them.
+ *
+ * The steps the comments below refer to:
+ *   1. Acquire the lease: create accessLocks/{uid} only if no live lease exists; otherwise
+ *      answer in-progress with the time left. A lease lasts 90 s, longer than the 60 s timeout.
+ *   2. Read the profile and check its revision against expectedRevision; nothing has been
+ *      written to Auth yet.
+ *   3. Write the profile in a transaction that also checks that this call still holds the lease
+ *      and the revision has not moved (the fenced write); it stores revision + 1.
+ *   4. Write to Auth (an enable before the profile write, a disable and the token revocation
+ *      after it), each call between two lease checks. Auth writes cannot be fenced: a lease lost
+ *      before a call stops the change there; a lease lost after one leads to a single re-acquire,
+ *      under which the account is reconciled, and the call then answers lock-lost.
+ *   5. Reconcile: read the profile and the Auth account, set Auth `disabled` to match the
+ *      profile, finish a revocation that failed earlier, and answer from these reads.
+ *   6. Release the lease, unless another execution took it over after it expired; a failed
+ *      release is logged and the lease expires by itself.
  */
 
 /** Longer than the 60 s timeoutSeconds, so a takeover happens only after a stall (step 1). */

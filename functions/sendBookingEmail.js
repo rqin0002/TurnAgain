@@ -22,12 +22,19 @@ import {
 import { bookingIcsFileName, buildBookingIcs } from './shared/ics.js'
 
 /**
- * sendBookingEmail. Order: authenticate -> validate ->
- * read the booking and check the kind -> decide the dry run -> unless dry run, refuse an
- * undeliverable address with no record -> claim the attempt (create-only record; the claim's
- * transaction refuses a booking whose updatedAt moved since the read, and creates a resend only
- * after a failed or unknown attempt) -> unless dry run or already claimed, call Brevo and write the
- * result -> answer with the latest attempt.
+ * sendBookingEmail sends one email about one booking: confirmed, waitlisted, cancelled or
+ * promoted. The booking pages ask for it after a booking or a cancel, and again from Resend or
+ * Check status. Only staff and admins may ask for 'promoted'; every other kind is for the
+ * caller's own booking (its id starts with the caller's uid and its stored uid matches), staff
+ * and admins included. One booking version and kind get one email, plus a resend only after an
+ * attempt that failed or whose outcome is unknown (at most three attempts a Melbourne day, a
+ * minute apart).
+ *
+ * Order: authenticate -> validate -> read the booking and check the kind -> decide the dry run
+ * -> unless dry run, refuse an undeliverable address with no record -> claim the attempt
+ * (create-only record; the claim's transaction refuses a booking whose updatedAt moved since the
+ * read, and creates a resend only after a failed or unknown attempt) -> unless dry run or
+ * already claimed, call Brevo and write the result -> answer with the latest attempt.
  */
 
 const CALLER_ROLES = ['member', 'staff', 'admin']

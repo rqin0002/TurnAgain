@@ -6,6 +6,12 @@ import { throwIfAborted } from '@/shared/data/RepositoryError.js'
 
 import { projectRatingSummary } from '../domain/rankServices.js'
 
+/**
+ * Reads the public rating summary of each service (services/{id}/aggregates/rating-summary) for
+ * the pages that rank or chart services, and keeps two copies: five minutes in memory, and the
+ * last known summaries in localStorage, which a page paints first while it reads again. A
+ * summary that is missing or fails projectRatingSummary is a failure with a reason, never a zero.
+ */
 const CACHE_TTL_MS = 5 * 60 * 1000
 const MAX_CONCURRENT_READS = 4
 
@@ -69,8 +75,9 @@ export function storeRatingSummary(serviceId, summary, { now = Date.now } = {}) 
   persist({ updated: [serviceId] })
 }
 
-// Lite requests cannot cancel their transport. Keep the cap across superseded
-// rounds as well as within a round, while discarding aborted queued work.
+// Firestore Lite cannot cancel a read once it is sent, so the cap of four reads in flight is
+// shared by every fetchRatingSummaries call, including calls a newer one has superseded; a read
+// still waiting in the queue is dropped when its signal aborts.
 let activeReads = 0
 const queue = []
 

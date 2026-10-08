@@ -9,19 +9,21 @@ import {
 } from '../data/activityRepository.js'
 
 /**
- * Drops the five-minute module cache after a booking or a cancel moved the counters, so
- * the next catalogue load reads Firestore; the bookings feature calls this, never the repository.
+ * Clears the five-minute in-memory catalogue cache after a booking or cancel changed session
+ * counts, so the next catalogue load reads Firestore. Pages already showing the catalogue are not
+ * refreshed, and the saved offline copy still paints first until that read replaces it.
  */
 export function invalidateActivityCatalogue() {
   clearActivityCache()
 }
 
 /**
- * Owns one abortable activity-catalogue request, stale-while-revalidate: the persisted
- * copy paints first with `freshness: 'cached'`, the fetch replaces it with `'fresh'`, and a
- * failed fetch keeps what is showing. Nothing is cleared when a load starts. Staff inject the
- * staff repository loader and `cached: null`, so the public cache never paints a register. The
- * load state itself is useStaleWhileRevalidate's; this adds the activity fields and the clock.
+ * The public activity catalogue for the Activities list, an activity's page and Find nearby,
+ * with one abortable request at a time. Stale-while-revalidate: the saved copy paints first with
+ * `freshness: 'cached'`, the fetch replaces it with `'fresh'`, and a failed fetch keeps what is
+ * showing; nothing is cleared when a load starts. `loader` and `cached` can be replaced (tests
+ * do; `cached: null` never paints a saved copy). The load state itself is
+ * useStaleWhileRevalidate's; this adds the activity fields and the page clock (`now`).
  *
  * @param {object} [options]
  * @param {(options: { signal: AbortSignal, force: boolean }) => Promise<object>} [options.loader]

@@ -5,14 +5,16 @@ import { isValidId } from '@/shared/domain/catalogueValidation.js'
 import { isAbortError, throwIfAborted } from './RepositoryError.js'
 
 /**
- * Reads documents by id in `documentId() in` chunks with per-chunk tolerance:
- * a chunk whose read fails puts its ids in `failedIds` and the loop goes on, so one failed chunk
- * never hides the sessions the others returned. Ids are deduplicated and invalid ones dropped;
- * a document the projector refuses is skipped and counted; an id that is in neither `records`
- * nor `failedIds` does not exist or is not readable. An AbortError (or a signal aborted between
- * chunks) propagates, and so does an error without a string `code`: a programming fault (a
- * TypeError from building the query) must never hide as failed ids. Every chunk query carries
- * `limit(chunk.length)`, which the rules' bounded-list check needs.
+ * Reads the documents whose ids are listed, in `documentId() in` queries of up to `chunkSize`
+ * ids (30 by default and at most), and returns what it could read. Ids are deduplicated and
+ * invalid ones dropped first. Each document goes through `project`: a record lands in `records`,
+ * a refused one (null) only adds 1 to `skippedCount`. A chunk whose read fails puts its ids in
+ * `failedIds` and the loop goes on, so one failed chunk never hides what the others returned.
+ * An id found in neither list was missing, unreadable, or refused by `project` (counted, not
+ * named). An AbortError (or a signal aborted between chunks) propagates, and so does an error
+ * without a string `code` or one thrown by `project`: a programming fault must never hide as
+ * failed ids. Every chunk query carries `limit(chunk.length)`, which the rules' bounded-list
+ * check needs.
  *
  * @param {import('firebase/firestore/lite').CollectionReference} collectionReference
  * @param {unknown} ids

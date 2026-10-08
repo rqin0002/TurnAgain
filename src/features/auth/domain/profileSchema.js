@@ -7,13 +7,12 @@ import {
 } from '@/shared/domain/catalogueValidation.js'
 
 /**
- * The users/{uid} vocabulary, mirroring the rules' isValidProfile:
- * the seven HEAD keys plus `revision` (int >= 1) and `savedServiceIds` (list of ids, <= 100). A
- * legacy profile lacks the last two; the projector fills their defaults and flags `needsUpgrade`
- * so the store performs the one-time migration write. Timestamps are checked by the
- * rules (`createdAt <= updatedAt`, `updatedAt == request.time`) and never rendered, so the client
- * validator accepts any value there; a document just written carries sentinels, not Timestamps.
- * Both sides count the display name in UTF-16 code units: the rules' `size()` and `length` here.
+ * Shape check for a stored users/{uid} document before the app trusts it: allowed keys, uid,
+ * email, display name (1–50, counted with String.length), role, status, revision and the saved
+ * service list (at most 100). Older records may lack revision and savedServiceIds;
+ * projectProfile fills their defaults and sets needsUpgrade so the store writes them once.
+ * Timestamps are not checked here (a just-written document holds serverTimestamp sentinels);
+ * firestore.rules enforces them on every write.
  */
 
 export const PROFILE_KEYS = Object.freeze([

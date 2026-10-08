@@ -3,12 +3,14 @@ import { getDocs, limit, query, startAfter } from 'firebase/firestore/lite'
 import { throwIfAborted } from './RepositoryError.js'
 
 /**
- * Reads a collection completely up to a cap. Never changes the caller's ordering:
- * it runs `query(baseQuery, limit(pageSize))` and pages with `startAfter(lastSnapshot)`, which
- * the SDK resolves against the query's own orderBy fields plus the implicit `__name__`. So a
- * where()/`in` query pages on `__name__` with no composite index and a single `orderBy` keeps
- * its automatic single-field index. Stops early on a short page. Reads one document past `max`
- * as the probe, so `truncated` is exact when the collection holds exactly `max` documents.
+ * Reads the documents matched by `baseQuery` page by page and returns at most `max` of them,
+ * in the query's own order: each page is `startAfter(previous page's last document)`, which
+ * keeps the caller's orderBy (plus the implicit `__name__` tiebreak) instead of imposing one.
+ * One document beyond `max` is requested only to learn whether more exist, so `truncated` is
+ * true exactly when the query matches more than `max` documents. A caller that shows the result
+ * must say it is incomplete when `truncated` is true.
+ * If `signal` aborts before or after any page, it throws an AbortError instead of returning.
+ * Throws RangeError unless 1 <= pageSize <= 100 and 1 <= max <= 1000.
  *
  * @returns {Promise<{ docs: import('firebase/firestore/lite').QueryDocumentSnapshot[], truncated: boolean }>}
  */

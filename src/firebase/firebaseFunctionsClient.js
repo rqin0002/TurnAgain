@@ -2,12 +2,14 @@ import { firebaseApp } from './firebaseClient.js'
 import { EMULATOR_HOST, EMULATOR_PORTS } from './emulators.js'
 
 /**
- * Where callable functions run for this build.
- * 'cloud'    -> the deployed functions in australia-southeast1
- * 'emulator' -> the local Functions emulator on 127.0.0.1:5001
- * 'off'      -> callables are not available; controls show a configuration notice
- * The value comes from the committed Vite mode files (.env.development, .env.emulator,
- * .env.production); with none present it defaults to 'off'.
+ * Where this build sends callable Cloud Function requests, from VITE_FUNCTIONS_TARGET (set per
+ * Vite mode in .env.development, .env.emulator and .env.production):
+ *   'cloud'    -> the australia-southeast1 functions of the configured Firebase project
+ *   'emulator' -> the local Functions emulator (EMULATOR_HOST, EMULATOR_PORTS.functions)
+ *   anything else or unset -> off: callFunction refuses with details.code 'functions-off' and
+ *                 the callable-backed controls show CapabilityNotice instead
+ * `capabilities.functions` only says this build may call them, not that they are deployed or
+ * reachable. Auth and Firestore follow the separate VITE_USE_EMULATORS flag.
  */
 const target = import.meta.env.VITE_FUNCTIONS_TARGET ?? 'off'
 

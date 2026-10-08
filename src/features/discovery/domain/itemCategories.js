@@ -506,13 +506,15 @@ export function categoryLabel(id) {
 }
 
 /**
- * The query, resolved: canonical tokens, the first verb phrase as `actionHint` (its span
- * removed), then every question phrase removed ("can i", "where do i"). The categories are
- * those whose terms match whole-token contiguous runs of what remains (multi-word terms first; a
- * consumed span never matches a second term). `itemTokens` is what remains less the filler words
- * no term consumed ("my", "old"; the term "bric a brac" keeps its "a"), and `residual` the item
- * tokens no term consumed. Token containment never matches: `resolveItemQuery('environment')`
- * resolves to no category.
+ * Reads a free-text search into its parts. The action hint comes from one verb phrase: the
+ * longest one in the query, ties going to repair, then recycle, then reuse ("fix or drop off my
+ * toaster" gives recycle). Its span is removed; any other verb stays among the item words. Then
+ * every question phrase is removed ("can i", "where do i"). The categories are those whose terms
+ * match whole-token contiguous runs of what remains (multi-word terms first; a consumed span
+ * never matches a second term). `itemTokens` is what remains less the filler words no term
+ * consumed ("my", "old"; the term "bric a brac" keeps its "a"), and `residual` the item tokens no
+ * term consumed. Token containment never matches: `resolveItemQuery('environment')` resolves to
+ * no category.
  *
  * @param {unknown} text
  * @returns {{ tokens: string[], itemTokens: string[], categoryIds: string[], actionHint: 'repair' | 'reuse' | 'recycle' | null, residual: string[] }}

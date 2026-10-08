@@ -7,8 +7,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
  * code and the fields, never the message.
  */
 
-// The document-id rule of src/shared/domain/catalogueValidation.js and the rules' isValidId; the
-// functions cannot import src/ (boundaries/functions-no-src), so the pattern is restated here.
+// One document id: a uid or a service, activity or session id, 1-128 letters, digits, '_' or '-',
+// starting with a letter or digit. It restates the rules' isValidId and
+// src/shared/domain/catalogueValidation.js because functions/ cannot import src/. A booking id
+// joins a uid and a session id with '_' and can reach 257 characters, so this pattern does not
+// cover it.
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 

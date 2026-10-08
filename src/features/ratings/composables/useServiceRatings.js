@@ -18,9 +18,10 @@ const toPrivateError = (error) => ({
 })
 
 /**
- * A missing or malformed summary: the listing cannot be rated, and no retry will change that.
- * The repository marks it `details.code: 'no-summary'`; its other `not-found`, a missing or
- * unpublished service, is an error with its own message.
+ * True for the repository's "no summary" refusal: the service has no valid rating summary, so the
+ * listing cannot be rated. The page says so and offers no Retry, because rereading cannot create
+ * a summary; a later visit reads it again. The repository's other not-found (a missing or
+ * unpublished service) is shown as an ordinary error.
  */
 const isUnrateable = (error) =>
   isRepositoryError(error) && error.code === 'not-found' && error.details?.code === 'no-summary'
@@ -236,8 +237,9 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
         privateErrorMessage.value = privateError.value.message
         privateStatus.value = 'ready'
         if (isUnrateable(error)) {
-          // The save found no summary to update: the listing cannot be rated after all.
-          // The public panel says so and the editor is no longer rendered; no reload changes it.
+          // The save found no valid summary to update: the listing cannot be rated. The public
+          // panel says so and the rating form is hidden until a later visit reads the summary
+          // again.
           ++publicGeneration
           summary.value = null
           summaryError.value = { code: error.code, message: error.message }

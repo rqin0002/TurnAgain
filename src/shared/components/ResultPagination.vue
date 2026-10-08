@@ -1,5 +1,11 @@
 <script setup>
 import { nextTick, useId, ref, watch } from 'vue'
+
+// Previous / Next paging for a result list, with its "from–to of total" range and an optional
+// 10-or-20 "Per page" select. It holds no page state: it emits update:page and update:pageSize
+// for the owner to apply. The range is a polite live region unless `live` is false. When the
+// button just pressed becomes disabled (the first or last page reached), focus moves to the
+// enclosing section's h2[tabindex="-1"] instead of falling to <body>.
 const props = defineProps({
   page: { type: Number, required: true },
   pageCount: { type: Number, required: true },

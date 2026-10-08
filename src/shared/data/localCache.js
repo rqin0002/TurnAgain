@@ -14,7 +14,7 @@ export const CACHE_KEYS = Object.freeze({
   ratingSummaries: 'turnagain:v1:ratingSummaries',
   lastSearch: 'turnagain:v1:lastSearch',
 })
-/** localStorage quotas count UTF-16 code units, so the guard measures the serialised length. */
+/** Longest serialised envelope `writeCache` stores, as a string length (UTF-16 code units). */
 export const MAX_ENTRY_LENGTH = 1024 * 1024
 
 const storage = () => {
@@ -78,8 +78,11 @@ export function readCache(key) {
 }
 
 /**
- * Writes the envelope, or above 1 MB skips the write and removes the stale copy for that key so a
- * grown catalogue never leaves an old one behind.
+ * Stores `value` under `key` in a versioned envelope; true when stored.
+ * An envelope longer than MAX_ENTRY_LENGTH is not written and the existing entry for `key` is
+ * removed, so a catalogue that outgrew the limit does not keep painting an older copy. Any
+ * other failure (quota, blocked storage, unserialisable value) returns false and leaves the
+ * existing entry as it was.
  *
  * @returns {boolean} true when the value was stored
  */

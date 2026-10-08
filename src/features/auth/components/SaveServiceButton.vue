@@ -6,12 +6,11 @@ import AppButton from '@/shared/components/AppButton.vue'
 import { describeError } from '@/shared/domain/errorCopy.js'
 
 /**
- * Save / Unsave for one service.
- * Renders nothing until the session is signed in, reads its label from `user.savedServiceIds`
- * and calls the store's own write actions, which update `user` in place (no epoch bump). A
- * component never imports a data layer (`components-no-data`), so the write's own
- * rejection is rendered through the shared `describeError`, which knows the two error classes
- * by name. Service Detail mounts it next to the ratings panel.
+ * The Save / Unsave button for one service on Service Detail. It renders nothing unless someone
+ * is signed in, shows whether the service is saved from the user's savedServiceIds, and saves or
+ * unsaves through the auth store, which updates `user` in place (a saved-list change is not an
+ * identity change, so identityEpoch does not move). Components may not import a data module
+ * (an ESLint boundary rule), so a refused write is shown through the shared describeError.
  */
 const props = defineProps({
   serviceId: { type: String, required: true },
