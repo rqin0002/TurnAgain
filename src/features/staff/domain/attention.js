@@ -8,11 +8,12 @@ import { daysSinceChecked, isStaleSource } from './registerColumns.js'
 
 /**
  * The Overview's "Needs attention" panel: ordered groups of records a staff member should act
- * on. Each group has its total count, links to its first five records and a View all link into
- * the register, filtered as closely as the register's filters allow (for some groups that list is
- * wider than the group). Pure: the catalogue's lists and `now` in, groups out. A cancelled session
- * leaves its group only when `cancellationNoticeAt` is set; an email log never clears it, because
- * a log does not prove every participant was reached.
+ * on. Each group has its total count, links to its first five records (each a name, a detail line
+ * and the label that joins them) and a View all link into the register, filtered as closely as
+ * the register's filters allow (for some groups that list is wider than the group). Pure: the
+ * catalogue's lists and `now` in, groups out. A cancelled session leaves its group only when
+ * `cancellationNoticeAt` is set; an email log never clears it, because a log does not prove every
+ * participant was reached.
  */
 
 export const NEAR_CAPACITY_DAYS = 14
@@ -31,11 +32,29 @@ const notStarted = (session, now) => startMs(session) > now.getTime()
 const isTurnAgain = (session) => session.registrationType === 'turnagain'
 const bySoonest = (left, right) => startMs(left) - startMs(right)
 
-const sessionItem = (session, to) => ({
-  id: session.id,
-  label: `${session.activityTitle}, ${formatDate(session.startsAt, { dateStyle: 'medium' })}`,
+/**
+ * One item of a group: its record id, its link, the `name` a row shows first, the `detail` line
+ * under it (null when the name says it all) and the `label` that joins the two with `joiner` in
+ * one line, for a control that must name the item in full.
+ */
+const item = ({ id, name, detail = null, joiner = ', ', to }) => ({
+  id,
+  label: detail === null ? name : `${name}${joiner}${detail}`,
+  name,
+  detail,
   to,
 })
+
+const sessionItem = (session, to) =>
+  item({
+    id: session.id,
+    name: session.activityTitle,
+    detail: formatDate(session.startsAt, { dateStyle: 'medium' }),
+    to,
+  })
+
+const serviceItem = (service) =>
+  item({ id: service.id, name: service.name, to: `/staff/services/${service.id}/edit` })
 
 const group = ({ id, title, records, toItem, viewAll, action = null }) => ({
   id,
@@ -48,7 +67,7 @@ const group = ({ id, title, records, toItem, viewAll, action = null }) => ({
 
 /**
  * @param {{ services: object[], activities: object[], sessions: object[], corrections: object[], emailLogs: object[], now: Date }} input
- * @returns {Array<{ id: string, title: string, count: number, items: Array<{ id: string, label: string, to: string }>, viewAll: string, action: null | 'email' | 'mark-completed' | 'promote' }>}
+ * @returns {Array<{ id: string, title: string, count: number, items: Array<{ id: string, label: string, name: string, detail: string | null, to: string }>, viewAll: string, action: null | 'email' | 'mark-completed' | 'promote' }>}
  */
 export function buildAttentionList({ services, activities, sessions, corrections, now }) {
   const titled = withActivityTitles(sessions, activities)
@@ -62,11 +81,14 @@ export function buildAttentionList({ services, activities, sessions, corrections
       records: (corrections ?? [])
         .filter((correction) => correction.status === 'open')
         .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt)),
-      toItem: (correction) => ({
-        id: correction.id,
-        label: `${correction.serviceName}: ${CORRECTION_FIELD_LABELS[correction.field] ?? correction.field}`,
-        to: `/staff/services/${correction.serviceId}/edit?correction=${correction.id}`,
-      }),
+      toItem: (correction) =>
+        item({
+          id: correction.id,
+          name: correction.serviceName,
+          detail: CORRECTION_FIELD_LABELS[correction.field] ?? correction.field,
+          joiner: ': ',
+          to: `/staff/services/${correction.serviceId}/edit?correction=${correction.id}`,
+        }),
       viewAll: '/staff/corrections?status=open',
     }),
     group({
@@ -139,11 +161,7 @@ export function buildAttentionList({ services, activities, sessions, corrections
             daysSinceChecked(right.source.checkedAt, now) -
               daysSinceChecked(left.source.checkedAt, now) || compareText(left.name, right.name),
         ),
-      toItem: (service) => ({
-        id: service.id,
-        label: service.name,
-        to: `/staff/services/${service.id}/edit`,
-      }),
+      toItem: serviceItem,
       viewAll: '/staff/services?sort=checked:asc&status=published',
     }),
     group({
@@ -152,11 +170,7 @@ export function buildAttentionList({ services, activities, sessions, corrections
       records: published
         .filter((service) => service.geo === null)
         .sort((left, right) => compareText(left.name, right.name)),
-      toItem: (service) => ({
-        id: service.id,
-        label: service.name,
-        to: `/staff/services/${service.id}/edit`,
-      }),
+      toItem: serviceItem,
       viewAll: '/staff/services?onmap=no&status=published',
     }),
   ]

@@ -2,29 +2,37 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 
+import { useItemCategories } from '@/features/discovery/composables/useItemCategories.js'
 import { useRecordStatus } from '@/features/staff/composables/useRecordStatus.js'
 import { useStaffCatalogue } from '@/features/staff/composables/useStaffCatalogue.js'
 import {
-  SERVICE_COLUMNS,
   SERVICE_DEFAULT_SORT,
   daysSinceChecked,
   isStaleSource,
+  serviceColumnsFor,
   staleSourceLabel,
 } from '@/features/staff/domain/registerColumns.js'
-import AppButton from '@/shared/components/AppButton.vue'
+import ActionsMenu from '@/shared/components/ActionsMenu.vue'
 import DataTable from '@/shared/components/DataTable.vue'
 import ExportButtons from '@/shared/components/ExportButtons.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import StatusTag from '@/shared/components/StatusTag.vue'
 import { useTableState } from '@/shared/composables/useTableState.js'
 
 /**
- * The Service Register: every service in any status from the staff
- * catalogue, filtered, sorted and paged in the URL (`useTableState`), exported as the rows on
- * screen. A failed refresh keeps the register this session loaded and says so.
+ * The Service Register: every service in any status from the staff catalogue, filtered, sorted
+ * and paged in the URL (`useTableState`), exported as the rows on screen. The name search and the
+ * status filter stay in view; the other filters sit under More filters. Each row offers View
+ * (published services) and Edit, and puts Archive or Restore in its More actions menu; the status
+ * and a stale source read as words in tags. A failed refresh keeps the register this session
+ * loaded and says so.
  */
 const catalogue = useStaffCatalogue()
+const itemCategories = useItemCategories()
+// The Items filter also finds a row by the names of its categories, added ones included.
+const columns = computed(() => serviceColumnsFor(itemCategories.index.value))
 const { state, result, totalCount, setFilter, clearFilters, setSort, setPage } = useTableState(
-  SERVICE_COLUMNS,
+  columns,
   { defaultSort: SERVICE_DEFAULT_SORT, rows: () => catalogue.services.value },
 )
 const truncated = computed(() => catalogue.truncated.value.services)
@@ -48,14 +56,22 @@ onMounted(() => {
 onBeforeUnmount(() => window.clearInterval(clock))
 const staleDays = (row) =>
   isStaleSource(row, now.value) ? daysSinceChecked(row.source.checkedAt, now.value) : null
-// Archive and Restore: one row at a time, the result in a mounted status line that
-// takes focus once the change settles (the row's button is swapped by then).
+// Archive and Restore: one row at a time from the row's More actions menu, the result in a
+// mounted status line that takes focus once the change settles (the menu has handed focus back to
+// its button by then, and the row may have left the filtered rows).
 const statusLine = ref(null)
 const {
   pendingId,
   message: statusMessage,
   setStatus,
 } = useRecordStatus({ focusTarget: statusLine })
+// The row's status change, keyed by the status it sets: Archive a published service, Restore an
+// archived one; unavailable while that row's change is in flight.
+const statusItems = (row) => [
+  row.status === 'published'
+    ? { key: 'archived', label: 'Archive', disabled: pendingId.value === row.id }
+    : { key: 'published', label: 'Restore', disabled: pendingId.value === row.id },
+]
 // Try again leaves with its error panel once the reload starts, so focus moves first to the heading
 // that stays mounted over the loading state.
 const heading = ref(null)
@@ -88,7 +104,7 @@ const retry = () => {
         {{ statusMessage }}
       </p>
       <DataTable
-        :columns="SERVICE_COLUMNS"
+        :columns="columns"
         :result="result"
         :state="state"
         :total-count="totalCount"
@@ -101,7 +117,7 @@ const retry = () => {
       >
         <template #toolbar>
           <ExportButtons
-            :columns="SERVICE_COLUMNS"
+            :columns="columns"
             :rows="result.allRows"
             dataset="services"
             :filters="state.filters"
@@ -109,10 +125,17 @@ const retry = () => {
           />
         </template>
         <template #cell-checked="{ row, text }">
-          {{ text }}
-          <span v-if="staleDays(row) !== null" class="staff-badge">
-            {{ staleSourceLabel(staleDays(row)) }}
+          <span class="staff-checked">
+            {{ text }}
+            <StatusTag v-if="staleDays(row) !== null" tone="warning">
+              {{ staleSourceLabel(staleDays(row)) }}
+            </StatusTag>
           </span>
+        </template>
+        <template #cell-status="{ row, text }">
+          <StatusTag :tone="row.status === 'published' ? 'success' : 'neutral'">{{
+            text
+          }}</StatusTag>
         </template>
         <template #actions="{ row }">
           <div class="staff-row-actions">
@@ -125,22 +148,11 @@ const retry = () => {
             <RouterLink :to="`/staff/services/${row.id}/edit`">
               Edit <span class="visually-hidden">{{ row.name }}</span>
             </RouterLink>
-            <AppButton
-              v-if="row.status === 'published'"
-              variant="text"
-              :disabled="pendingId === row.id"
-              @click="setStatus('services', row, 'archived')"
-            >
-              Archive <span class="visually-hidden">{{ row.name }}</span>
-            </AppButton>
-            <AppButton
-              v-else
-              variant="text"
-              :disabled="pendingId === row.id"
-              @click="setStatus('services', row, 'published')"
-            >
-              Restore <span class="visually-hidden">{{ row.name }}</span>
-            </AppButton>
+            <ActionsMenu
+              :items="statusItems(row)"
+              :name="row.name"
+              @select="(status) => setStatus('services', row, status)"
+            />
           </div>
         </template>
       </DataTable>
@@ -160,21 +172,24 @@ const retry = () => {
   margin: 0;
 }
 
-.staff-badge {
-  display: inline-block;
-  margin-top: 0.25rem;
-  border: 1px solid var(--color-warning);
-  border-radius: 0.375rem;
-  padding: 0.125rem 0.5rem;
-  background: var(--color-warning-soft);
-  color: var(--color-heading);
-  font-size: 0.8125rem;
-  font-weight: 600;
+.staff-checked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
 }
 
 .staff-row-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  align-items: center;
+  gap: 0.25rem 1rem;
+}
+
+/* The row's links keep a 44 px target, level with the menu button. */
+.staff-row-actions a {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
 }
 </style>

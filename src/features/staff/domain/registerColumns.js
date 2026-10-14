@@ -16,7 +16,9 @@ import { compareText } from '@/shared/domain/tableQuery.js'
  * The column specs of the two registers. Each column's `text(row)` is what the cell shows and
  * what the CSV and JSON carry, so the export equals the screen; `value(row)` is what it sorts
  * on. Every data column has a sort and its own filter; Actions filters on any of several actions.
- * `width`, `nowrap` and `wrap` are layout hints for the wide table and change no data. Pure.
+ * A session's Booked text depends on its registration mode and on whether it is still open.
+ * `width`, `nowrap` and `wrap` are layout hints for the wide table and `quickFilter` keeps a
+ * filter in view; none of them changes data. Pure.
  */
 
 const DAY_MS = 86_400_000
@@ -80,6 +82,12 @@ const itemsText = (row) => {
   return count === 1 ? '1 item' : `${count} items`
 }
 
+// The Items filter finds a row by its accepted items and the names of its categories.
+const itemsSearch = (categoryIndex) => (row) => [
+  row.acceptedItems,
+  (row.itemCategories ?? []).map((id) => categoryLabel(id, categoryIndex)),
+]
+
 export const SERVICE_COLUMNS = Object.freeze([
   {
     key: 'service',
@@ -91,6 +99,7 @@ export const SERVICE_COLUMNS = Object.freeze([
     placeholder: 'Name or alias…',
     width: 'wide',
     wrap: true,
+    quickFilter: true,
   },
   {
     key: 'actions',
@@ -121,7 +130,7 @@ export const SERVICE_COLUMNS = Object.freeze([
     text: itemsText,
     sort: 'number',
     filter: 'text',
-    searchValues: (row) => [row.acceptedItems, (row.itemCategories ?? []).map(categoryLabel)],
+    searchValues: itemsSearch(),
     width: 'narrow',
     nowrap: true,
   },
@@ -166,21 +175,60 @@ export const SERVICE_COLUMNS = Object.freeze([
     options: SERVICE_STATUS_OPTIONS,
     width: 'narrow',
     nowrap: true,
+    quickFilter: true,
   },
 ])
 
+/**
+ * The Service Register's columns with the Items filter reading category names from
+ * `categoryIndex` (useItemCategories' index), so a row is found by the name of a category an admin
+ * added. SERVICE_COLUMNS is the same with the twelve only.
+ */
+export function serviceColumnsFor(categoryIndex) {
+  return Object.freeze(
+    SERVICE_COLUMNS.map((column) =>
+      column.key === 'items' ? { ...column, searchValues: itemsSearch(categoryIndex) } : column,
+    ),
+  )
+}
+
 export const SERVICE_DEFAULT_SORT = Object.freeze({ key: 'service', direction: 'asc' })
 
-const whenText = (row) =>
-  `${formatDate(row.startsAt, { dateStyle: 'medium' })}, ${formatTimeRange(row.startsAt, row.endsAt)}`
+/** A session's day ("12 Oct 2030") and time range, the two lines of the register's date cell. */
+export const sessionWhen = (row) => ({
+  day: formatDate(row.startsAt, { dateStyle: 'medium' }),
+  time: formatTimeRange(row.startsAt, row.endsAt),
+})
+const whenText = (row) => {
+  const { day, time } = sessionWhen(row)
+  return `${day}, ${time}`
+}
+
+const OPEN_STATUSES = Object.freeze(['scheduled', 'full'])
+// Why a session has no booking counts on the platform, by its registration mode.
+const NO_COUNTS_TEXT = Object.freeze({
+  provider: 'Provider managed',
+  'drop-in': 'Drop-in, no booking',
+})
+
+/** Whether the platform holds a usable capacity and booked count for the session. */
+export const hasBookingCounts = (row) => getRemainingCapacity(row) !== null
+/** Whether the platform tracks the session's waitlist. */
+export const hasWaitlistCount = (row) => Number.isInteger(row.waitlistCount)
+
+// The counts while the session is open; once it is cancelled or completed it takes no more
+// bookings, so the counts are history and say nothing about places. Without usable counts the
+// registration mode explains why; a TurnAgain session always has counts, so its missing counts
+// read "Not recorded" rather than a mode that is not its own.
 const bookedText = (row) => {
   const remaining = getRemainingCapacity(row)
-  return remaining === null
-    ? 'Provider managed'
-    : `${row.bookedCount}/${row.capacity} booked, ${remaining} remaining`
+  if (remaining === null) {
+    return NO_COUNTS_TEXT[row.registrationType] ?? 'Not recorded'
+  }
+  const counts = `${row.bookedCount}/${row.capacity} booked`
+  return OPEN_STATUSES.includes(row.status) ? `${counts}, ${remaining} remaining` : counts
 }
-const waitlistText = (row) =>
-  Number.isInteger(row.waitlistCount) ? String(row.waitlistCount) : 'Not tracked'
+const waitlistText = (row) => (hasWaitlistCount(row) ? String(row.waitlistCount) : 'Not tracked')
 
 export const SESSION_COLUMNS = Object.freeze([
   {
@@ -191,6 +239,7 @@ export const SESSION_COLUMNS = Object.freeze([
     filter: 'text',
     width: 'wide',
     wrap: true,
+    quickFilter: true,
   },
   {
     key: 'date',
@@ -236,9 +285,11 @@ export const SESSION_COLUMNS = Object.freeze([
     width: 'narrow',
     nowrap: true,
   },
+  // How people register for the session (TurnAgain, Provider, Drop-in), not the activity type;
+  // the URL key stays `type` so existing links keep working.
   {
     key: 'type',
-    label: 'Type',
+    label: 'Registration',
     value: (row) => row.registrationType,
     text: (row) => optionLabel(SESSION_TYPE_OPTIONS, row.registrationType),
     sort: 'text',
@@ -246,6 +297,7 @@ export const SESSION_COLUMNS = Object.freeze([
     options: SESSION_TYPE_OPTIONS,
     width: 'narrow',
     nowrap: true,
+    quickFilter: true,
   },
   {
     key: 'status',
@@ -257,6 +309,7 @@ export const SESSION_COLUMNS = Object.freeze([
     options: SESSION_STATUS_OPTIONS,
     width: 'narrow',
     nowrap: true,
+    quickFilter: true,
   },
 ])
 
@@ -266,7 +319,6 @@ export const SESSION_DEFAULT_SORT = Object.freeze({ key: 'date', direction: 'asc
 export const toSessionRows = (sessions, activities) => withActivityTitles(sessions, activities)
 
 const ACTIVITY_STATUS_LABELS = Object.freeze({ published: 'Published', archived: 'Archived' })
-const OPEN_STATUSES = Object.freeze(['scheduled', 'full'])
 
 /** The Activities section of the Sessions page: one entry per activity, by title. */
 export function summariseActivities(activities, sessions, now) {
