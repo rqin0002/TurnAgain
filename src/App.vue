@@ -4,9 +4,11 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 
 import { useAuthStore } from '@/features/auth/stores/authStore.js'
 import { firebaseConfigProblem } from '@/firebase/firebaseClient.js'
+import { retryRouteLoad, routeLoadError } from '@/router/chunkFailure.js'
 import AppButton from '@/shared/components/AppButton.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import OfflineBanner from '@/shared/components/OfflineBanner.vue'
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 import { useOnlineStatus } from '@/shared/composables/useOnlineStatus.js'
 import { animateNavIndicator } from '@/shared/motion/index.js'
 
@@ -42,7 +44,7 @@ const showAuthErrorPanel = computed(
 )
 const AUTH_ERROR_MESSAGES = Object.freeze({
   timeout: 'Your account took too long to load.',
-  offline: 'You appear to be offline. Your account loads again when the connection returns.',
+  offline: 'You appear to be offline. Check your connection, then press Retry.',
   'profile-unavailable': 'Your account details could not be loaded.',
 })
 const authErrorMessage = computed(
@@ -54,22 +56,53 @@ const showAuthRestoringPanel = computed(
   () => route.meta.requiresAuth === true && authStore.status === 'restoring',
 )
 
-// The banner's live region holds the sentence only (its Retry control sits beside it) and, once a
-// sync attempt failed, says why the change is not finishing.
-const emailSyncMessage = computed(() =>
-  authStore.lastError
-    ? `Finishing your email change… ${authErrorMessage.value}`
-    : 'Finishing your email change…',
+// A page whose code could not be downloaded. The router loads the page afresh when it can; what
+// reaches this panel is the offline case, where the sentence says to reconnect and there is no
+// control, and a fresh load that failed again, where Try again loads the page afresh once more.
+const routeLoadMessage = computed(() =>
+  online.value
+    ? 'Check your connection and try again.'
+    : 'You appear to be offline. This page needs a connection the first time it opens; reconnect, then try again.',
 )
+// The panel renders at the top of the main content, which can be far above the link that was
+// clicked (a footer link, a link low in a long list). Each time a failure is reported the panel is
+// scrolled to the top of the window, so a sighted person sees why the page did not change; screen
+// readers already hear it as an alert.
+const routeLoadPanel = ref(null)
+watch(
+  routeLoadError,
+  (failure) => {
+    if (failure) routeLoadPanel.value?.scrollIntoView?.({ block: 'start' })
+  },
+  { flush: 'post' },
+)
+
+// The banner's live region stays in the page, empty while no email change is finishing, so its
+// sentence arrives as a change that screen readers announce (a region inserted together with its
+// text usually is not). It holds the sentence only (its Retry control sits beside it) and, once a
+// sync attempt failed, says why the change is not finishing.
+const emailSyncMessage = computed(() => {
+  if (!authStore.emailSyncPending) return ''
+  return authStore.lastError
+    ? `Finishing your email change… ${authErrorMessage.value}`
+    : 'Finishing your email change…'
+})
 const syncing = ref(false)
-const retryEmailSync = async () => {
-  syncing.value = true
-  try {
-    await authStore.revalidateProfile({ reason: 'email-sync' })
-  } finally {
-    syncing.value = false
-  }
-}
+// A Retry that succeeds ends the email change, and the button leaves the page with it: when it had
+// focus, focus goes to the main landmark (#main-content) instead of falling to <body>. A Retry that
+// fails again stays where it is and keeps focus.
+const retryEmailSync = () =>
+  focusAfterAction(
+    async () => {
+      syncing.value = true
+      try {
+        await authStore.revalidateProfile({ reason: 'email-sync' })
+      } finally {
+        syncing.value = false
+      }
+    },
+    () => document.getElementById('main-content'),
+  )
 
 // Remember URL-backed working state only while this shell is mounted, so Find nearby, Activities
 // and the staff workspace reopen on the filters the person left (never persisted).
@@ -167,10 +200,10 @@ watch(
       <StatePanel variant="notice" title="TurnAgain can't start" :message="firebaseConfigProblem" />
     </div>
     <template v-else>
-      <div v-if="authStore.emailSyncPending" class="shell app-banner">
+      <div class="shell app-banner" :class="{ 'app-banner--idle': !authStore.emailSyncPending }">
         <p class="app-banner__text" role="status">{{ emailSyncMessage }}</p>
         <AppButton
-          v-if="authStore.lastError"
+          v-if="authStore.emailSyncPending && authStore.lastError"
           variant="text"
           type="button"
           :busy="syncing"
@@ -178,6 +211,16 @@ watch(
         >
           Retry
         </AppButton>
+      </div>
+      <div v-if="routeLoadError" ref="routeLoadPanel" class="shell page-section">
+        <StatePanel
+          :variant="online ? 'error' : 'notice'"
+          title="This page could not be loaded"
+          :message="routeLoadMessage"
+          retry-label="Try again"
+          assertive
+          @retry="retryRouteLoad"
+        />
       </div>
       <div v-if="showAuthErrorPanel" class="shell page-section">
         <StatePanel
@@ -366,6 +409,13 @@ watch(
   border-radius: var(--radius-small);
   background: var(--color-surface-muted);
   padding: 0.75rem 1rem;
+}
+
+/* Idle: the live region stays in the page for screen readers and takes no room on it. */
+.app-banner--idle {
+  margin-top: 0;
+  border: 0;
+  padding: 0;
 }
 
 .app-banner__text {

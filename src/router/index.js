@@ -4,6 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
 
 import { afterNavigation, authGuard } from './authGuard.js'
+import { installChunkFailureHandler } from './chunkFailure.js'
 
 const routes = [
   {
@@ -31,13 +32,15 @@ const routes = [
     meta: { title: 'Activity details | TurnAgain' },
   },
   {
+    // Bookings are made from member accounts: the review, My Bookings and the booking page send a
+    // staff or admin account to /forbidden (the rules refuse its booking writes as well).
     path: '/activities/:activityId/book/:sessionId',
     name: 'booking-review',
     component: () => import('@/views/BookingReviewView.vue'),
     meta: {
       title: 'Review your booking | TurnAgain',
       requiresAuth: true,
-      allowedRoles: ['member', 'staff', 'admin'],
+      allowedRoles: ['member'],
     },
   },
   {
@@ -99,7 +102,7 @@ const routes = [
     meta: {
       title: 'My bookings | TurnAgain',
       requiresAuth: true,
-      allowedRoles: ['member', 'staff', 'admin'],
+      allowedRoles: ['member'],
     },
   },
   {
@@ -109,7 +112,7 @@ const routes = [
     meta: {
       title: 'Your booking | TurnAgain',
       requiresAuth: true,
-      allowedRoles: ['member', 'staff', 'admin'],
+      allowedRoles: ['member'],
     },
   },
   {
@@ -190,6 +193,12 @@ const routes = [
         component: () => import('@/views/StaffTeamView.vue'),
         meta: { title: 'Team | TurnAgain', allowedRoles: ['admin'] },
       },
+      {
+        path: 'members',
+        name: 'staff-members',
+        component: () => import('@/views/StaffMembersView.vue'),
+        meta: { title: 'Members | TurnAgain', allowedRoles: ['admin'] },
+      },
       // Static create paths outrank /staff/sessions/:sessionId; child order is free.
     ],
   },
@@ -207,6 +216,20 @@ const routes = [
   },
 ]
 
+/**
+ * The element a route hash names, or null when there is no hash, it is malformed or nothing on
+ * the page has that id. Shared by the scroll and the focus after a navigation, so both agree.
+ */
+const anchorTarget = (hash) => {
+  if (!hash) return null
+  try {
+    return document.getElementById(decodeURIComponent(hash.slice(1)))
+  } catch {
+    // A malformed hash must not interrupt otherwise valid navigation.
+    return null
+  }
+}
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior(to, from, savedPosition) {
@@ -214,21 +237,14 @@ const router = createRouter({
       return savedPosition
     }
 
-    if (to.hash) {
-      try {
-        const target = document.getElementById(decodeURIComponent(to.hash.slice(1)))
-        if (target) {
-          return {
-            el: target,
-            behavior:
-              to.path === from.path &&
-              !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-                ? 'smooth'
-                : 'auto',
-          }
-        }
-      } catch {
-        // A malformed hash must not interrupt otherwise valid navigation.
+    const target = anchorTarget(to.hash)
+    if (target) {
+      return {
+        el: target,
+        behavior:
+          to.path === from.path && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'smooth'
+            : 'auto',
       }
     }
 
@@ -245,22 +261,49 @@ const router = createRouter({
 router.beforeEach((to) => authGuard(to, router))
 // A completed navigation to a protected page re-validates the profile.
 router.afterEach(afterNavigation)
+// A page whose code cannot be downloaded (offline, or a tab left open across a deployment) is
+// loaded afresh or reported by the shell, never left as a click that does nothing.
+installChunkFailureHandler(router)
 
-// Focus follows a completed client-side page change so keyboard and screen-reader
-// users receive the same navigation cue as sighted users.
+// Focus follows a completed client-side navigation so keyboard and screen-reader users get the
+// same cue as sighted users: the element the link's anchor names when the destination has one
+// (the footer's About links, the register's "Email <session>" link), otherwise the top of the
+// main content on a page change. A query-only change (filters, paging) is not a page change and
+// moves nothing. The first navigation is the page load itself: the browser places focus.
 router.afterEach((to, from, failure) => {
-  if (failure || to.path === from.path) {
+  if (failure || to.fullPath === from.fullPath) {
+    return
+  }
+  const pageChanged = to.path !== from.path
+  if (!pageChanged && to.hash === from.hash) {
     return
   }
 
-  document.title = to.meta.title ?? 'TurnAgain'
+  if (pageChanged) {
+    document.title = to.meta.title ?? 'TurnAgain'
+  }
 
   if (!from.name) {
     return
   }
 
   void nextTick(() => {
-    if (router.currentRoute.value.fullPath === to.fullPath) {
+    if (router.currentRoute.value.fullPath !== to.fullPath) {
+      return
+    }
+    const target = anchorTarget(to.hash)
+    if (target) {
+      // Focus the page itself already moved into that element stays there (About's and Guides'
+      // in-page lists focus the section's heading as their navigation resolves).
+      if (target.contains(document.activeElement)) {
+        return
+      }
+      // A section or heading takes focus only with a tabindex; -1 keeps it out of the Tab order.
+      if (!target.hasAttribute('tabindex')) {
+        target.tabIndex = -1
+      }
+      target.focus({ preventScroll: true })
+    } else if (pageChanged) {
       document.querySelector('#main-content')?.focus({ preventScroll: true })
     }
   })

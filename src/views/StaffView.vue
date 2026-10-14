@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 
 import { useAuthStore } from '@/features/auth/stores/authStore.js'
@@ -7,12 +7,25 @@ import { useStaffCatalogue } from '@/features/staff/composables/useStaffCatalogu
 import { useStaffNavigation } from '@/features/staff/composables/useStaffNavigation.js'
 
 /**
- * The /staff layout: heading, the sub-navigation and the child route. The parent
- * route carries the role meta and the children inherit it; `staff-team` narrows it to admins.
- * The links are paths, not names, because a RouterLink to an unregistered name throws.
+ * The /staff layout: heading, what this workspace is for, the sub-navigation and the child route.
+ * The sub-navigation is one row in a fixed order: the Overview, the daily sections every staff
+ * account uses (Services, Sessions, Corrections), then, for admins only, Team and Members. Hiding
+ * a link is not the permission: the parent route carries the role meta and the children inherit
+ * it; `staff-team` and `staff-members` narrow it to admins, and the rules and the callables are
+ * the boundary. No entry suggests that a record belongs to
+ * someone: no record has an owner. The links are paths, not names, because a RouterLink to an
+ * unregistered name throws.
  */
-const { currentSection, team } = useStaffNavigation()
+const { currentSection, accounts } = useStaffNavigation()
 const currentFor = (section) => (currentSection.value === section ? 'page' : undefined)
+const showsPlatform = computed(() => accounts.value !== 'hidden')
+
+const DAILY_SUMMARY =
+  "Keep services, activities, sessions and corrections accurate, and run the bookings of TurnAgain's own sessions."
+const PLATFORM_SUMMARY = 'As an admin you also manage the team, member accounts and their roles.'
+const description = computed(() =>
+  showsPlatform.value ? `${DAILY_SUMMARY} ${PLATFORM_SUMMARY}` : DAILY_SUMMARY,
+)
 
 // The layout loads the staff catalogue once per mount and again after an identity change that
 // keeps staff access; the catalogue itself empties on every epoch change.
@@ -31,7 +44,7 @@ watch(
       <header class="staff-page__intro">
         <p class="eyebrow">TurnAgain / Staff</p>
         <h1 class="page-title">Staff workspace</h1>
-        <p class="staff-page__description">Services, sessions, corrections and the team.</p>
+        <p class="staff-page__description">{{ description }}</p>
       </header>
 
       <nav class="staff-page__register-nav" aria-label="Staff sections">
@@ -45,12 +58,17 @@ watch(
         <RouterLink to="/staff/corrections" :aria-current="currentFor('corrections')"
           >Corrections</RouterLink
         >
-        <RouterLink v-if="team === 'link'" to="/staff/team" :aria-current="currentFor('team')"
-          >Team</RouterLink
-        >
-        <span v-else-if="team === 'disabled'" class="staff-page__nav-disabled" aria-disabled="true"
-          >Team (not enabled in this deployment)</span
-        >
+        <template v-if="showsPlatform">
+          <template v-if="accounts === 'link'">
+            <RouterLink to="/staff/team" :aria-current="currentFor('team')">Team</RouterLink>
+            <RouterLink to="/staff/members" :aria-current="currentFor('members')"
+              >Members</RouterLink
+            >
+          </template>
+          <span v-else class="staff-page__nav-disabled" aria-disabled="true"
+            >Team and Members (not enabled in this deployment)</span
+          >
+        </template>
       </nav>
 
       <RouterView />
@@ -78,9 +96,11 @@ watch(
   font-size: 1.0625rem;
 }
 
+/* One row of links that wraps on narrow screens; every link sits on the nav's bottom rule. */
 .staff-page__register-nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-end;
   gap: 0.25rem 1.25rem;
   margin-top: clamp(2rem, 4vw, 3rem);
   margin-bottom: clamp(1.5rem, 3vw, 2rem);
