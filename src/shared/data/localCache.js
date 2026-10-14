@@ -11,6 +11,7 @@ export const CACHE_PREFIX = 'turnagain:v1:'
 export const CACHE_KEYS = Object.freeze({
   services: 'turnagain:v1:catalogue:services',
   activities: 'turnagain:v1:catalogue:activities',
+  itemCategories: 'turnagain:v1:catalogue:itemCategories',
   ratingSummaries: 'turnagain:v1:ratingSummaries',
   lastSearch: 'turnagain:v1:lastSearch',
 })

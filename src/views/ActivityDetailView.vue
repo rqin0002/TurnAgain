@@ -28,6 +28,10 @@ const { goBack } = useBackNavigation({ name: 'activities' })
 // The staff-only Edit link; the route meta and the rules guard the form itself.
 const authStore = useAuthStore()
 const canEdit = computed(() => authStore.canAccess(['staff', 'admin']))
+// Bookings are made from member accounts: a visitor is still offered Book (the review asks them
+// to sign in), a staff or admin account sees a note instead. The route and the rules refuse such
+// an account as well; this only decides what the rows offer.
+const canBook = computed(() => !authStore.isSignedIn || authStore.canAccess(['member']))
 const {
   status,
   activities,
@@ -41,7 +45,7 @@ const {
   revalidating,
   retry,
 } = useActivityCatalogue()
-// "You're booked, TA-..." on a row: the member's bookings, loaded only when signed in.
+// "You're booked, TA-..." on a row: the member's bookings, loaded only for a signed-in member.
 const { bookings: myBookings } = useMyBookings({ withSessions: false })
 
 const requestedId = computed(() => {
@@ -292,6 +296,7 @@ watch(
               :now="now"
               :my-bookings="myBookings"
               :truncated="truncated"
+              :can-book="canBook"
             />
           </template>
 

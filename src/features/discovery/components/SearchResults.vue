@@ -14,9 +14,11 @@ import ServiceCard from './ServiceCard.vue'
 /**
  * The results list: one `role="status"` live region (the status line), the
  * numbered cards of the current page, the "Other options" block of the relaxed verb hint,
- * the list states on StatePanel and the pagination. With "Open now" on and nothing in range open,
- * a panel says so above any place whose hours could not be read (those stay listed, marked
- * "Hours not checked") and offers to turn the chip off. Everything arrives as
+ * the list states on StatePanel and the pagination. Every card says today's state by its weekly
+ * hours at `now`, the minute "Open now" filters by, and marks hours it cannot read "Hours not
+ * checked". With "Open now" on and nothing in range open, a panel says so above those places
+ * (they stay listed, marked); the panel has no control, because pressing the toolbar's Open now
+ * chip again is the way to turn the filter off. Everything arrives as
  * props from `FindNearbyView`, the composition root: this component calls no
  * composable and imports no data module, so the ratings call is the view's.
  */
@@ -37,7 +39,10 @@ const props = defineProps({
   ratingStatus: { type: String, default: 'idle' },
   failedIds: { type: Array, default: () => [] },
   showRating: { type: Boolean, default: false },
-  /** Renders "Show on map" on the numbered cards whose place has a map position (the map view). */
+  /**
+   * Renders "Show on map" on the numbered cards, Other options included, whose place has a map
+   * position (the map view).
+   */
   showMapAction: { type: Boolean, default: false },
   missingLocationCount: { type: Number, default: 0 },
   hintDropped: { type: Boolean, default: false },
@@ -49,10 +54,8 @@ const props = defineProps({
   radius: { type: Number, default: 10 },
   /** A map area is applied: the empty list offers to clear it instead of widening. */
   viewportApplied: { type: Boolean, default: false },
-  /** The "Open now" chip is on. */
-  openNow: { type: Boolean, default: false },
-  /** Each listed place's opening status at the current minute: 'open' | 'closed' | 'unknown'. */
-  openingById: { type: Object, default: () => ({}) },
+  /** The view's minute clock: the cards say today's state at this time. */
+  now: { type: Date, default: null },
   /** How many places in range have hours that could not be read (the none-open-now message). */
   hoursUncheckedCount: { type: Number, default: 0 },
 })
@@ -64,7 +67,6 @@ const emit = defineEmits([
   'update:page',
   'update:pageSize',
   'update:radius',
-  'update:open',
 ])
 
 const errorVariant = computed(() => (props.error?.code === 'offline' ? 'offline' : 'error'))
@@ -93,7 +95,6 @@ const missingLabel = computed(
     `Show every distance (includes ${props.missingLocationCount} ${props.missingLocationCount === 1 ? 'place' : 'places'} without a map position)`,
 )
 const labelFor = (id) => formatMatchLabel(props.matches[id])
-const hoursUnchecked = (id) => props.openNow && props.openingById[id] === 'unknown'
 const noneOpenNowMessage = computed(() => formatNoneOpenNow(props.hoursUncheckedCount))
 // A summary still loading would read "Rating unavailable" on every card; the header's loading
 // note speaks for the ratings until they arrive.
@@ -168,19 +169,14 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
 
       <StatePanel
         v-if="listState === 'none-open-now'"
+        class="results-open-now"
         variant="empty"
         :live="false"
         title="No places open right now"
         :message="noneOpenNowMessage"
-      >
-        <div class="results-empty__actions">
-          <AppButton variant="secondary" @click="emit('update:open', false)">
-            Turn off Open now
-          </AppButton>
-        </div>
-      </StatePanel>
+      />
 
-      <div v-if="paged.items.length" data-testid="result-list">
+      <div v-if="paged.items.length" class="results-list" data-testid="result-list">
         <ServiceCard
           v-for="entry in paged.items"
           :id="`service-result-${entry.service.id}`"
@@ -194,7 +190,7 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
           :show-map-action="showMapAction && isMappableGeo(entry.service.geo)"
           :show-rating="cardRatingsReady"
           :rating-summary="summariesById[entry.service.id] ?? null"
-          :hours-unchecked="hoursUnchecked(entry.service.id)"
+          :now="now"
           @select="emit('select', entry.service.id)"
         />
       </div>
@@ -237,13 +233,14 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
         </RouterLink>
       </StatePanel>
 
-      <p v-if="missingLocationCount > 0" class="results-note">
+      <p v-if="missingLocationCount > 0" class="results-note results-note--every-distance">
         <AppButton variant="text" @click="emit('update:radius', 0)">
           {{ missingLabel }}
         </AppButton>
       </p>
 
-      <!-- The Other options block is not ranked, so its cards carry no rating. -->
+      <!-- The Other options block is not ranked, so its cards carry no rating. They are numbered
+           after the primary block and plotted, so they keep their number and Show on map. -->
       <section v-if="otherOptions.length" class="results-other" aria-labelledby="other-options">
         <h3 id="other-options">Other options</h3>
         <ServiceCard
@@ -252,11 +249,14 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
           :key="entry.service.id"
           tabindex="-1"
           :service="entry.service"
+          :index="entry.index ?? null"
           :distance-km="entry.distanceKm"
           :match-label="labelFor(entry.service.id)"
           :selected="selectedId === entry.service.id"
-          :hours-unchecked="hoursUnchecked(entry.service.id)"
+          :show-map-action="showMapAction && isMappableGeo(entry.service.geo)"
+          :now="now"
           :heading-level="4"
+          @select="emit('select', entry.service.id)"
         />
       </section>
 
@@ -304,6 +304,21 @@ const cardRatingsReady = computed(() => props.showRating && props.ratingStatus !
   margin-bottom: 1rem;
   color: var(--color-text);
   font-weight: 600;
+}
+
+/* With Open now on and no place confirmed open, the panel sits directly above the places whose
+   hours could not be read. The first card draws no top border or top padding of its own, so the
+   list keeps 1.75rem below the panel at every width, the space a card keeps below its divider
+   line on screens narrower than 1200px. Only a list that follows the panel gets it: the list
+   alone, or the panel alone, is unchanged. */
+.results-open-now + .results-list {
+  margin-top: 1.75rem;
+}
+
+/* Show every distance follows the last card directly, and its hover surface starts at its own
+   edge: a little space keeps that surface off whatever the card above draws along its bottom. */
+.results-note--every-distance {
+  margin-top: 0.5rem;
 }
 
 .results-empty__actions {

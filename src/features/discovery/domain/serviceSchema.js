@@ -12,12 +12,13 @@ import {
   toIsoTimestamp,
 } from '@/shared/domain/catalogueValidation.js'
 
-import { ITEM_CATEGORY_IDS, deriveItemCategories } from './itemCategories.js'
+import { deriveItemCategories } from './itemCategories.js'
 
 /**
  * The service vocabulary, once, next to its projector; the rules mirror it.
  * `projectService` skips a malformed document (returns null) instead of failing the page and
- * fills defaults for the optional fields the eight live documents do not carry yet.
+ * fills defaults for the optional fields a document stored before them does not carry (such as
+ * `excludedConditions` until the stored services are migrated).
  */
 
 export const SERVICE_ACTIONS = Object.freeze(['repair', 'reuse', 'recycle'])
@@ -44,6 +45,7 @@ const OPTIONAL_KEYS = new Set([
   'acceptanceConditions',
   'address',
   'cost',
+  'excludedConditions',
   'geo',
   'itemCategories',
   'openingHours',
@@ -109,13 +111,18 @@ const CHECKS = Object.freeze({
     isBoundedString(c.source.organisation, 150) &&
     isHttpsUrl(c.source.url) &&
     isCalendarDate(c.source.checkedAt),
+  // Ids are checked for shape only: which categories exist is the shared catalogue's business (an
+  // admin can add some), and a page that has not loaded it must not drop the service.
   itemCategories: (c) =>
     c.itemCategories === undefined ||
     (isStringList(c.itemCategories, { minimumEntries: 0, maximumEntries: 10, maximumLength: 40 }) &&
-      c.itemCategories.every((id) => ITEM_CATEGORY_IDS.includes(id))),
+      c.itemCategories.every((id) => ID_PATTERN.test(id))),
   acceptanceConditions: (c) => optionalList(c.acceptanceConditions, 8, 200),
+  // The things a place does not take, a list beside its conditions.
+  excludedConditions: (c) => optionalList(c.excludedConditions, 20, 200),
   preparation: (c) => optionalList(c.preparation, 8, 200),
-  access: (c) => optionalList(c.access, 6, 200),
+  // The staff checklist's seven facts and up to six notes.
+  access: (c) => optionalList(c.access, 13, 200),
   openingHours: (c) => optionalList(c.openingHours, 8, 100),
   cost: (c) => c.cost === undefined || isNullableBoundedString(c.cost, 200),
   revision: (c) => c.revision === undefined || (Number.isInteger(c.revision) && c.revision >= 1),
@@ -160,6 +167,7 @@ export function projectService(documentId, candidate) {
       ? [...candidate.itemCategories]
       : deriveItemCategories(candidate),
     acceptanceConditions: candidate.acceptanceConditions ? [...candidate.acceptanceConditions] : [],
+    excludedConditions: candidate.excludedConditions ? [...candidate.excludedConditions] : [],
     preparation: candidate.preparation ? [...candidate.preparation] : [],
     access: candidate.access ? [...candidate.access] : [],
     openingHours: candidate.openingHours ? [...candidate.openingHours] : [],

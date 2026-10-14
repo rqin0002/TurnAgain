@@ -5,37 +5,47 @@
  *
  * The hours are free text written from each provider's page. The first line is the weekly
  * schedule; later lines are notes (holiday closures, a second facility's hours, the next dates)
- * and are not read. The schedule line is read as `;`-separated segments. A segment is either
- * comma-separated groups of "<days> <time range>" (either order), or one closure, "<days>
- * closed" or "closed <days>"; a closure joined to hours by a comma ("Mon-Fri 9am-5pm, Wed
- * closed") is not read, so the schedule becomes `null`. A later closure clears the day's hours.
- * After a group written days first, a list of days leads the next range ("Mon 9am-5pm, Tue, Wed
- * 10am-2pm": Tuesday has Wednesday's hours); a list with no range after it, or days on both sides
- * of one range ("Mon 9am-5pm and Tue"), may not share that range, so the schedule becomes `null`.
- * A day may hold two ranges only when they do not overlap (split hours, "Mon 9am-12pm, Mon
- * 1pm-5pm"); an overlapping range ("Mon-Fri 9am-5pm; Wed 9am-1pm") may be an exception day
- * rather than more hours, so the schedule becomes `null`. Days are a day ("Mon", "Tuesday",
- * "Sundays"), a range ("Mon-Fri", "Fri-Mon" wraps the week), a list joined by "," / "and" / "&",
- * "7 days", "daily", "weekdays" or "weekends"; public or school holidays inside a list are
- * skipped, and so is a segment that only says "open public / school / bank holidays". Times are
- * 12-hour with am/pm, minutes after "." or ":" ("8.30am", "9:30am").
+ * and are not read. The schedule line is read as `;`-separated segments of groups joined by ",",
+ * "and" or "&". A group is "<days> <time range>" in either order ("Mon-Fri 9am-5pm", "9am-5pm
+ * Mon, Tue", "Mon-Fri: 9am-5pm") or a closure ("Sun closed", "closed Sun-Mon", "except Wed"); a
+ * leading "Open" adds nothing ("Open 7 days 9am-5pm"). Closures are applied after every range, so
+ * a closed day stays closed wherever its closure stands in the line. After a group written days
+ * first, a list of days leads the next range ("Mon 9am-5pm, Tue, Wed 10am-2pm": Tuesday has
+ * Wednesday's hours); a list that could belong to either of two ranges ("Mon 9am-5pm and Tue",
+ * "9am-5pm Mon, Tue, Wed 10am-2pm") makes the schedule `null`. A day may hold two ranges only
+ * when they do not overlap (split hours, "Mon 9am-12pm, Mon 1pm-5pm"); an overlapping range
+ * ("Mon-Fri 9am-5pm; Wed 9am-1pm") may be an exception day rather than more hours, so the
+ * schedule becomes `null`. Days are a day ("Mon", "Tuesday", "Sundays"), a range ("Mon-Fri",
+ * "Fri-Mon" wraps the week), a list, "7 days", "7 days a week", "daily", "every day", "weekdays"
+ * or "weekends". A list item that is only a holiday phrase, a public or bank holiday after at most
+ * one word ("public holidays", "most public holidays", even "Mon public holidays") or "school
+ * holidays" alone, names no weekday: it adds no hours, and a closure of public or bank holidays
+ * closes none of the weekly days. A closure of school holidays (whole weeks that may include
+ * today) makes the schedule `null`, and so does any other item that names a holiday, such as a
+ * closure item that mixes a day with a holiday ("closed Mondays except public holidays") or a word
+ * before "school holidays" ("Mon-Fri 9am-3pm, during school holidays 10am-2pm"). A segment or a
+ * note that only says "open public / school / bank holidays" is skipped.
+ * Times are 12-hour with am/pm, minutes after "." or ":" ("8.30am", "9:30am"); a range may close
+ * at midnight ("6pm-12am") but not later.
  *
- * Parenthetical notes are read after the segments. A note that closes days ("(closed Tue,
- * Thu)", "(Wed closed)") closes them. A note that only moves a closing time later ("(Wed to
- * 8pm)") is dropped, which can only make a late hour read closed. A note that closes on public
- * holidays only ("(closed Christmas Day and New Year's Day)") is dropped, and so is a note about
- * something other than days or dates ("(green waste only)"). Any other closure ("(temporarily
- * closed)", "(closed until further notice)", "(closed 12pm-1pm)"), a note that names some weeks
- * ("(1st and 3rd)", "(every other)"), or a note about days, dates, seasons or holidays ("(Wed
- * from 1pm)", "(not January)") may narrow the hours, so it makes the schedule `null`. A leading
- * "<label>: " ("Transfer station: ") is skipped, unless the label is about days or dates
- * ("Winter: ") or names a closure or some weeks ("Temporarily closed: "): then the hours after it
- * may not hold today.
+ * Parenthetical notes are read after the segments. A note that closes days ("(closed Tue, Thu)",
+ * "(Wed closed)") closes them. A note that moves a closing time later ("(Wed to 8pm)") moves it,
+ * so the day only gets longer; one that would end a day earlier makes the schedule `null`. A note
+ * that closes on public holidays only ("(closed Christmas Day and New Year's Day)") is dropped.
+ * Any other closure or stop ("(temporarily closed)", "(shut until further notice)", "(not
+ * operating)", "(service suspended)", "(closed 12pm-1pm)"), a note that names some weeks ("(1st
+ * and 3rd)", "(every other)"), or a note about days, dates, seasons or holidays ("(Wed from
+ * 1pm)", "(not January)") may narrow the hours, so it makes the schedule `null`. Every other note
+ * is dropped, a note that gives only times among them ("(lunch 12pm-1pm)"): the place reads open
+ * during such a break. A leading "<label>: " ("Transfer station: ") is skipped, unless the label
+ * is about days or dates ("Winter: ") or names a closure or some weeks ("Temporarily closed: "):
+ * then the hours after it may not hold today, so the schedule is `null`. A label made only of
+ * days ("Mon-Fri: ", "Open Mon-Fri: ") is not skipped: it gives the days of the hours after it.
  *
- * Guarantees: any segment or group it cannot read makes the whole schedule `null`, so a monthly
- * pattern ("Third Saturday of the month"), a date or prose is `unknown`, never a guess. It does
- * not know public holidays, or a closure written on a later line, so an `open` answer means
- * "open by the weekly hours", nothing more.
+ * Any segment or group it cannot read makes the whole schedule `null`, so a monthly pattern
+ * ("Third Saturday of the month"), a date or prose is `unknown`. It does not know public holidays,
+ * a closure written on a later line, a break given only as times, or a closure in words outside
+ * the list above, so an `open` answer means "open by the weekly hours", nothing more.
  */
 
 /** @typedef {'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'} Weekday */
@@ -73,25 +83,53 @@ const DAY_NAMES = Object.freeze({
   sunday: 'sun',
   sundays: 'sun',
 })
-const EVERY_DAY = /^(?:7 days|daily|every day)$/u
-const HOLIDAYS = /\b(?:public|school|bank) holidays?\b/u
+const EVERY_DAY = /^(?:7 days(?: a week)?|daily|every day)$/u
+// A list item that is only a holiday phrase: a public or bank holiday after at most one word
+// ("public holidays", "most public holidays") or "school holidays" alone. "Mondays except public
+// holidays" is not one, and nor is "closed school holidays": school holidays are whole weeks, so
+// a word before them may change today's hours.
+const HOLIDAY_PART = /^(?:(?:[a-z]+ )?(?:public|bank)|school) holidays?$/u
+// School holidays are whole weeks of the year, so a closure that names them may close today.
+const SCHOOL_HOLIDAYS = /\bschool holidays?\b/u
 const DAY_RANGE = /^([a-z]+)\s*(?:-|–|—|to)\s*([a-z]+)$/u
 const TIME_RANGE =
   /(\d{1,2})(?:[.:](\d{2}))?\s*(am|pm)\s*(?:-|–|—|to)\s*(\d{1,2})(?:[.:](\d{2}))?\s*(am|pm)/u
 const CLOSED_BEFORE = /^(?:closed|excluding|except)\s+(.+)$/u
 const CLOSED_AFTER = /^(.+?)\s+closed$/u
 const OPEN_ON_HOLIDAYS = /^open (?:public|school|bank) holidays?$/u
+// "Open Mon-Fri 9am-5pm": a leading "open" adds nothing to the days.
+const LEADING_OPEN = /^open\s+/u
 // "Wed to 8pm": a later closing time for some days.
 const LATER_CLOSE = /^(.+?)\s+(?:to|until|till)\s+(\d{1,2})(?:[.:](\d{2}))?\s*(am|pm)$/u
-// A closure, or hours that hold only on some weeks ("1st and 3rd", "every other"). A note or label
-// that says this without naming days the parser can close may mean the hours do not hold today.
-const CLOSURE_OR_SOME_WEEKS =
-  /\bclos(?:e|ed|es|ing|ure)\b|\btemporar|\b\d+(?:st|nd|rd|th)\b|\b(?:first|second|third|fourth|last|other|alternate)\b/u
+// A closure or a stop, or hours that hold only on some weeks ("1st and 3rd", "every other"). A
+// note or label that says this without naming days the parser can close may mean the hours do
+// not hold today. Each word only ever turns an answer into "unknown", so a harmless note that
+// uses one ("(bookings paused)") costs a place its "open" answer, never a false one.
+const CLOSURE_OR_SOME_WEEKS = new RegExp(
+  [
+    '\\bclos(?:e|ed|es|ing|ure)\\b',
+    '\\bshut\\b',
+    '\\bsuspend',
+    '\\bnot (?:open|operating|trading|available|currently)\\b',
+    '\\bno longer\\b',
+    '\\bceased?\\b',
+    '\\bpaused?\\b',
+    '\\bon hold\\b',
+    '\\bunavailable\\b',
+    '\\buntil further notice\\b',
+    '\\btemporar',
+    '\\b\\d+(?:st|nd|rd|th)\\b',
+    '\\b(?:first|second|third|fourth|last|other|alternate)\\b',
+  ].join('|'),
+  'u',
+)
 // The holidays a closure note may name and still be dropped: the weekly hours never claim to
 // cover public holidays.
 const PUBLIC_HOLIDAY =
   /^(?:(?:[a-z]+ )?(?:public|bank) holidays?|christmas(?: day)?|boxing day|new year['’]s day|good friday|easter(?: (?:saturday|sunday|monday))?|anzac day)$/u
 const LIST_SEPARATOR = /\s*,\s*|\s+and\s+|\s*&\s*/u
+// The same separators, kept when a segment is split into pieces so a joined piece keeps its own.
+const PIECE_SEPARATOR = /(\s*,\s*|\s+and\s+|\s*&\s*)/u
 // "Transfer station: ..." – a short label before ": " (a time's colon has no space after it).
 const LABEL = /^([^:;]{1,60}):\s+(.+)$/u
 // Words that name weekdays.
@@ -141,6 +179,12 @@ function toMinutes(hour, minute, meridiem) {
   return ((h % 12) + (meridiem === 'pm' ? 12 : 0)) * 60 + m
 }
 
+/** A closing time: as toMinutes, except that "12am" closes at midnight at the end of the day. */
+function toClosingMinutes(hour, minute, meridiem) {
+  const minutes = toMinutes(hour, minute, meridiem)
+  return minutes === 0 ? 24 * 60 : minutes
+}
+
 /** The days from `from` to `to` inclusive, wrapping past Sunday ("fri-mon"). */
 function dayRange(from, to) {
   const start = WEEKDAYS.indexOf(from)
@@ -153,15 +197,18 @@ function dayRange(from, to) {
   return days
 }
 
-/** The weekdays a day expression names; [] for holidays only; null when any part is unreadable. */
+/**
+ * The weekdays a day expression names ("Mon-Fri", "Sat, Sun and public holidays", "Mon-Fri:");
+ * [] for holidays only; null when any part is unreadable.
+ */
 function readDays(expression) {
-  const text = expression.replace(/^[\s,]+|[\s,.]+$/gu, '')
+  const text = expression.replace(/^[\s,]+|[\s,.:]+$/gu, '')
   if (text === '') return null
   if (EVERY_DAY.test(text)) return [...WEEKDAYS]
   const days = new Set()
   for (const raw of text.split(LIST_SEPARATOR)) {
     const part = raw.trim()
-    if (part === '' || HOLIDAYS.test(part)) continue
+    if (part === '' || HOLIDAY_PART.test(part)) continue
     let named
     if (part === 'weekdays') named = WEEKDAYS.slice(0, 5)
     else if (part === 'weekends') named = ['sat', 'sun']
@@ -176,10 +223,28 @@ function readDays(expression) {
   return [...days]
 }
 
+/**
+ * The weekdays a closure closes: "closed <days>", "<days> closed", "except <days>" or "excluding
+ * <days>". A public or bank holiday in the list closes no weekday ("closed Sundays and public
+ * holidays" closes Sunday). Null when the text is not a closure, when its days are unreadable,
+ * or when it names school holidays.
+ */
+function readClosure(text) {
+  const closed = CLOSED_BEFORE.exec(text.trim()) ?? CLOSED_AFTER.exec(text.trim())
+  if (!closed || SCHOOL_HOLIDAYS.test(closed[1])) return null
+  return readDays(closed[1])
+}
+
 /** The text before and after a group's time range, without the spaces and commas next to it. */
 function aroundRange(group, time) {
   const trim = (text) => text.replace(/^[\s,]+|[\s,]+$/gu, '')
   return [trim(group.slice(0, time.index)), trim(group.slice(time.index + time[0].length))]
+}
+
+/** Whether a group is written time first ("9am-5pm Mon"). */
+function startsWithRange(group) {
+  const time = TIME_RANGE.exec(group)
+  return time !== null && aroundRange(group, time)[0] === ''
 }
 
 /**
@@ -195,22 +260,34 @@ function leadsNextRange(group, piece) {
 }
 
 /**
- * A segment's comma-separated groups: commas also separate the days of a list ("Mon, Fri and
- * Sat 8.30am-4pm"), so a piece joins the text before it unless both hold a time range, or the
- * piece names only days that lead the next range (see leadsNextRange).
+ * A segment's groups. Commas, "and" and "&" both join the days of a list ("Mon, Fri and Sat
+ * 8.30am-4pm") and separate groups ("Mon-Fri 9am-5pm & Sat 10am-2pm"), so a piece joins the text
+ * before it unless both hold a time range, the piece is a closure after a range ("Mon-Fri
+ * 9am-5pm, Sun closed"), or, after a comma, the piece names only days that lead the next range
+ * (see leadsNextRange). Null when a list of days joined a group written time first and a later
+ * piece starts a group: in "9am-5pm Mon, Tue, Wed 10am-2pm" Tuesday may have either range.
  */
 function splitGroups(segment) {
   const groups = []
-  let current = ''
-  for (const piece of segment.split(',')) {
-    const startsGroup = TIME_RANGE.test(piece)
-      ? TIME_RANGE.test(current)
-      : leadsNextRange(current, piece)
-    if (current !== '' && startsGroup) {
+  const [first, ...rest] = segment.split(PIECE_SEPARATOR)
+  let current = first
+  let daysJoinedTimeFirst = false
+  for (let index = 0; index < rest.length; index += 2) {
+    const separator = rest[index]
+    const piece = rest[index + 1]
+    const hasRange = TIME_RANGE.test(piece)
+    let startsGroup
+    if (hasRange || readClosure(piece) !== null) startsGroup = TIME_RANGE.test(current)
+    else startsGroup = separator.trim() === ',' && leadsNextRange(current, piece)
+    if (current.trim() !== '' && startsGroup) {
+      if (daysJoinedTimeFirst) return null
       groups.push(current.trim())
       current = piece
     } else {
-      current = current === '' ? piece : `${current},${piece}`
+      if (!hasRange && readDays(piece)?.length > 0 && startsWithRange(current)) {
+        daysJoinedTimeFirst = true
+      }
+      current = `${current}${separator}${piece}`
     }
   }
   if (current.trim() !== '') groups.push(current.trim())
@@ -234,8 +311,7 @@ function closesOnHolidaysOnly(note) {
  */
 function applyNote(schedule, note) {
   if (OPEN_ON_HOLIDAYS.test(note)) return true
-  const closed = CLOSED_BEFORE.exec(note) ?? CLOSED_AFTER.exec(note)
-  const closedDays = closed ? readDays(closed[1]) : null
+  const closedDays = readClosure(note)
   if (closedDays) {
     for (const day of closedDays) schedule[day] = []
     return true
@@ -244,9 +320,19 @@ function applyNote(schedule, note) {
   if (!NAMES_WHEN.test(note)) return true
   const later = LATER_CLOSE.exec(note)
   const days = later ? readDays(later[1]) : null
-  const closes = later ? toMinutes(later[2], later[3], later[4]) : null
+  const closes = later ? toClosingMinutes(later[2], later[3], later[4]) : null
   if (!days || closes === null) return false
-  return days.every((day) => schedule[day].every(([, close]) => close <= closes))
+  if (!days.every((day) => schedule[day].every(([, close]) => close <= closes))) return false
+  // The note can only lengthen a day: the range that closes last moves to the later time, and a
+  // day without hours stays closed.
+  for (const day of days) {
+    const last = schedule[day].reduce(
+      (latest, range) => (latest !== null && latest[1] >= range[1] ? latest : range),
+      null,
+    )
+    if (last !== null) last[1] = closes
+  }
+  return true
 }
 
 /**
@@ -268,38 +354,42 @@ export function parseOpeningHours(lines) {
     .replace(/\s+/gu, ' ')
     .trim()
   const labelled = LABEL.exec(text)
-  if (labelled) {
+  // "Mon-Fri: 9am-5pm" is days and hours, not a label: readDays drops the colon.
+  if (labelled && !(readDays(labelled[1].replace(LEADING_OPEN, ''))?.length > 0)) {
     if (NAMES_WHEN.test(labelled[1]) || CLOSURE_OR_SOME_WEEKS.test(labelled[1])) return null
     text = labelled[2]
   }
   const schedule = Object.fromEntries(WEEKDAYS.map((day) => [day, []]))
+  // Closures are applied once every range is read, so "Closed Wed; Mon-Fri 9am-5pm" keeps
+  // Wednesday closed.
+  const closedDays = new Set()
   let hasHours = false
   const segments = text
     .replace(/[\s.]+$/u, '')
     .split(';')
     .map((segment) => segment.trim())
     .filter(Boolean)
-  for (const segment of segments) {
+  for (const written of segments) {
     // Only that holiday note is skipped: "open by appointment only" stays unreadable (null).
-    if (OPEN_ON_HOLIDAYS.test(segment)) continue
-    const closedFirst = TIME_RANGE.test(segment) ? null : CLOSED_BEFORE.exec(segment)
+    if (OPEN_ON_HOLIDAYS.test(written)) continue
+    const segment = written.replace(LEADING_OPEN, '')
+    const closedFirst = TIME_RANGE.test(segment) ? null : readClosure(segment)
     if (closedFirst) {
-      const days = readDays(closedFirst[1])
-      if (days === null) return null
-      for (const day of days) schedule[day] = []
+      for (const day of closedFirst) closedDays.add(day)
       continue
     }
-    for (const group of splitGroups(segment)) {
+    const groups = splitGroups(segment)
+    if (groups === null) return null
+    for (const group of groups) {
       const time = TIME_RANGE.exec(group)
       if (!time) {
-        const closed = CLOSED_AFTER.exec(group)
-        const days = closed ? readDays(closed[1]) : null
+        const days = readClosure(group)
         if (days === null) return null
-        for (const day of days) schedule[day] = []
+        for (const day of days) closedDays.add(day)
         continue
       }
       const opens = toMinutes(time[1], time[2], time[3])
-      const closes = toMinutes(time[4], time[5], time[6])
+      const closes = toClosingMinutes(time[4], time[5], time[6])
       if (opens === null || closes === null || closes <= opens) return null
       const [before, after] = aroundRange(group, time)
       // "Mon 9am-5pm and Tue": the later days may have hours of their own.
@@ -315,6 +405,7 @@ export function parseOpeningHours(lines) {
       }
     }
   }
+  for (const day of closedDays) schedule[day] = []
   for (const note of notes) {
     if (!applyNote(schedule, note)) return null
   }

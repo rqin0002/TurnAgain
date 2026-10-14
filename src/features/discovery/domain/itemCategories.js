@@ -12,6 +12,13 @@ import { singularize, tokenize } from './textNormalization.js'
  * appliances (based on category)"). `terms` are the words or phrases that resolve a query or a
  * catalogue entry to the category; `broadMatches` lists the other categories whose services may
  * also take this category's items (one level, used by `matchService`).
+ *
+ * The twelve are bundled here and are always present. An admin can add categories, which arrive
+ * as data: `createCategoryIndex(added)` builds the lookup tables for the twelve plus those, and
+ * `categoryLabel`, `resolveItemQuery` and `matchService` take that index as an optional last
+ * argument (without one, or with anything that is not an index, they use the twelve alone).
+ * `deriveItemCategories` always uses the twelve. An added category's `label` is its name as the
+ * admin typed it.
  */
 export const ITEM_CATEGORIES = deepFreeze([
   {
@@ -457,18 +464,72 @@ const FILLER_WORDS = new Set(
 /** Tokenised, then singularised token by token: the canonical form every matcher compares. */
 const canonical = (text) => tokenize(text).map(singularize)
 
-const byId = new Map(ITEM_CATEGORIES.map((category) => [category.id, category]))
-const order = new Map(ITEM_CATEGORY_IDS.map((id, index) => [id, index]))
-const inTableOrder = (ids) =>
-  [...new Set(ids)].sort((left, right) => order.get(left) - order.get(right))
-
 /** Longer phrases first, so "vacuum cleaner" consumes its span before "vacuum" could. */
 const longestFirst = (left, right) => right.tokens.length - left.tokens.length
 
-// Every term, canonicalised once, longest phrase first; ties keep table order.
-const TERMS = ITEM_CATEGORIES.flatMap((category) =>
-  category.terms.map((term) => ({ id: category.id, tokens: canonical(term) })),
-).sort(longestFirst)
+const isAddedCategory = (category, known) =>
+  category !== null &&
+  typeof category === 'object' &&
+  typeof category.id === 'string' &&
+  !known.has(category.id) &&
+  typeof category.label === 'string' &&
+  category.label.trim() !== '' &&
+  Array.isArray(category.terms) &&
+  category.terms.every((term) => typeof term === 'string') &&
+  Array.isArray(category.broadMatches)
+
+/**
+ * The lookup tables every matcher reads, built once per catalogue: the bundled twelve first, in
+ * their order, then `added` (categories an admin created, `{ id, label, terms, broadMatches }`,
+ * in the catalogue's order). An added entry that reuses one of the twelve ids, repeats an id or
+ * is malformed is left out, so the twelve always read as this file defines them. Terms are
+ * canonicalised once and sorted longest phrase first (ties keep table order); a term with no
+ * letter or digit is dropped. Pure; the result and its lists are frozen, and its two maps are for
+ * reading only.
+ *
+ * @param {Array<{ id: string, label: string, terms: string[], broadMatches: string[] }>} [added]
+ */
+export function createCategoryIndex(added = []) {
+  const known = new Set(ITEM_CATEGORY_IDS)
+  const extra = []
+  for (const category of Array.isArray(added) ? added : []) {
+    if (!isAddedCategory(category, known)) continue
+    known.add(category.id)
+    extra.push(
+      deepFreeze({
+        id: category.id,
+        label: category.label,
+        actions: [],
+        terms: [...category.terms],
+        broadMatches: category.broadMatches.filter((id) => typeof id === 'string'),
+      }),
+    )
+  }
+  const categories = Object.freeze([...ITEM_CATEGORIES, ...extra])
+  const terms = categories
+    .flatMap((category) =>
+      category.terms.map((term) => ({ id: category.id, tokens: canonical(term) })),
+    )
+    .filter((term) => term.tokens.length > 0)
+    .map((term) => ({ ...term, key: term.tokens.join(' ') }))
+    .sort(longestFirst)
+  return Object.freeze({
+    categories,
+    ids: Object.freeze(categories.map((category) => category.id)),
+    byId: new Map(categories.map((category) => [category.id, category])),
+    order: new Map(categories.map((category, position) => [category.id, position])),
+    terms: Object.freeze(terms),
+  })
+}
+
+/** The bundled twelve alone: what every matcher uses when it is given no index. */
+export const DEFAULT_CATEGORY_INDEX = createCategoryIndex()
+
+const indexOr = (index) => (index?.byId instanceof Map ? index : DEFAULT_CATEGORY_INDEX)
+const inTableOrder = (ids, index) => {
+  const rank = (id) => index.order.get(id) ?? index.order.size
+  return [...new Set(ids)].sort((left, right) => rank(left) - rank(right))
+}
 
 // Every verb phrase, canonicalised once, longest phrase first; ties keep repair, recycle, reuse.
 const VERBS = ACTION_ORDER.flatMap((action) =>
@@ -489,20 +550,27 @@ const indexOfSpan = (tokens, needle, from = 0) => {
   return -1
 }
 
-/** `tokens` with every occurrence of each span removed, spans in the order given. */
-const withoutSpans = (tokens, spans) =>
-  spans.reduce((remaining, span) => {
+/**
+ * `pairs` (`{ word, token }`) with every run whose canonical tokens equal one of the spans
+ * removed, spans in the order given. The comparison reads `pair.token`; the typed word travels
+ * with it, so what is left can still be shown as typed.
+ */
+const withoutSpans = (pairs, spans) => {
+  const tokensOf = (list) => list.map((pair) => pair.token)
+  return spans.reduce((remaining, span) => {
     let result = remaining
-    let at = indexOfSpan(result, span.tokens)
+    let at = indexOfSpan(tokensOf(result), span.tokens)
     while (at !== -1) {
       result = [...result.slice(0, at), ...result.slice(at + span.tokens.length)]
-      at = indexOfSpan(result, span.tokens, at)
+      at = indexOfSpan(tokensOf(result), span.tokens, at)
     }
     return result
-  }, tokens)
+  }, pairs)
+}
 
-export function categoryLabel(id) {
-  return byId.get(id)?.label ?? ''
+/** The label of a category id in `index` (the twelve without one), or '' when it is unknown. */
+export function categoryLabel(id, index) {
+  return indexOr(index).byId.get(id)?.label ?? ''
 }
 
 /**
@@ -511,29 +579,42 @@ export function categoryLabel(id) {
  * toaster" gives recycle). Its span is removed; any other verb stays among the item words. Then
  * every question phrase is removed ("can i", "where do i"). The categories are those whose terms
  * match whole-token contiguous runs of what remains (multi-word terms first; a consumed span
- * never matches a second term). `itemTokens` is what remains less the filler words no term
+ * never matches a different term, but a term with exactly the same words, which only an added
+ * category can have, matches it too). `itemTokens` is what remains less the filler words no term
  * consumed ("my", "old"; the term "bric a brac" keeps its "a"), and `residual` the item tokens no
- * term consumed. Token containment never matches: `resolveItemQuery('environment')` resolves to
- * no category.
+ * term consumed. `itemLabels` holds the same words as typed (lower-cased, without punctuation or
+ * accents, not singularised), one per item token in the same order, for what the person reads:
+ * the match label, the status line and the relaxed-hint sentence ("old clothes" gives
+ * `itemTokens` ['clothe'] and `itemLabels` ['clothes']). Token containment never matches:
+ * `resolveItemQuery('environment')` resolves to no category. `index` is a createCategoryIndex
+ * result; without one the twelve are used.
  *
  * @param {unknown} text
- * @returns {{ tokens: string[], itemTokens: string[], categoryIds: string[], actionHint: 'repair' | 'reuse' | 'recycle' | null, residual: string[] }}
+ * @param {ReturnType<typeof createCategoryIndex>} [index]
+ * @returns {{ tokens: string[], itemTokens: string[], itemLabels: string[], categoryIds: string[], actionHint: 'repair' | 'reuse' | 'recycle' | null, residual: string[] }}
  */
-export function resolveItemQuery(text) {
-  const tokens = canonical(text)
+export function resolveItemQuery(text, index) {
+  const table = indexOr(index)
+  const words = tokenize(text)
+  const tokens = words.map(singularize)
+  // Each typed word beside its canonical token: matching reads the token, the labels the word.
+  const pairs = words.map((word, position) => ({ word, token: tokens[position] }))
   let actionHint = null
-  let withoutVerb = tokens
+  let withoutVerb = pairs
   for (const verb of VERBS) {
     const at = indexOfSpan(tokens, verb.tokens)
     if (at === -1) continue
     actionHint = verb.action
-    withoutVerb = [...tokens.slice(0, at), ...tokens.slice(at + verb.tokens.length)]
+    withoutVerb = [...pairs.slice(0, at), ...pairs.slice(at + verb.tokens.length)]
     break
   }
-  const itemTokens = withoutSpans(withoutVerb, QUESTIONS)
+  const remaining = withoutSpans(withoutVerb, QUESTIONS)
+  const itemTokens = remaining.map((pair) => pair.token)
   const consumed = Array.from({ length: itemTokens.length }, () => false)
+  // The words of the term that took the span starting at each position.
+  const claimed = new Map()
   const matched = []
-  for (const term of TERMS) {
+  for (const term of table.terms) {
     let from = 0
     for (;;) {
       const at = indexOfSpan(itemTokens, term.tokens, from)
@@ -541,27 +622,43 @@ export function resolveItemQuery(text) {
       const free = consumed.slice(at, at + term.tokens.length).every((taken) => !taken)
       if (free) {
         consumed.fill(true, at, at + term.tokens.length)
+        claimed.set(at, term.key)
+        matched.push(term.id)
+      } else if (claimed.get(at) === term.key) {
         matched.push(term.id)
       }
       from = at + 1
     }
   }
+  const kept = remaining.filter(
+    (pair, position) => consumed[position] || !FILLER_WORDS.has(pair.token),
+  )
   return {
     tokens,
-    itemTokens: itemTokens.filter((token, index) => consumed[index] || !FILLER_WORDS.has(token)),
-    categoryIds: inTableOrder(matched),
+    itemTokens: kept.map((pair) => pair.token),
+    itemLabels: kept.map((pair) => pair.word),
+    categoryIds: inTableOrder(matched, table),
     actionHint,
-    residual: itemTokens.filter((token, index) => !consumed[index] && !FILLER_WORDS.has(token)),
+    residual: remaining
+      .filter((pair, position) => !consumed[position] && !FILLER_WORDS.has(pair.token))
+      .map((pair) => pair.token),
   }
 }
 
 const stringList = (value) =>
   Array.isArray(value) ? value.filter((entry) => typeof entry === 'string') : []
 
-/** The categories a service's `acceptedItems` and `aliases` resolve to (not its name). */
+/**
+ * The categories a service's `acceptedItems` and `aliases` resolve to (not its name), from the
+ * twelve only: a service written before categories could be added keeps the matches it always
+ * had, and a derivation never depends on whether the shared catalogue has loaded.
+ */
 export function deriveItemCategories(service) {
   const entries = [...stringList(service?.acceptedItems), ...stringList(service?.aliases)]
-  return inTableOrder(entries.flatMap((entry) => resolveItemQuery(entry).categoryIds))
+  return inTableOrder(
+    entries.flatMap((entry) => resolveItemQuery(entry).categoryIds),
+    DEFAULT_CATEGORY_INDEX,
+  )
 }
 
 const serviceText = (service) =>
@@ -571,31 +668,33 @@ const serviceText = (service) =>
 
 /**
  * How a service matches a resolved query: `direct` when every item token appears as a whole
- * canonical token of its name, accepted items or aliases (AND semantics); else `category` when
+ * canonical token of its name, accepted items or aliases (AND semantics), labelled with the
+ * query's words as typed (`matchedTerms` is `resolved.itemLabels`); else `category` when
  * its `itemCategories` intersect the query's categories or one level of their `broadMatches`;
  * else null. The label is always a query category, as the status line counts it: the
  * first query category the service carries, else the first whose `broadMatches` hold one of the
- * service's categories, both in table order.
+ * service's categories, both in table order. `index` is the one the query was resolved with.
  *
  * @returns {{ kind: 'direct' | 'category' | null, matchedTerms: string[], categoryLabel: string | null }}
  */
-export function matchService(service, resolved) {
+export function matchService(service, resolved, index) {
+  const table = indexOr(index)
   const none = { kind: null, matchedTerms: [], categoryLabel: null }
   const itemTokens = resolved?.itemTokens ?? []
   if (itemTokens.length === 0) return none
   const haystack = new Set(canonical(serviceText(service)))
   if (itemTokens.every((token) => haystack.has(token))) {
-    return { kind: 'direct', matchedTerms: [...itemTokens], categoryLabel: null }
+    return { kind: 'direct', matchedTerms: [...resolved.itemLabels], categoryLabel: null }
   }
   const ownSet = new Set(stringList(service?.itemCategories))
-  const queryIds = inTableOrder(resolved?.categoryIds ?? [])
+  const queryIds = inTableOrder(resolved?.categoryIds ?? [], table)
   const own = queryIds.find((id) => ownSet.has(id))
   if (own !== undefined) {
-    return { kind: 'category', matchedTerms: [], categoryLabel: categoryLabel(own) }
+    return { kind: 'category', matchedTerms: [], categoryLabel: categoryLabel(own, table) }
   }
   const parent = queryIds.find((id) =>
-    (byId.get(id)?.broadMatches ?? []).some((broad) => ownSet.has(broad)),
+    (table.byId.get(id)?.broadMatches ?? []).some((broad) => ownSet.has(broad)),
   )
   if (parent === undefined) return none
-  return { kind: 'category', matchedTerms: [], categoryLabel: categoryLabel(parent) }
+  return { kind: 'category', matchedTerms: [], categoryLabel: categoryLabel(parent, table) }
 }

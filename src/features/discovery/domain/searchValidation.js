@@ -2,7 +2,10 @@ const ITEM_MIN_LENGTH = 2
 const ITEM_MAX_LENGTH = 50
 const LOCATION_MAX_LENGTH = 60
 
-const ITEM_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\s&'’.,()+/-]*$/u
+// A letter or number first, then the punctuation item names and everyday questions use ("AA
+// batteries", "T-shirts (kids)", "can I fix my toaster?"). Matching tokenises the text, which
+// drops every punctuation mark, and removes question phrases such as "can i" before it compares.
+const ITEM_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N}\s&'’.,()+/?!-]*$/u
 const LOCATION_PATTERN = /^[\p{L}\p{N}\s,'’.-]+$/u
 
 function normalizeField(value) {

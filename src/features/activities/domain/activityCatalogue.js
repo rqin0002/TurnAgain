@@ -16,10 +16,12 @@ export const ACTIVITY_VIEWS = Object.freeze(['list', 'calendar'])
 
 const firstValue = (value) => (Array.isArray(value) ? value[0] : value)
 
+// Cut by code point, never between the two halves of an emoji: the router encodes the value with
+// encodeURI, which throws on a lone surrogate.
 const normalizeText = (value, maximumLength = 100) => {
   const candidate = firstValue(value)
   return typeof candidate === 'string'
-    ? candidate.trim().replace(/\s+/gu, ' ').slice(0, maximumLength)
+    ? Array.from(candidate.trim().replace(/\s+/gu, ' ')).slice(0, maximumLength).join('')
     : ''
 }
 

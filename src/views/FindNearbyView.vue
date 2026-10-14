@@ -11,6 +11,7 @@ import SearchResults from '@/features/discovery/components/SearchResults.vue'
 import { useDiscoveryResults } from '@/features/discovery/composables/useDiscoveryResults.js'
 import { useFindNearbyQuery } from '@/features/discovery/composables/useFindNearbyQuery.js'
 import { useFollowViewport } from '@/features/discovery/composables/useFollowViewport.js'
+import { useItemCategories } from '@/features/discovery/composables/useItemCategories.js'
 import { useLastSearch } from '@/features/discovery/composables/useLastSearch.js'
 import {
   placeLookupFailedCopy,
@@ -26,6 +27,8 @@ import { formatMatchLabel } from '@/features/discovery/domain/resultsCopy.js'
 import { useRatingSummaries } from '@/features/ratings/composables/useRatingSummaries.js'
 import AppButton from '@/shared/components/AppButton.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
+import { useMinuteClock } from '@/shared/composables/useMinuteClock.js'
 import { useOnlineStatus } from '@/shared/composables/useOnlineStatus.js'
 
 /**
@@ -60,6 +63,8 @@ const boundsOfPoints = (points) => {
 }
 
 const catalogue = useServiceCatalogue()
+// Categories an admin added are searched and labelled like the twelve.
+const itemCategories = useItemCategories()
 const locationOrigin = useLocationOrigin()
 const { origin, status: originStatus, deviceStatus } = locationOrigin
 // The URL is judged once a near=me reload has its permission answer (`restored`) and no
@@ -73,17 +78,10 @@ const { remember } = useLastSearch()
 const activities = useActivityCatalogue({ autoLoad: false })
 const { online } = useOnlineStatus()
 
-// "Open now" compares the published hours with the clock, so the time is read again each minute
-// on a page left open; the results pipeline reads it through a getter.
-const now = ref(new Date())
-const readClock = () => {
-  now.value = new Date()
-}
-let clock = null
-onMounted(() => {
-  clock = window.setInterval(readClock, 60000)
-})
-onBeforeUnmount(() => window.clearInterval(clock))
+// "Open now" and each card's state for today compare the published hours with the clock, so the
+// time is read again each minute on a page left open; the results pipeline reads it through a
+// getter and the cards get the same reading.
+const now = useMinuteClock()
 
 // "Rating: high to low": the candidate ids go to the ratings feature from
 // here and the summaries come back in. The ids are handed over only when the set itself changes
@@ -107,6 +105,7 @@ const results = useDiscoveryResults({
   ratingStatus: () => ratingStatus.value,
   ratingIds: rankedIds,
   truncated: catalogue.truncated,
+  categoryIndex: itemCategories.index,
   now: () => now.value,
 })
 const ratingStatus = computed(() =>
@@ -124,16 +123,27 @@ const showViewToggle = computed(
     isMapView.value ||
     (catalogue.status.value === 'ready' && results.listState.value !== 'none-at-all'),
 )
+// Every numbered place is a pin: the primary block and, under a relaxed hint, Other options. With
+// Open now on, a popup says "Hours not checked" for a place whose hours could not be read, the
+// places the filter keeps without knowing they are open (its card says so at every time).
 const mapItems = computed(() =>
-  results.visible.value.map((entry) => ({
+  [...results.visible.value, ...results.otherOptions.value].map((entry) => ({
     ...entry,
     matchLabel: formatMatchLabel(results.matches.value[entry.service.id]),
+    hoursUnchecked:
+      results.openNow.value && results.openingById.value[entry.service.id] === 'unknown',
   })),
 )
+// The pill counts what the list shows: the numbered places of both blocks.
 const listPill = computed(() => {
-  const count = results.visible.value.length
+  const count = results.visible.value.length + results.otherOptions.value.length
   return `List, ${count} ${count === 1 ? 'place' : 'places'}`
 })
+// The card of the place selected on the map is marked only while the map is shown: in the list on
+// its own the mark would point at nothing. The selection itself is kept, so the map and Previous
+// place / Next place carry on from it when the map comes back. `isMapView` reads the URL, so the
+// List button, a link and the browser's history all follow the same rule.
+const listSelectedId = computed(() => (isMapView.value ? results.selectedId.value : ''))
 
 const recentreOnOrigin = async (zoom = ORIGIN_ZOOM) => {
   await nextTick()
@@ -154,14 +164,20 @@ const frameRadius = async (radius) => {
 const reframeOnOrigin = () =>
   origin.value?.source === 'typed' ? frameRadius(results.effectiveRadius.value) : recentreOnOrigin()
 
-const { locationMessage, mapNotice, mapNoticeText, requestLocation, dismissMapNotice } =
-  useLocationPrompts({
-    locationOrigin,
-    update,
-    isMapView,
-    recentreOnOrigin,
-    showMelbourne,
-  })
+const {
+  locationMessage,
+  mapNotice,
+  mapNoticeMessage,
+  mapNoticeText,
+  requestLocation,
+  dismissMapNotice,
+} = useLocationPrompts({
+  locationOrigin,
+  update,
+  isMapView,
+  recentreOnOrigin,
+  showMelbourne,
+})
 
 // The view keeps the framing rule: a new origin reframes the map
 // only in map view.
@@ -233,59 +249,80 @@ const onView = async (view) => {
   const opening = update({ view: 'map' })
   if (!origin.value) requestLocation('map')
   await opening
-  await recentreOnOrigin()
+  // Framed as a new origin is: a typed place's whole radius ring; a device fix, or Any distance
+  // (no ring), at zoom 13.
+  await reframeOnOrigin()
 }
-const onRadius = async (radius) => {
-  supersedeViewport({ type: 'radius-chosen' })
-  await update({ radius })
-  await frameRadius(radius)
-}
+// A control in the results column that leaves the page once its action lands (Try 20 km, Any
+// distance, Show every distance, Clear map area, Retry rating summaries) sends focus to the
+// results heading; one in the map column (Search this area, Dismiss) to the map heading. Both
+// headings carry tabindex="-1" and stay mounted; without a target focus would fall to <body>
+// (WCAG 2.4.3). The radius select in the chip row stays, so the same handler moves nothing for it.
+const resultsHeading = () => document.getElementById('results-heading')
+const mapHeading = () => document.getElementById('nearby-map-heading')
+const onRadius = (radius) =>
+  focusAfterAction(async () => {
+    supersedeViewport({ type: 'radius-chosen' })
+    await update({ radius })
+    await frameRadius(radius)
+  }, resultsHeading)
 const onFollow = (follow) => update({ follow })
 const onActions = (actionTypes) => update({ actionTypes })
 const onOpen = (open) => update({ open })
-// "Turn off Open now" sits in the empty-state panel that turning the filter off removes, so focus
-// moves to the results heading once the list is back, never <body> (the toolbar chip stays and
-// keeps focus).
-const onTurnOffOpen = async () => {
-  await update({ open: false })
-  await nextTick()
-  document.getElementById('results-heading')?.focus()
-}
 const onClearOrigin = async () => {
   locationOrigin.clearOrigin()
   supersedeViewport({ type: 'clear-viewport' })
   await update({ near: false, location: '' })
 }
-// Clear map area: the whole radius again, framed on the origin;
-// with no origin the visible pins that have a map position, and with none of those the map stays.
-const onClearViewport = async () => {
-  supersedeViewport({ type: 'clear-viewport' })
-  if (!isMapView.value) return
-  if (origin.value) {
-    await recentreOnOrigin()
-    return
-  }
-  await nextTick()
-  const points = results.visible.value.map((entry) => entry.service.geo).filter(isMappableGeo)
-  if (points.length > 0) mapRef.value?.fitTo(boundsOfPoints(points))
-}
+// Clear map area: the whole radius again, framed as a new origin is (a typed place's ring; a
+// device fix, or Any distance, at zoom 13); with no origin, the pins of both blocks (every listed
+// place with a map position), and with none of those the map stays.
+const onClearViewport = () =>
+  focusAfterAction(async () => {
+    supersedeViewport({ type: 'clear-viewport' })
+    if (!isMapView.value) return
+    if (origin.value) {
+      await reframeOnOrigin()
+      return
+    }
+    await nextTick()
+    const points = mapItems.value.map((entry) => entry.service.geo).filter(isMappableGeo)
+    if (points.length > 0) mapRef.value?.fitTo(boundsOfPoints(points))
+  }, resultsHeading)
+// The retry marks the summaries as loading at once, which takes the note and its button away; the
+// read is started, not waited for, so focus moves then rather than after the network answers.
+const onRetryRatings = () =>
+  focusAfterAction(() => {
+    void ranking.retry()
+  }, resultsHeading)
+const onSearchThisArea = () => focusAfterAction(searchThisArea, mapHeading)
+const onDismissMapNotice = () => focusAfterAction(dismissMapNotice, mapHeading)
 
-// "Show on map" reveals the canvas below whatever sticks above it:
-// the sticky chip row below 992 px, the header from 992 px up, as the map column's `top` does.
+// "Show on map" reveals the canvas below whatever sticks above it: below 992 px the sticky chip
+// row; from 992 px nothing, because the map column itself sticks to the top of the window (the
+// site header scrolls away with the page).
 const chipsRow = ref(null)
 const wide = () =>
   typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 992px)').matches
-const headerHeightPx = () => {
-  const rootStyle = getComputedStyle(document.documentElement)
-  return (
-    (parseFloat(rootStyle.getPropertyValue('--header-h')) || 0) *
-    (parseFloat(rootStyle.fontSize) || 16)
-  )
-}
-const revealTop = () =>
-  wide() ? headerHeightPx() : (chipsRow.value?.getBoundingClientRect().bottom ?? 0)
+const revealTop = () => (wide() ? 0 : (chipsRow.value?.getBoundingClientRect().bottom ?? 0))
+// The chip row's height, kept current as its chips wrap, published on the page root as
+// --find-nearby-band-height. Below 992 px in the map view the row sticks to the top of the window,
+// and the map heading's scroll-margin-top reads this height, so a heading that takes focus (Back to
+// map, Search this area, Dismiss, Retry map) is scrolled out from under the row (WCAG 2.4.11).
+const bandHeight = ref(0)
+let bandObserver = null
+onMounted(() => {
+  if (typeof ResizeObserver !== 'function' || !chipsRow.value) return
+  bandObserver = new ResizeObserver(() => {
+    bandHeight.value = Math.ceil(chipsRow.value?.getBoundingClientRect().height ?? 0)
+  })
+  bandObserver.observe(chipsRow.value)
+})
+onBeforeUnmount(() => bandObserver?.disconnect())
 // Selection sync: a card focuses its pin; a pin focuses its card, changing the page
-// when the card sits on another one; the map's own keyboard path keeps focus where it is.
+// when the card sits on another one; the map's own keyboard path (Previous place, Next place,
+// Enter or Space on a pin) keeps focus where it is, and the map names the selected place in its
+// status line.
 const selectService = async (id, from) => {
   const { page } = results.select(id, from)
   if (page !== state.value.page) await update({ page })
@@ -413,7 +450,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="find-nearby" :class="{ 'find-nearby--map': isMapView }">
+  <div
+    class="find-nearby"
+    :class="{ 'find-nearby--map': isMapView }"
+    :style="{ '--find-nearby-band-height': `${bandHeight}px` }"
+  >
     <section class="search-band page-section--compact" aria-labelledby="search-heading">
       <div class="shell">
         <h1 id="search-heading" class="page-title">Find a place for your item.</h1>
@@ -470,9 +511,9 @@ onMounted(async () => {
             variant="notice"
             :live="false"
             title="Showing central Melbourne"
-            message="Your location was not shared. Type a suburb or postcode to search near it."
+            :message="mapNoticeMessage"
           >
-            <AppButton variant="text" @click="dismissMapNotice">Dismiss</AppButton>
+            <AppButton variant="text" @click="onDismissMapNotice">Dismiss</AppButton>
           </StatePanel>
           <NearbyMap
             ref="mapRef"
@@ -493,7 +534,7 @@ onMounted(async () => {
             v-if="searchAreaVisible"
             variant="primary"
             class="find-nearby__search-area"
-            @click="searchThisArea"
+            @click="onSearchThisArea"
           >
             Search this area
           </AppButton>
@@ -509,8 +550,8 @@ onMounted(async () => {
             :paged="results.paged.value"
             :other-options="results.otherOptions.value"
             :matches="results.matches.value"
-            :selected-id="results.selectedId.value"
-            :item-label="results.resolved.value.itemTokens.join(' ')"
+            :selected-id="listSelectedId"
+            :item-label="results.resolved.value.itemLabels.join(' ')"
             :action-hint="results.resolved.value.actionHint ?? ''"
             :summaries-by-id="ranking.summariesById.value"
             :rating-status="ratingStatus"
@@ -525,17 +566,15 @@ onMounted(async () => {
             :saved-at="catalogue.savedAt.value"
             :radius="results.effectiveRadius.value"
             :viewport-applied="appliedViewport !== null"
-            :open-now="results.openNow.value"
-            :opening-by-id="results.openingById.value"
+            :now="now"
             :hours-unchecked-count="results.openCounts.value.unknown"
             @retry="catalogue.retry"
-            @retry-ratings="ranking.retry"
+            @retry-ratings="onRetryRatings"
             @clear-viewport="onClearViewport"
             @select="selectService($event, 'card')"
             @update:page="update({ page: $event })"
             @update:page-size="update({ pageSize: $event })"
             @update:radius="onRadius"
-            @update:open="onTurnOffOpen"
           />
         </div>
 
@@ -603,6 +642,12 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
 }
 
+/* A map heading scrolled to, or focused, stops below the sticky row, not under it. The row's
+   height comes from the view's measurement (--find-nearby-band-height on .find-nearby). */
+.find-nearby--map .find-nearby__map :deep(#nearby-map-heading) {
+  scroll-margin-top: calc(var(--find-nearby-band-height, 0px) + 0.5rem);
+}
+
 .find-nearby__map {
   position: relative;
   display: grid;
@@ -648,8 +693,9 @@ onMounted(async () => {
   box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
 }
 
-/* The 992 breakpoint: the chip row across both columns, the list column
-   left (40%), the map column right and sticky at the viewport height below the header. */
+/* The 992 breakpoint: the chip row across both columns, the list column left (40%), the map
+   column right, sticking to the top of the window at the full viewport height once the page
+   scrolls (the site header is not sticky, so nothing sits above it). */
 @media (min-width: 992px) {
   .find-nearby--map .find-nearby__layout {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
@@ -667,6 +713,11 @@ onMounted(async () => {
     padding: 0;
   }
 
+  /* The row no longer sticks, and the map column, which does, starts with the heading. */
+  .find-nearby--map .find-nearby__map :deep(#nearby-map-heading) {
+    scroll-margin-top: 0;
+  }
+
   .find-nearby--map .find-nearby__list {
     grid-area: list;
   }
@@ -674,8 +725,8 @@ onMounted(async () => {
   .find-nearby--map .find-nearby__map {
     grid-area: map;
     position: sticky;
-    top: var(--header-h);
-    height: calc(100dvh - var(--header-h));
+    top: 0;
+    height: 100dvh;
     margin: 0;
     overflow: auto;
     border-left: 1px solid var(--color-border);

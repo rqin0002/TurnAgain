@@ -34,19 +34,24 @@ const createComparator = (sort) =>
  * source index.
  *
  * @param {Array<Record<string, unknown>>} services
- * @param {{ item?: string, actionTypes?: string[] | string, sort?: string }} [criteria={}]
+ * @param {{ item?: string, actionTypes?: string[] | string, sort?: string, categoryIndex?: object }} [criteria={}]
+ *   `categoryIndex` is useItemCategories' index (createCategoryIndex); without it, the twelve.
  * @returns {Array<Record<string, unknown>>}
  */
-export function searchServices(services, { item = '', actionTypes = [], sort = 'name-asc' } = {}) {
+export function searchServices(
+  services,
+  { item = '', actionTypes = [], sort = 'name-asc', categoryIndex } = {},
+) {
   if (!Array.isArray(services)) return []
-  const resolved = resolveItemQuery(item)
+  const resolved = resolveItemQuery(item, categoryIndex)
   const selectedActions = toStringList(actionTypes).map(normalizeForSearch).filter(Boolean)
   const comparator = createComparator(sort)
   return services
     .map((service, sourceIndex) => ({ service, sourceIndex }))
     .filter(
       ({ service }) =>
-        (resolved.itemTokens.length === 0 || matchService(service, resolved).kind !== null) &&
+        (resolved.itemTokens.length === 0 ||
+          matchService(service, resolved, categoryIndex).kind !== null) &&
         matchesSelectedActions(service, selectedActions),
     )
     .sort(
@@ -75,17 +80,18 @@ export function countServicesByAction(services) {
 
 /**
  * One entry per service the item matches, in input order, with the match the card label renders;
- * an empty item explains nothing. The seed's dry run counts these per kind.
+ * an empty item explains nothing. The seed's dry run counts these per kind. `categoryIndex` as in
+ * searchServices.
  *
  * @returns {Array<{ id: string, kind: 'direct' | 'category', matchedTerms: string[], categoryLabel: string | null }>}
  */
-export function explainMatches(services, item) {
+export function explainMatches(services, item, categoryIndex) {
   if (!Array.isArray(services)) return []
-  const resolved = resolveItemQuery(item)
+  const resolved = resolveItemQuery(item, categoryIndex)
   if (resolved.itemTokens.length === 0) return []
   const explanations = []
   for (const service of services) {
-    const match = matchService(service, resolved)
+    const match = matchService(service, resolved, categoryIndex)
     if (match.kind === null) continue
     explanations.push({ id: service.id, ...match })
   }

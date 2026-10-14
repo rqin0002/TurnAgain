@@ -1,22 +1,36 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import AppButton from '@/shared/components/AppButton.vue'
 import FormField from '@/shared/components/FormField.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 
 import { TRIP_MODES, buildGoogleMapsUrl, buildPtvUrl, formatTrip } from '../domain/trip.js'
 
 /**
- * The trip panel of Service Detail: the travel modes as one native radio group (one Tab stop,
- * the arrow keys move the choice, as every browser does for radios sharing a name), the From
- * line, one Directions request per click (the route repository allows one a second), the route
- * sentence or the straight-line estimate with the Google Maps and PTV links, public transport as
- * links only, and no Directions control at all for an `area` record. The fixed copy says where
- * the start point goes. Props in, events out: the view owns
- * `useTripRoute` and `useLocationOrigin`; this component imports no data module. Choosing a mode
- * emits `select-mode` so the view retires the previous mode's trip, and a result renders only
- * under the mode it was requested for.
+ * The trip controls of Service Detail, placed under the page's single-pin map in Getting there:
+ * the travel modes as one native radio group (one Tab stop, the arrow keys move the choice, as
+ * every browser does for radios sharing a name) with a line saying what each mode does, the From
+ * line, then the chosen mode's own action, its result, and Google Maps.
+ *
+ * Walk, Bike and Drive are estimated here: "Show route on map" asks for one route per press (the
+ * route repository allows one a second), the view draws it on the map above, and the one status
+ * line under the button gives the time and distance, or the straight-line estimate when routing
+ * failed. Public transport is never estimated here: its action is a labelled link to the PTV
+ * journey planner. Google Maps follows in every mode from the start, so opening another app never
+ * waits on a request here. An `area` record gets no travel controls at all.
+ *
+ * The copy follows what can happen in the chosen mode: the sentence about the start point going to
+ * the routing service shows only with the button that sends it, and before it, so it is read
+ * before the press; the routing credit shows with the route it describes (an estimate is
+ * TurnAgain's own arithmetic, and the map's own attribution credits routing whenever the map is
+ * shown). The Google Maps sentence says what that app receives, apart from the routing sentence,
+ * because it is a separate trip for the data.
+ *
+ * Props in, events out: the view owns `useTripRoute` and `useLocationOrigin`; this component
+ * imports no data module. Choosing a mode emits `select-mode` so the view retires the previous
+ * mode's trip, and a result renders only under the mode it was requested for.
  */
 const props = defineProps({
   service: { type: Object, required: true },
@@ -38,9 +52,16 @@ const MODE_LABELS = Object.freeze({
   transit: 'Public transport',
   driving: 'Drive',
 })
+const MODES_HINT =
+  'Walk, Bike and Drive are estimated here and drawn on the map. Public transport opens the PTV journey planner.'
 const PRIVACY_COPY =
-  'Your start point is sent to FOSSGIS when you request directions. TurnAgain does not save your location. The routing provider logs requests.'
+  'Your start point is sent to FOSSGIS when you choose Show route on map. TurnAgain does not save your location. The routing provider logs requests.'
 const ATTRIBUTION_COPY = 'Routing by OSRM / FOSSGIS, data © OpenStreetMap contributors (ODbL)'
+// PTV publishes no way to pre-fill its planner, so the sentence never promises a prepared trip.
+const TRANSIT_NOTE =
+  'TurnAgain does not estimate public transport. The PTV journey planner opens empty, ready for you to enter the trip.'
+const GOOGLE_NOTE =
+  'Google Maps receives this place, the travel mode and your start point if you set one.'
 
 const selectedMode = ref(props.mode)
 watch(
@@ -49,6 +70,7 @@ watch(
     selectedMode.value = mode
   },
 )
+const isTransit = computed(() => selectedMode.value === 'transit')
 // `estimate` follows the mode the trip was last requested in and its sentence names no mode, so
 // a result shown under another chip would pass one mode's minutes off as the other's.
 const showsRequestedMode = computed(() => selectedMode.value === props.mode)
@@ -58,13 +80,29 @@ const locating = computed(() => props.originStatus === 'pending')
 const typedPlace = ref('')
 const changingOrigin = ref(false)
 const showOriginControls = computed(() => !props.origin || changingOrigin.value)
-// A new start point answers "Change", from either control, so the controls close behind it.
+const originControls = ref(null)
+const changeButton = ref(null)
+// A new start point answers "Change", from either control, so the controls close behind it. The
+// control that chose it leaves with them, so focus that was inside them moves to Change, which
+// names the new start point's line; focus anywhere else on the page stays where it is.
 watch(
   () => props.origin,
-  () => {
+  async () => {
+    const focusInside = originControls.value?.contains(document.activeElement) ?? false
     changingOrigin.value = false
+    if (!focusInside) return
+    await nextTick()
+    changeButton.value?.$el?.focus()
   },
 )
+// Change removes itself as it opens the controls, so focus moves to their first control.
+const openOriginControls = () =>
+  focusAfterAction(
+    () => {
+      changingOrigin.value = true
+    },
+    () => originControls.value?.querySelector('button, input') ?? null,
+  )
 
 // The rate gate's wait: the button re-enables once the window has passed.
 const waiting = ref(false)
@@ -91,14 +129,10 @@ const fromLine = computed(() => {
     : `From ${props.origin.label}`
 })
 const canRequest = computed(
-  () =>
-    props.origin !== null &&
-    selectedMode.value !== 'transit' &&
-    !waiting.value &&
-    props.status !== 'loading',
+  () => props.origin !== null && !isTransit.value && !waiting.value && props.status !== 'loading',
 )
 const resultLine = computed(() => {
-  if (selectedMode.value === 'transit' || !showsRequestedMode.value) return ''
+  if (isTransit.value || !showsRequestedMode.value) return ''
   if (props.status === 'ready' && props.route) {
     return formatTrip({
       kind: 'route',
@@ -112,20 +146,18 @@ const resultLine = computed(() => {
   }
   return ''
 })
-const showsOfflinePanel = computed(
-  () => props.status === 'offline' && selectedMode.value !== 'transit',
-)
+const showsOfflinePanel = computed(() => props.status === 'offline' && !isTransit.value)
 // The one status line stays mounted, so the route sentence and the offline notice are announced
 // when they arrive; a line inserted together with its text is not reliably read.
 const liveLine = computed(() =>
-  showsOfflinePanel.value ? 'Directions need a connection.' : resultLine.value,
+  showsOfflinePanel.value ? 'The route needs a connection.' : resultLine.value,
 )
-const showLinks = computed(
-  () =>
-    geo.value !== null &&
-    (selectedMode.value === 'transit' ||
-      (showsRequestedMode.value && (props.status === 'estimated' || props.status === 'ready'))),
+// True only while the line shows a route the routing service returned (resultLine is already
+// empty under another mode or for public transport).
+const showsRoute = computed(
+  () => props.status === 'ready' && props.route !== null && resultLine.value !== '',
 )
+// Both builders return '' without a usable destination, and then the link is not offered.
 const googleUrl = computed(() =>
   buildGoogleMapsUrl({ origin: props.origin, destination: geo.value, mode: selectedMode.value }),
 )
@@ -134,6 +166,10 @@ const ptvUrl = computed(() => buildPtvUrl(geo.value))
 const requestDirections = () => {
   if (canRequest.value) emit('request', selectedMode.value)
 }
+// Try again leaves with the offline panel; the route button stays (busy while the route loads),
+// so it takes focus rather than the page's main region.
+const routeButton = ref(null)
+const retryRoute = () => focusAfterAction(requestDirections, () => routeButton.value?.$el ?? null)
 const submitTypedPlace = () => {
   const text = typedPlace.value.trim()
   if (text) emit('set-typed-origin', text)
@@ -154,7 +190,7 @@ const submitTypedPlace = () => {
     </template>
 
     <template v-else>
-      <fieldset class="trip-planner__modes">
+      <fieldset class="trip-planner__modes" aria-describedby="trip-modes-hint">
         <legend class="visually-hidden">Travel mode</legend>
         <label v-for="value in TRIP_MODES" :key="value" class="trip-planner__mode">
           <input
@@ -168,14 +204,20 @@ const submitTypedPlace = () => {
           <span>{{ MODE_LABELS[value] }}</span>
         </label>
       </fieldset>
+      <p id="trip-modes-hint" class="trip-planner__note">{{ MODES_HINT }}</p>
 
       <p class="trip-planner__from">
         {{ fromLine }}
-        <AppButton v-if="origin && !changingOrigin" variant="text" @click="changingOrigin = true">
+        <AppButton
+          v-if="origin && !changingOrigin"
+          ref="changeButton"
+          variant="text"
+          @click="openOriginControls"
+        >
           Change
         </AppButton>
       </p>
-      <div v-if="showOriginControls" class="trip-planner__origin">
+      <div v-if="showOriginControls" ref="originControls" class="trip-planner__origin">
         <AppButton variant="secondary" :busy="locating" @click="emit('use-my-location')">
           {{ locating ? 'Finding your location…' : 'Use my location' }}
         </AppButton>
@@ -204,15 +246,27 @@ const submitTypedPlace = () => {
         {{ locationError }}
       </p>
 
-      <div class="trip-planner__actions">
+      <div v-if="isTransit" class="trip-planner__action">
+        <p class="trip-planner__note trip-planner__transit-note">{{ TRANSIT_NOTE }}</p>
+        <a
+          v-if="ptvUrl"
+          class="button button--primary"
+          :href="ptvUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Open the PTV journey planner<span class="visually-hidden"> (opens in a new tab)</span></a
+        >
+      </div>
+      <div v-else class="trip-planner__action">
+        <p class="trip-planner__note trip-planner__privacy">{{ PRIVACY_COPY }}</p>
         <AppButton
-          v-if="selectedMode !== 'transit'"
+          ref="routeButton"
           variant="primary"
           :busy="status === 'loading'"
           :disabled="!canRequest && status !== 'loading'"
           @click="requestDirections"
         >
-          Directions
+          Show route on map
         </AppButton>
       </div>
 
@@ -222,34 +276,32 @@ const submitTypedPlace = () => {
       <StatePanel
         v-if="showsOfflinePanel"
         variant="offline"
-        title="Directions need a connection"
+        title="The route needs a connection"
         :live="false"
-        @retry="requestDirections"
+        @retry="retryRoute"
       />
+      <p v-if="showsRoute" class="trip-planner__note trip-planner__attribution">
+        {{ ATTRIBUTION_COPY }}
+      </p>
 
-      <ul v-if="showLinks" class="trip-planner__links">
-        <li>
-          <a :href="ptvUrl" target="_blank" rel="noopener noreferrer"
-            >Plan with PTV<span class="visually-hidden"> (opens in a new tab)</span></a
-          >
-        </li>
-        <li>
-          <a :href="googleUrl" target="_blank" rel="noopener noreferrer"
-            >Open in Google Maps<span class="visually-hidden"> (opens in a new tab)</span></a
-          >
-        </li>
-      </ul>
-
-      <p class="trip-planner__privacy">{{ PRIVACY_COPY }}</p>
-      <p class="trip-planner__attribution">{{ ATTRIBUTION_COPY }}</p>
+      <div v-if="googleUrl" class="trip-planner__external">
+        <p class="trip-planner__note trip-planner__links-note">{{ GOOGLE_NOTE }}</p>
+        <a class="trip-planner__link" :href="googleUrl" target="_blank" rel="noopener noreferrer"
+          >Open in Google Maps<span class="visually-hidden"> (opens in a new tab)</span></a
+        >
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
+/* The controls size themselves to the space the page gives them (a phone column, the full width
+   of a tablet, or the narrower practical column of a desktop), so the mode group is laid out by
+   this box's width, not the window's. */
 .trip-planner {
   display: grid;
-  gap: 0.875rem;
+  gap: 1rem;
+  container: trip-planner / inline-size;
 }
 
 .trip-planner p {
@@ -261,8 +313,8 @@ const submitTypedPlace = () => {
   font-weight: 600;
 }
 
-/* The four modes do not fit one row at phone width, so they start as separate rounded segments
-   in two columns; nothing clips them, so the focus ring is never cut off (cross-cutting#7). */
+/* The four modes do not fit one row in a narrow box, so they start as separate rounded segments
+   in two columns; nothing clips them, so the focus ring is never cut off. */
 .trip-planner__modes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -316,9 +368,10 @@ const submitTypedPlace = () => {
   outline-offset: -3px;
 }
 
-/* From 576 px the modes join into one pill: the end segments carry its curve, so the
+/* Once the box is wide enough for the four labels at the current text size (rem follows the
+   reader's text setting), the modes join into one pill: the end segments carry its curve, so the
    group needs no overflow clip. */
-@media (min-width: 576px) {
+@container trip-planner (min-width: 26rem) {
   .trip-planner__modes {
     display: inline-flex;
     justify-self: start;
@@ -373,28 +426,35 @@ const submitTypedPlace = () => {
   unicode-bidi: plaintext;
 }
 
+/* The chosen mode's action: its sentence, then the button or link it explains. */
+.trip-planner__action {
+  display: grid;
+  gap: 0.625rem;
+  justify-items: start;
+}
+
 .trip-planner__result {
-  color: var(--color-text);
+  color: var(--color-heading);
+  font-weight: 600;
 }
 
-.trip-planner__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.trip-planner__external {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
 }
 
-.trip-planner__links a {
+.trip-planner__link {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
+  font-weight: 600;
 }
 
-.trip-planner__privacy,
-.trip-planner__attribution {
+/* Every secondary sentence (what the modes do, where the start point goes, the routing credit,
+   what Google Maps receives) shares one size and colour. */
+.trip-planner__note {
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
 }
 </style>

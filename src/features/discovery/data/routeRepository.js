@@ -1,4 +1,5 @@
 import { RepositoryError, isAbortError, throwIfAborted } from '@/shared/data/RepositoryError.js'
+import { requestSignal } from '@/shared/data/requestSignal.js'
 
 import { isCoordinate } from '../domain/nearbyServices.js'
 
@@ -59,33 +60,6 @@ const isUsableRoute = (route) =>
   route.geometry.coordinates.every(isPosition)
 
 /**
- * The fetch signal: the caller's abort plus the 8 s timeout, and a `dispose` for the fallback's
- * timer. Engines with `AbortSignal.any` and `AbortSignal.timeout` (Chrome 116, Firefox 124,
- * Safari 17.4) combine the two; older ones get one controller that a timer aborts with a
- * `TimeoutError` and the caller's signal forwards to, so the failure mapping is the same.
- */
-function requestSignal(signal) {
-  if (typeof AbortSignal.any === 'function' && typeof AbortSignal.timeout === 'function') {
-    const timeout = AbortSignal.timeout(ROUTE_TIMEOUT_MS)
-    return { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, dispose: () => {} }
-  }
-  const controller = new AbortController()
-  const timer = setTimeout(
-    () => controller.abort(new DOMException('The operation timed out.', 'TimeoutError')),
-    ROUTE_TIMEOUT_MS,
-  )
-  const forward = () => controller.abort(signal.reason)
-  signal?.addEventListener('abort', forward, { once: true })
-  return {
-    signal: controller.signal,
-    dispose: () => {
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', forward)
-    },
-  }
-}
-
-/**
  * @param {{ origin: { latitude: number, longitude: number }, destination: { latitude: number, longitude: number }, mode: 'walking' | 'cycling' | 'driving', serviceId?: string }} request
  *   `serviceId` is accepted and ignored: the route depends on the coordinates only.
  * @param {{ signal?: AbortSignal, fetchImpl?: typeof fetch, now?: () => number }} [options]
@@ -113,7 +87,7 @@ export async function getRoute(
   }
   lastRequestAt = at
 
-  const fetchSignal = requestSignal(signal)
+  const fetchSignal = requestSignal(signal, ROUTE_TIMEOUT_MS)
   let body
   try {
     let response

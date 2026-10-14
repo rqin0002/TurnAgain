@@ -39,8 +39,8 @@ export function useTripRoute({ origin, destination, serviceId, loader = getRoute
     return sequence
   }
 
-  // The rate gate's wait outlives a reset: a mode change must not re-enable Directions before the
-  // window the router asked for has passed.
+  // The rate gate's wait outlives a reset: a mode change must not re-enable the route button
+  // before the window the router asked for has passed.
   const reset = () => {
     cancelPending()
     status.value = 'idle'
@@ -64,7 +64,8 @@ export function useTripRoute({ origin, destination, serviceId, loader = getRoute
       return
     }
     // Only a request that reaches the router clears the gate's wait; public transport and a
-    // missing origin make none, so they must leave Directions disabled until the window passes.
+    // missing origin make none, so they must leave the route button disabled until the window
+    // passes.
     retryAfterMs.value = 0
     controller = new AbortController()
     status.value = 'loading'

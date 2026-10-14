@@ -6,6 +6,7 @@ import SaveServiceButton from '@/features/auth/components/SaveServiceButton.vue'
 import { useAuthStore } from '@/features/auth/stores/authStore.js'
 import CorrectionForm from '@/features/discovery/components/CorrectionForm.vue'
 import NearbyMap from '@/features/discovery/components/NearbyMap.vue'
+import OpeningHoursTable from '@/features/discovery/components/OpeningHoursTable.vue'
 import TripPlanner from '@/features/discovery/components/TripPlanner.vue'
 import {
   LOCATION_COPY,
@@ -24,18 +25,24 @@ import {
 import ServiceRatings from '@/features/ratings/components/ServiceRatings.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { useBackNavigation } from '@/shared/composables/useBackNavigation.js'
+import { useMinuteClock } from '@/shared/composables/useMinuteClock.js'
+import { useOnlineStatus } from '@/shared/composables/useOnlineStatus.js'
 import { formatDate } from '@/shared/domain/formatDate.js'
 import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 
 /**
- * Service Detail: one record through `useService`, the shared
- * origin, the trip request, and the sections in this order: header (tags, name, address,
- * the distance from the origin for a venue), What this option covers, Acceptance conditions,
- * Before you go, Getting there (with the single-pin map), Trip, Check the source, then Save for
- * members directly above Ratings. Optional fields are omitted,
- * never blank. Live records with `address` null render (the address line is suburb and
- * postcode). Staff and admins see "Edit this listing", a link to the staff record form, after
- * Check the source.
+ * Service Detail: one record through `useService`, the shared origin and the trip request, read
+ * in this order: the header (tags, name, address, the distance from the origin for a venue); the
+ * reading area (What this option covers with the accepted items, Acceptance conditions with the
+ * things not accepted after them, Before you go); the practical area (Getting there: the
+ * address, Access, Opening hours as today's state and the week (OpeningHoursTable, at a clock
+ * read every minute), the single-pin map and, right under it, the trip controls whose route the
+ * map draws; then Check the source); then the correction form, "Edit this listing" for staff and
+ * admins, Save for members and Ratings. From 992 px the two areas stand side by side and each
+ * flows down on its own, so a long list of accepted items never leaves a gap beside it; below
+ * that they follow one another in the same order. The visual order is the DOM order. Optional
+ * fields are omitted, never blank.
+ * Live records with `address` null render (the address line is suburb and postcode).
  */
 const route = useRoute()
 const { goBack } = useBackNavigation({ name: 'find-nearby' })
@@ -58,6 +65,11 @@ const trip = useTripRoute({
   destination: () => service.value?.geo ?? null,
   serviceId,
 })
+// The offline banner's flag: the mini-map shows its "needs a connection" line while the banner is
+// up, as the results map does, instead of waiting for a tile to fail.
+const { online } = useOnlineStatus()
+// Today's opening state and the "Today" row follow the clock on a page left open.
+const now = useMinuteClock()
 
 // A saved copy without this id proves nothing (the service may be newer than the copy): keep
 // loading while the copy is revalidated, and report a failed fetch rather than "not found".
@@ -127,7 +139,7 @@ const setTypedOrigin = async (text) => {
 }
 // A new travel mode retires the previous mode's trip: a route still loading is cancelled and a
 // result for another mode leaves the panel and the map. Public transport is links only, so it is
-// requested at once; the other modes wait for Directions.
+// requested at once; the other modes wait for Show route on map.
 const selectMode = (mode) => {
   if (mode === 'transit') void trip.request('transit')
   else trip.reset()
@@ -173,115 +185,147 @@ watch(
       </StatePanel>
 
       <article v-else-if="service && !notFound" class="detail-card">
-        <p v-if="freshness === 'cached' && savedAt" class="catalogue-freshness" role="status">
+        <!-- Visible text, as in the results list: a live region inserted together with its text
+             is not reliably announced, and this line appears with the saved copy itself. -->
+        <p v-if="freshness === 'cached' && savedAt" class="catalogue-freshness">
           Showing results saved {{ formatRelativeTime(savedAt) }}
         </p>
         <header class="detail-card__header">
-          <ul class="tag-list" aria-label="Available actions">
-            <li v-for="action in service.actionTypes" :key="action" class="tag">
-              {{ formatActionType(action) }}
-            </li>
-          </ul>
-          <h1>{{ service.name }}</h1>
-          <p class="detail-card__address">
-            <span v-if="service.address">{{ service.address }}, </span>{{ service.suburb }}
-            {{ service.postcode }}
-          </p>
-          <p v-if="distanceLine" class="detail-card__distance">{{ distanceLine }}</p>
-        </header>
-
-        <div class="detail-card__body">
-          <section aria-labelledby="covers-heading">
-            <h2 id="covers-heading">What this option covers</h2>
-            <p>{{ service.summary }}</p>
-            <ul v-if="service.acceptedItems.length" class="accepted-items">
-              <li v-for="item in service.acceptedItems" :key="item" data-testid="accepted-item">
-                {{ item }}
+          <div class="detail-card__title">
+            <ul class="tag-list" aria-label="Available actions">
+              <li v-for="action in service.actionTypes" :key="action" class="tag">
+                {{ formatActionType(action) }}
               </li>
             </ul>
-          </section>
-
-          <section v-if="service.acceptanceConditions?.length" aria-labelledby="conditions-heading">
-            <h2 id="conditions-heading">Acceptance conditions</h2>
-            <ul>
-              <li v-for="line in service.acceptanceConditions" :key="line">{{ line }}</li>
-            </ul>
-          </section>
-
-          <section
-            v-if="service.preparation?.length || service.cost"
-            aria-labelledby="prepare-heading"
-          >
-            <h2 id="prepare-heading">Before you go</h2>
-            <ul v-if="service.preparation?.length">
-              <li v-for="line in service.preparation" :key="line">{{ line }}</li>
-            </ul>
-            <p v-if="service.cost">Cost: {{ service.cost }}</p>
-          </section>
-
-          <section aria-labelledby="getting-there-heading">
-            <h2 id="getting-there-heading">Getting there</h2>
-            <p>
+            <h1>{{ service.name }}</h1>
+            <p class="detail-card__address">
               <span v-if="service.address">{{ service.address }}, </span>{{ service.suburb }}
               {{ service.postcode }}
             </p>
-            <ul v-if="service.access?.length">
-              <li v-for="line in service.access" :key="line">{{ line }}</li>
-            </ul>
-            <template v-if="service.openingHours?.length">
-              <h3>Opening hours</h3>
-              <ul>
-                <li v-for="line in service.openingHours" :key="line">{{ line }}</li>
+            <p v-if="distanceLine" class="detail-card__distance">{{ distanceLine }}</p>
+          </div>
+          <!-- Save this place (or, signed out, the sign-in link) sits with the name and the
+               address, so it is seen without scrolling. -->
+          <SaveServiceButton class="detail-card__save" :service-id="service.id" />
+        </header>
+
+        <div class="detail-card__body">
+          <!-- What the place takes and what to know before going: read first, in this order. -->
+          <div class="detail-card__reading">
+            <section aria-labelledby="covers-heading">
+              <h2 id="covers-heading">What this option covers</h2>
+              <p>{{ service.summary }}</p>
+              <template v-if="service.acceptedItems.length">
+                <h3 id="accepted-heading">Accepted items</h3>
+                <!-- Short names flow into as many columns as fit; a long name wraps in its own
+                     column. Every item is listed: nothing is cut or folded away. -->
+                <ul class="accepted-items" aria-labelledby="accepted-heading">
+                  <li v-for="item in service.acceptedItems" :key="item" data-testid="accepted-item">
+                    {{ item }}
+                  </li>
+                </ul>
+              </template>
+            </section>
+
+            <section
+              v-if="service.acceptanceConditions?.length || service.excludedConditions?.length"
+              aria-labelledby="conditions-heading"
+            >
+              <h2 id="conditions-heading">Acceptance conditions</h2>
+              <ul v-if="service.acceptanceConditions?.length">
+                <li v-for="line in service.acceptanceConditions" :key="line">{{ line }}</li>
               </ul>
-            </template>
-            <!-- A single map centres itself only when Leaflet loads, so another service mounts a
-                 fresh one rather than leaving its pin off the old centre. -->
-            <NearbyMap
-              v-if="service.geo"
-              :key="service.id"
-              single
-              :items="mapItems"
-              :origin="origin"
-              :route="trip.route.value?.geometry ?? null"
-              :radius-km="0"
-            />
-          </section>
+              <template v-if="service.excludedConditions?.length">
+                <h3 id="not-accepted-heading">Not accepted</h3>
+                <ul aria-labelledby="not-accepted-heading">
+                  <li v-for="line in service.excludedConditions" :key="line">{{ line }}</li>
+                </ul>
+              </template>
+            </section>
 
-          <section v-if="service.geo" aria-labelledby="trip-heading">
-            <h2 id="trip-heading">Trip</h2>
-            <TripPlanner
-              :service="service"
-              :origin="origin"
-              :origin-status="originStatus"
-              :status="trip.status.value"
-              :mode="trip.mode.value"
-              :route="trip.route.value"
-              :estimate="trip.estimate.value"
-              :retry-after-ms="trip.retryAfterMs.value"
-              :location-error="locationError"
-              @request="trip.request"
-              @use-my-location="useMyLocation"
-              @set-typed-origin="setTypedOrigin"
-              @select-mode="selectMode"
-            />
-          </section>
+            <section
+              v-if="service.preparation?.length || service.cost"
+              aria-labelledby="prepare-heading"
+            >
+              <h2 id="prepare-heading">Before you go</h2>
+              <ul v-if="service.preparation?.length">
+                <li v-for="line in service.preparation" :key="line">{{ line }}</li>
+              </ul>
+              <p v-if="service.cost"><strong>Cost:</strong> {{ service.cost }}</p>
+            </section>
+          </div>
 
-          <section class="source-panel" aria-labelledby="source-heading">
-            <h2 id="source-heading">Check the source</h2>
-            <p>
-              Source:
-              <a :href="service.source.url" target="_blank" rel="noopener noreferrer">
-                {{ service.source.organisation
-                }}<span class="visually-hidden"> (opens in a new tab)</span>
-              </a>
-            </p>
-            <p>Listing updated {{ formatDate(service.updatedAt, { dateStyle: 'medium' }) }}</p>
-            <p>Source checked {{ formatCheckedDate(service.source.checkedAt) }}</p>
-          </section>
+          <!-- Where, when and how to get there, and where the listing comes from. -->
+          <div class="detail-card__practical">
+            <section class="detail-panel" aria-labelledby="getting-there-heading">
+              <h2 id="getting-there-heading">Getting there</h2>
+              <p class="detail-panel__address">
+                <span v-if="service.address">{{ service.address }}, </span>{{ service.suburb }}
+                {{ service.postcode }}
+              </p>
+              <template v-if="service.access?.length">
+                <h3 id="access-heading">Access</h3>
+                <ul aria-labelledby="access-heading">
+                  <li v-for="line in service.access" :key="line">{{ line }}</li>
+                </ul>
+              </template>
+              <template v-if="service.openingHours?.length">
+                <h3>Opening hours</h3>
+                <OpeningHoursTable :lines="service.openingHours" :now="now" />
+              </template>
+              <template v-if="service.geo">
+                <!-- A single map centres itself only when Leaflet loads, so another service mounts
+                     a fresh one rather than leaving its pin off the old centre. -->
+                <NearbyMap
+                  :key="service.id"
+                  single
+                  :items="mapItems"
+                  :origin="origin"
+                  :route="trip.route.value?.geometry ?? null"
+                  :radius-km="0"
+                  :online="online"
+                />
+                <!-- The trip controls sit right under the map that draws their route. Keyed like
+                     the map: a starting point being typed and an open Change belong to the service
+                     they were made on. -->
+                <h3 id="trip-heading">Plan your trip</h3>
+                <TripPlanner
+                  :key="service.id"
+                  :service="service"
+                  :origin="origin"
+                  :origin-status="originStatus"
+                  :status="trip.status.value"
+                  :mode="trip.mode.value"
+                  :route="trip.route.value"
+                  :estimate="trip.estimate.value"
+                  :retry-after-ms="trip.retryAfterMs.value"
+                  :location-error="locationError"
+                  @request="trip.request"
+                  @use-my-location="useMyLocation"
+                  @set-typed-origin="setTypedOrigin"
+                  @select-mode="selectMode"
+                />
+              </template>
+            </section>
+
+            <section class="detail-panel source-panel" aria-labelledby="source-heading">
+              <h2 id="source-heading">Check the source</h2>
+              <p>
+                Source:
+                <a :href="service.source.url" target="_blank" rel="noopener noreferrer">
+                  {{ service.source.organisation
+                  }}<span class="visually-hidden"> (opens in a new tab)</span>
+                </a>
+              </p>
+              <p>Listing updated {{ formatDate(service.updatedAt, { dateStyle: 'medium' }) }}</p>
+              <p>Source checked {{ formatCheckedDate(service.source.checkedAt) }}</p>
+            </section>
+          </div>
         </div>
 
-        <!-- Farah reports a change here; staff see it in the corrections queue. -->
-        <CorrectionForm :service="service" />
+        <!-- Farah reports a change here; staff see it in the corrections queue. Keyed by the
+             service, so a sent correction's thanks never shows on another service's page. -->
+        <CorrectionForm :key="service.id" :service="service" />
         <p v-if="canEdit" class="staff-edit-link">
           <RouterLink
             :to="{ name: 'staff-record-edit', params: { kind: 'services', recordId: service.id } }"
@@ -289,7 +333,6 @@ watch(
             Edit this listing
           </RouterLink>
         </p>
-        <SaveServiceButton class="service-detail__save" :service-id="service.id" />
         <ServiceRatings :service-id="service.id" :source-url="service.source.url" />
       </article>
 
@@ -324,11 +367,20 @@ watch(
   min-width: 0;
 }
 
+/* The header: the title block, then the Save control under it; from 768 px the control moves to
+   the right of the title block, level with the address. */
 .detail-card__header {
   display: grid;
-  justify-items: start;
   gap: 1.25rem;
-  padding-bottom: clamp(1.75rem, 4vw, 3rem);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: clamp(1.5rem, 3vw, 2.25rem);
+}
+
+.detail-card__title {
+  display: grid;
+  justify-items: start;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .detail-card__address,
@@ -338,47 +390,109 @@ watch(
   font-size: 1.125rem;
 }
 
+/* The body holds two areas, the reading area and then the practical area. Each is its own column
+   of sections with its own gap, so a section never takes its height from one in the other area. */
 .detail-card__body {
   display: grid;
-  gap: clamp(2rem, 4vw, 3rem);
-  padding-block: 1rem clamp(2rem, 4vw, 3rem);
+  gap: 2.5rem;
+  padding-block: clamp(1.75rem, 3vw, 2.5rem) clamp(2rem, 4vw, 3rem);
 }
 
+.detail-card__reading,
+.detail-card__practical {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.detail-card__reading {
+  gap: 2.25rem;
+}
+
+.detail-card__practical {
+  gap: 1.25rem;
+}
+
+/* One heading style for every section, the panels' included, and one for the sub-headings. */
 .detail-card h2 {
-  margin: 0 0 0.875rem;
+  margin: 0 0 0.75rem;
   color: var(--color-heading);
-  font-size: 1.5rem;
+  font-size: 1.375rem;
   font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .detail-card h3 {
-  margin: 1rem 0 0.5rem;
+  margin: 1.5rem 0 0.5rem;
   color: var(--color-heading);
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   font-weight: 600;
+  line-height: 1.3;
 }
 
-.detail-card__body section > p {
+/* Body copy keeps the base size and a reading measure. */
+.detail-card__body p {
   max-width: 62ch;
   margin: 0 0 0.75rem;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .detail-card__body ul {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.5rem;
+  max-width: 62ch;
   margin: 0 0 0.75rem;
-  padding-left: 1.1rem;
+  padding-left: 1.25rem;
 }
 
 .detail-card__body li::marker {
   color: var(--color-text-muted);
 }
 
-.source-panel h2 {
-  font-size: 1.25rem;
+/* The accepted items are short names, so they run in columns at least 9rem wide, as many as the
+   area holds (two on a phone, more on wider screens), down each column in list order. An item
+   never splits across columns, and a long name wraps inside its own column. */
+.detail-card__body .accepted-items {
+  display: block;
+  max-width: none;
+  columns: 9rem;
+  column-gap: 1.5rem;
+  padding-left: 0;
+}
+
+.detail-card__body .accepted-items li {
+  margin-left: 1.25rem;
+  padding-block: 0.125rem 0.375rem;
+  break-inside: avoid;
+}
+
+/* The practical area's two panels share one surface, radius and padding. */
+.detail-panel {
+  border-radius: var(--radius-medium);
+  background: var(--color-surface-muted);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.detail-panel__address {
+  color: var(--color-heading);
+  font-weight: 600;
+}
+
+/* The trip controls follow the map directly: their route is drawn on it. */
+.detail-panel .nearby-map {
+  margin: 1.5rem 0 0;
+}
+
+/* The source lines read at body size; the shared panel style shrinks its last line. */
+.detail-card .source-panel p {
+  margin: 0 0 0.375rem;
+  font-size: 1rem;
+}
+
+/* Space after a section's last line comes from its area's gap or its panel's padding. */
+.detail-card__body section > :last-child {
+  margin-bottom: 0;
 }
 
 .staff-edit-link {
@@ -386,19 +500,26 @@ watch(
   font-weight: 600;
 }
 
-/* Keeps the Save control off the ratings section's top rule. */
-.service-detail__save {
-  margin: 0 0 1.5rem;
+@media (min-width: 768px) {
+  .detail-card__header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    column-gap: 2rem;
+  }
 }
 
-@media (min-width: 768px) {
+/* From 992 px the reading area and the practical area stand side by side; each flows down on its
+   own. The practical column keeps at least 20rem for the map and the trip controls. The reading
+   area takes the panels' top padding, so the first headings of the two areas share a line. */
+@media (min-width: 992px) {
   .detail-card__body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: clamp(2rem, 5vw, 4rem);
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.8fr);
+    align-items: start;
+    column-gap: clamp(2.5rem, 4vw, 3.5rem);
   }
 
-  .detail-card__body section {
-    min-width: 0;
+  .detail-card__reading {
+    padding-top: 1.75rem;
   }
 }
 </style>

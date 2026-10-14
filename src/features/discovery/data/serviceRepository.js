@@ -85,7 +85,14 @@ export async function fetchServiceCatalogue({ signal, force = false } = {}) {
   }
 }
 
-/** One published service by id: the catalogue cache first, then `getDoc`. */
+/**
+ * One published service by id: the catalogue cache first, then `getDoc`. Rejects `not-found` for
+ * an id that is malformed, absent, unreadable or not published. For the public the rules refuse
+ * an absent or unpublished document outright (the SDK says `permission-denied`), while a staff
+ * reader gets the document and the status check below. A published read needs no identity, so
+ * that refusal can never mean a lost account: it is answered as `not-found`, without the
+ * permission-denied event that would make the auth store re-validate the profile for nothing.
+ */
 export async function fetchService(serviceId, { signal } = {}) {
   if (!isValidId(serviceId)) {
     throw new RepositoryError('not-found')
@@ -104,6 +111,9 @@ export async function fetchService(serviceId, { signal } = {}) {
     }
     return record
   } catch (error) {
+    if (error?.code === 'permission-denied') {
+      throw new RepositoryError('not-found', undefined, { cause: error })
+    }
     throw toRepositoryError(error)
   }
 }

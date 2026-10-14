@@ -26,8 +26,9 @@ import {
 /**
  * The results pipeline: `searchServices` -> geography (the applied viewport, else the origin's
  * radius, else everything) -> the action-hint split over what is in range -> sort -> numbering
- * -> `paginateRecords`. Every in-radius or in-view result is numbered 1..N once; the page affects
- * only the list. Highest-rated sorts the whole candidate set with the summaries the view
+ * -> `paginateRecords`. Every in-radius or in-view result is numbered 1..N once, Other options
+ * after the primary block, so each card and its pin share one number; the page affects only the
+ * list. Highest-rated sorts the whole candidate set with the summaries the view
  * fetched for `candidateIds`, and keeps the previous rated order until the next round is ready:
  * a round is ready only when `ratingStatus` is `ready` and its `ratingIds` cover every
  * candidate, so a follow-mode pan that changes the candidates before the debounced round runs
@@ -51,7 +52,8 @@ import {
  * (the reducer's bounds or null), `summariesById` and `ratingStatus` (`useRatingSummaries`),
  * `ratingIds` (the ids that round was loaded for; omitted, the round is taken to cover every
  * candidate), `truncated` (the catalogue read hit its cap), `now` (the clock the view reads
- * each minute; defaults to the time of each evaluation).
+ * each minute; defaults to the time of each evaluation), `categoryIndex` (useItemCategories'
+ * index, so categories an admin added are searched and labelled; omitted, the twelve).
  */
 export function useDiscoveryResults({
   services,
@@ -63,20 +65,26 @@ export function useDiscoveryResults({
   ratingStatus,
   ratingIds,
   truncated,
+  categoryIndex,
   now = () => new Date(),
 }) {
   const current = () => toValue(state)
-  const resolved = computed(() => resolveItemQuery(current().item))
+  const categories = () => toValue(categoryIndex)
+  const resolved = computed(() => resolveItemQuery(current().item, categories()))
   const matched = computed(() =>
     searchServices(toValue(services), {
       item: current().item,
       actionTypes: current().actionTypes,
       sort: 'name-asc',
+      categoryIndex: categories(),
     }),
   )
   const matches = computed(() =>
     Object.fromEntries(
-      explainMatches(toValue(services), current().item).map(({ id, ...match }) => [id, match]),
+      explainMatches(toValue(services), current().item, categories()).map(({ id, ...match }) => [
+        id,
+        match,
+      ]),
     ),
   )
   const effectiveRadius = computed(() => effectiveRadiusOf(current(), toValue(origin)))
@@ -226,12 +234,15 @@ export function useDiscoveryResults({
     }
     return orderEntries(entries, sort)
   })
-  const otherOptions = computed(() =>
-    orderEntries(
+  // Numbered after the primary block (a relaxed hint leaves that block empty, so they run from 1).
+  // They are not paginated: the block lists every one of them below the paged list.
+  const otherOptions = computed(() => {
+    const first = sorted.value.length + 1
+    return orderEntries(
       otherInRange.value,
       effectiveSort.value === 'highest-rated' ? 'name-asc' : effectiveSort.value,
-    ),
-  )
+    ).map((entry, offset) => ({ ...entry, index: first + offset }))
+  })
   const visible = computed(() =>
     sorted.value.map((entry, index) => ({ ...entry, index: index + 1 })),
   )
@@ -250,7 +261,9 @@ export function useDiscoveryResults({
   // hint split, the radius or map area and Open now, so a chip's number can be larger than the
   // list it shows.
   const counts = computed(() =>
-    countServicesByAction(searchServices(toValue(services), { item: current().item })),
+    countServicesByAction(
+      searchServices(toValue(services), { item: current().item, categoryIndex: categories() }),
+    ),
   )
 
   const selectedId = shallowRef('')
@@ -287,11 +300,13 @@ export function useDiscoveryResults({
     return formatResultsStatus({
       count: entries.length,
       scope: scope.value,
-      // The item words without the verb, as the match label spells them ("8 match 'microwave'").
-      item: resolved.value.itemTokens.join(' '),
+      openNow: openNow.value,
+      // The item words as typed, without the verb, as the match label spells them ("8 match
+      // 'microwave'", "3 match 'clothes'").
+      item: resolved.value.itemLabels.join(' '),
       directCount: kinds.filter((kind) => kind === 'direct').length,
       categoryCount: kinds.filter((kind) => kind === 'category').length,
-      categoryLabel: categoryLabel(resolved.value.categoryIds[0]),
+      categoryLabel: categoryLabel(resolved.value.categoryIds[0], categories()),
       hoursUncheckedCount: openNow.value
         ? ids.filter((id) => openingById.value[id] === 'unknown').length
         : 0,

@@ -14,6 +14,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppButton from '@/shared/components/AppButton.vue'
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 
 import {
   fromLeafletBounds,
@@ -31,8 +32,9 @@ import { formatAreaLine, formatDistance, formatPinName } from '../domain/results
  * mini-map. Leaflet is the only heavy import and is loaded lazily on mount. Every
  * pin is a class-only `divIcon` (no `style=` attribute, so `style-src 'self'` holds),
  * named "3. Mernda Repair Cafe, 4.2 km"; the selected pin alone is in the tab order (roving
- * tabindex) and the Previous/Next place buttons are the keyboard path. The
- * Service Detail pin is a picture (`role="img"`), unnumbered and out of the keyboard path.
+ * tabindex) and the Previous/Next place buttons are the keyboard path, which the status line
+ * follows ("3. Mernda Repair Cafe, 4.2 km (3 of 5 on the map)"). The Service Detail pin is a
+ * picture (`role="img"`), unnumbered and out of the keyboard path.
  *
  * Programmatic-flag protocol: animations are off, every programmatic call passes
  * `animate: false` and runs inside `runProgrammatic`, so the one synchronous `moveend` Leaflet
@@ -43,7 +45,10 @@ import { formatAreaLine, formatDistance, formatPinName } from '../domain/results
  * when their predicate says no-op, and `panInside` is the only silent Leaflet call.
  */
 const props = defineProps({
-  /** `useDiscoveryResults` `visible` entries: `{ service, distanceKm, index }` plus the view's `matchLabel`. */
+  /**
+   * The numbered results (`useDiscoveryResults` `visible`, then `otherOptions`):
+   * `{ service, distanceKm, index }` plus the view's `matchLabel` and `hoursUnchecked`.
+   */
   items: { type: Array, default: () => [] },
   origin: { type: Object, default: null },
   /** Kilometres; 0 draws no ring (the view passes 0 while a viewport is applied). */
@@ -53,7 +58,7 @@ const props = defineProps({
    * The view owns follow mode and its 300 ms debounce; the map does not read this prop.
    */
   follow: { type: Boolean, default: false },
-  /** `[lat, lng]` pairs from the route result's `geometry`, or null. */
+  /** `[lat, lng]` pairs from the route result's `geometry`, or null; an arriving route is framed. */
   route: { type: Array, default: null },
   single: { type: Boolean, default: false },
   /** False while the offline banner is up: the "Map needs a connection" line. */
@@ -121,11 +126,57 @@ const nextId = computed(() => {
   return index < mappable.value.length ? mappable.value[index].service.id : ''
 })
 const showConnectionLine = computed(() => !props.online || tileError.value)
-// One status line stays mounted from loading to ready, so its changes are announced.
-const statusText = computed(() => {
-  if (showConnectionLine.value) return 'Map needs a connection. The list stays available.'
-  return status.value === 'loading' ? 'Loading map…' : ''
+// The results map sits beside the list; the Service Detail map sits under the address it shows,
+// so each names what is still there when the map is not.
+const stillAvailable = computed(() =>
+  props.single ? 'The address above is still available.' : 'The list stays available.',
+)
+// The place a keyboard step selected: Previous place, Next place, or Enter or Space on a pin. A
+// step leaves focus where it is (on the button, or on the pin), so nothing else would say which
+// place is now selected. A pin click or Show on map moves focus to the card or the pin, whose own
+// name is read, so those selections are not repeated here. The line names the place as its pin
+// and its list entry do, with the list number, then counts pins in the order the buttons step
+// through them: "3. Bravo, in the area (2 of 2 on the map)" when the second result has no map
+// position, since an entry without one has no pin and is not counted.
+const steppedId = ref('')
+const selectionLine = computed(() => {
+  if (props.single || steppedId.value === '' || steppedId.value !== props.selectedId) return ''
+  const at = position.value
+  if (at < 0) return ''
+  const { service, distanceKm, index } = mappable.value[at]
+  const name = formatPinName({
+    index,
+    name: service.name,
+    distanceKm,
+    area: service.geo.precision === 'area',
+  })
+  return `${name} (${at + 1} of ${mappable.value.length} on the map)`
 })
+// One status line stays mounted from loading to ready, so its changes are announced. A lost
+// connection and the loading line come first; a ready map names the place a keyboard step chose.
+const statusText = computed(() => {
+  if (showConnectionLine.value) return `Map needs a connection. ${stillAvailable.value}`
+  if (status.value === 'loading') return 'Loading map…'
+  return status.value === 'ready' ? selectionLine.value : ''
+})
+// Every selection on the keyboard path goes through here, so the status line can name it.
+const selectByKeyboard = (id) => {
+  steppedId.value = id
+  emit('select-service', id, 'keyboard')
+}
+// A selection made any other way (a pin click, Show on map on a card) ends the step, so coming
+// back to the stepped place that way later does not bring its line back.
+watch(
+  () => props.selectedId,
+  (id) => {
+    if (id !== steppedId.value) steppedId.value = ''
+  },
+)
+const loadErrorText = computed(() =>
+  props.single
+    ? 'The map could not load. The address above is still available.'
+    : 'The map could not load. The full results list is still available.',
+)
 // An area record's pin is the centre of its postcode area, never the venue.
 const singleHelp = computed(() => {
   const service = props.items[0]?.service
@@ -217,14 +268,14 @@ const recentre = ({ latitude, longitude }, zoom = RECENTRE_ZOOM) => {
   if (isSetViewNoop(map, center, zoom)) return
   runProgrammatic(() => map.setView(center, zoom, { animate: false }))
 }
-const fitTo = (bounds) => {
+const fitTo = (bounds, options = FIT_OPTIONS) => {
   if (!map) {
-    pendingView = { kind: 'view', run: () => fitTo(bounds) }
+    pendingView = { kind: 'view', run: () => fitTo(bounds, options) }
     return
   }
   framed = true
-  if (isFitBoundsNoop(map, bounds, FIT_OPTIONS)) return
-  runProgrammatic(() => map.fitBounds(toLeafletBounds(bounds), { ...FIT_OPTIONS, animate: false }))
+  if (isFitBoundsNoop(map, bounds, options)) return
+  runProgrammatic(() => map.fitBounds(toLeafletBounds(bounds), { ...options, animate: false }))
 }
 // "Show on map" from a card below the map: the pin is of no use focused while the canvas is off
 // screen or under the sticky band, so the canvas is brought to the middle of the window first.
@@ -238,9 +289,9 @@ const revealCanvas = (revealTop) => {
 /**
  * Brings a pin into view and opens its popup; `focus: false` leaves focus where it is (the
  * Previous/Next place buttons keep it so a person can keep stepping). `revealTop` is the bottom,
- * in viewport pixels, of whatever sticky band covers the top of the window (the view's chip row
- * below 992 px, the header height from 992 px). The map does not know the page layout, so
- * the view measures it.
+ * in viewport pixels, of whatever sticky band covers the top of the window: the view's chip row
+ * below 992 px, and nothing (0) from 992 px, where the map column itself sticks to the top. The
+ * map does not know the page layout, so the view measures it.
  */
 const focusPin = (id, { focus = true, revealTop = 0 } = {}) => {
   if (!map) {
@@ -313,14 +364,17 @@ const boundsOf = (points) => ({
   north: Math.max(...points.map((point) => point.latitude)),
   east: Math.max(...points.map((point) => point.longitude)),
 })
+// "Hours not checked" mirrors the card: with Open now on, a place whose hours could not be read
+// stays on the map, and without the line its pin would look as open as the others.
 const popupHtml = (entry) => {
-  const { service, distanceKm: distance, matchLabel = '' } = entry
+  const { service, distanceKm: distance, matchLabel = '', hoursUnchecked = false } = entry
   const line = service.geo.precision === 'area' ? formatAreaLine(service) : formatDistance(distance)
   const href = router.resolve({ name: 'service-detail', params: { serviceId: service.id } }).href
   return (
     `<p class="nearby-pin__popup-name">${escapeHtml(service.name)}</p>` +
     (matchLabel ? `<p class="nearby-pin__popup-match">${escapeHtml(matchLabel)}</p>` : '') +
     (line ? `<p class="nearby-pin__popup-line">${escapeHtml(line)}</p>` : '') +
+    (hoursUnchecked ? '<p class="nearby-pin__popup-hours">Hours not checked</p>' : '') +
     `<a class="nearby-pin__popup-link" href="${escapeHtml(href)}" data-service-id="${escapeHtml(service.id)}">View details</a>`
   )
 }
@@ -342,13 +396,19 @@ const bindPinControls = (marker, entry) => {
   marker.on('keydown', ({ originalEvent }) => {
     if (originalEvent.key === 'Enter' || originalEvent.key === ' ') {
       originalEvent.preventDefault()
-      emit('select-service', service.id, 'keyboard')
+      selectByKeyboard(service.id)
     }
   })
   marker.on('popupopen', ({ popup }) => {
     openPopupMarker = marker
     const link = popup.getElement()?.querySelector('a[data-service-id]')
     link?.addEventListener('click', (event) => {
+      // A middle click, or a click with Ctrl, Cmd, Shift or Alt, is left to the browser (a new
+      // tab, a new window or a download of the link's href), as RouterLink does. Only a plain left
+      // click is routed inside the page.
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return
+      }
       event.preventDefault()
       void router.push({ name: 'service-detail', params: { serviceId: service.id } })
     })
@@ -501,6 +561,36 @@ const moveWithKeyboard = (event) => {
   }
 }
 
+// Retry map unmounts the error block that holds it as the load starts, so focus goes to the
+// results map's heading, or on the single map (which has no header) to the canvas region. The
+// load is started, not waited for: focus moves once the block has gone, not after the Leaflet
+// chunk arrives, and the load reports its own outcome (the status line, or the error block again).
+const heading = ref(null)
+const retryMap = () =>
+  focusAfterAction(
+    () => {
+      void loadMap()
+    },
+    () => heading.value ?? container.value,
+  )
+
+// Previous place and Next place disable themselves at the first and the last pin, and a disabled
+// button drops focus to <body> (WCAG 2.4.3). So focus moves to the other place button, or to the
+// map's heading when both are disabled (one place on the map).
+const previousButton = ref(null)
+const nextButton = ref(null)
+const enabledButton = (button) => {
+  const element = button.value?.$el
+  return element && !element.disabled ? element : null
+}
+const stepTo = (id, other) =>
+  focusAfterAction(
+    () => selectByKeyboard(id),
+    () => enabledButton(other) ?? heading.value,
+  )
+const stepPrevious = () => stepTo(previousId.value, nextButton)
+const stepNext = () => stepTo(nextId.value, previousButton)
+
 const loadMap = async () => {
   status.value = 'loading'
   tileError.value = false
@@ -582,6 +672,28 @@ watch(
 )
 watch(() => props.selectedId, applySelection)
 watch([() => props.origin, () => props.radiusKm, () => props.route], buildOverlays)
+// A route is drawn because the person asked for it, so its arrival frames the whole line with the
+// pin and the start point, even after a move of their own; without this the line can run off the
+// first frame. A cleared route (another travel mode chosen) leaves the view where it is. The
+// labels above the pin and the start point run wider than the points, so the frame keeps a fifth
+// of the map's width (at most 96 px) clear at each side and room above.
+const frameRoute = (route) => {
+  if (!Array.isArray(route) || route.length < 2) return
+  const points = route.map(([latitude, longitude]) => ({ latitude, longitude }))
+  for (const entry of mappable.value) points.push(entry.service.geo)
+  if (props.origin) points.push(props.origin)
+  if (!map) {
+    fitTo(boundsOf(points))
+    return
+  }
+  const side = Math.round(Math.min(96, map.getSize().x / 5))
+  fitTo(boundsOf(points), {
+    paddingTopLeft: [side, 72],
+    paddingBottomRight: [side, 48],
+    maxZoom: FIT_OPTIONS.maxZoom,
+  })
+}
+watch(() => props.route, frameRoute)
 onMounted(loadMap)
 onBeforeUnmount(() => {
   disposed = true
@@ -602,20 +714,17 @@ onBeforeUnmount(() => {
     :aria-label="single ? 'Map of this location' : undefined"
   >
     <header v-if="!single" class="nearby-map__header">
-      <h2 id="nearby-map-heading" tabindex="-1">Map of these results</h2>
+      <h2 id="nearby-map-heading" ref="heading" tabindex="-1">Map of these results</h2>
       <div class="nearby-map__nav">
         <AppButton
+          ref="previousButton"
           variant="secondary"
           :disabled="previousId === ''"
-          @click="emit('select-service', previousId, 'keyboard')"
+          @click="stepPrevious"
         >
           Previous place
         </AppButton>
-        <AppButton
-          variant="secondary"
-          :disabled="nextId === ''"
-          @click="emit('select-service', nextId, 'keyboard')"
-        >
+        <AppButton ref="nextButton" variant="secondary" :disabled="nextId === ''" @click="stepNext">
           Next place
         </AppButton>
       </div>
@@ -628,8 +737,8 @@ onBeforeUnmount(() => {
       >
     </p>
     <div v-if="status === 'error'" class="nearby-map__error">
-      <p role="alert">The map could not load. The full results list is still available.</p>
-      <AppButton variant="text" @click="loadMap">Retry map</AppButton>
+      <p role="alert">{{ loadErrorText }}</p>
+      <AppButton variant="text" @click="retryMap">Retry map</AppButton>
     </div>
     <div
       ref="container"
@@ -669,8 +778,10 @@ onBeforeUnmount(() => {
   font-size: 1.25rem;
 }
 
+/* The two buttons wrap onto two lines when large text makes them wider than a phone screen. */
 .nearby-map__nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -812,6 +923,14 @@ onBeforeUnmount(() => {
 .nearby-map__canvas :deep(.nearby-pin__popup-line) {
   margin: 0 0 0.25rem;
   color: var(--color-text-muted);
+}
+
+/* The card's "Hours not checked" weight and colour, so the mark reads the same on both. */
+.nearby-map__canvas :deep(.nearby-pin__popup-hours) {
+  margin: 0 0 0.25rem;
+  color: var(--color-heading);
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
 .nearby-map__canvas :deep(.nearby-pin__popup-link) {

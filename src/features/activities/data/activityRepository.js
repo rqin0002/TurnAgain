@@ -130,7 +130,13 @@ const readOne = async (path, projector, { signal, accept = () => true }) => {
   return record
 }
 
-/** One published activity, from the cache when the catalogue was read recently. */
+/**
+ * One published activity, from the cache when the catalogue was read recently. For the public
+ * the rules refuse an absent or unpublished document outright (the SDK says `permission-denied`),
+ * while a staff reader gets the document and readOne's status check. A published read needs no
+ * identity, so that refusal can never mean a lost account: it is answered as `not-found`, without
+ * the permission-denied event that would make the auth store re-validate the profile for nothing.
+ */
 export async function fetchActivity(activityId, { signal } = {}) {
   if (!isValidId(activityId)) {
     throw new RepositoryError('not-found')
@@ -145,6 +151,9 @@ export async function fetchActivity(activityId, { signal } = {}) {
       accept: (record) => record.status === 'published',
     })
   } catch (error) {
+    if (error?.code === 'permission-denied') {
+      throw new RepositoryError('not-found', undefined, { cause: error })
+    }
     throw toRepositoryError(error)
   }
 }

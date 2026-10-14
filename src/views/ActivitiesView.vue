@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 import { useSearchDraft } from '@/shared/composables/useSearchDraft.js'
 import ActivityCard from '@/features/activities/components/ActivityCard.vue'
 import SessionCalendarLoader from '@/features/bookings/components/SessionCalendarLoader.vue'
@@ -17,9 +18,11 @@ import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 import { useActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
 import {
   buildActivityCatalogue,
+  formatActivityType,
   normalizeActivityCriteria,
   toActivityQuery,
 } from '@/features/activities/domain/activityCatalogue.js'
+import { ACTIVITY_TYPES } from '@/features/activities/domain/activitySchema.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,7 +56,21 @@ watch([() => route.fullPath, status, () => paged.value.page], () => {
   }
 })
 
-const clearFilters = () => updateCriteria({ search: '', type: '', sort: criteria.value.sort })
+// The type chips, "All activities" first, named as the cards and the detail page name the types.
+// One type at a time: choosing another type replaces it, and pressing the chosen type again shows
+// every type, as "All activities" does.
+const typeChips = ACTIVITY_TYPES.map((value) => ({ value, label: formatActivityType(value) }))
+const chooseType = (type) => updateCriteria({ type: criteria.value.type === type ? '' : type })
+
+// Clear filters clears the search and the type and keeps the sort. Both copies of the button show
+// only while a search or a type is set, so the one pressed leaves the page: focus moves to the
+// "All activities" chip, which now shows the cleared state, instead of falling to <body>.
+const allTypesChip = ref(null)
+const clearFilters = () =>
+  focusAfterAction(
+    () => updateCriteria({ search: '', type: '', sort: criteria.value.sort }),
+    () => allTypesChip.value?.$el,
+  )
 
 // The calendar shows the sessions of the activities the filters keep.
 const calendarSessions = computed(() => catalogue.value.flatMap((row) => row.sessions))
@@ -117,7 +134,7 @@ const searchInput = useSearchDraft({
         <fieldset class="activities-page__controls">
           <legend class="visually-hidden">Filter activities</legend>
 
-          <div class="activities-page__field activities-page__field--wide">
+          <div class="activities-page__field">
             <label for="activity-search">Search activities</label>
             <input
               id="activity-search"
@@ -134,37 +151,39 @@ const searchInput = useSearchDraft({
             />
           </div>
 
-          <div class="activities-page__field">
-            <label for="activity-type">Activity type</label>
-            <select
-              id="activity-type"
-              class="form-control"
-              name="activity-type"
-              autocomplete="off"
-              :value="criteria.type"
-              @change="updateCriteria({ type: $event.target.value })"
-            >
-              <option value="">All activity types</option>
-              <option value="repair">Repair</option>
-              <option value="reuse">Reuse</option>
-              <option value="workshop">Workshop</option>
-            </select>
-          </div>
+          <div class="activities-page__refine">
+            <div class="activities-page__types" role="group" aria-label="Activity type">
+              <Chip
+                ref="allTypesChip"
+                label="All activities"
+                :pressed="criteria.type === ''"
+                @toggle="updateCriteria({ type: '' })"
+              />
+              <Chip
+                v-for="typeChip in typeChips"
+                :key="typeChip.value"
+                :label="typeChip.label"
+                :pressed="criteria.type === typeChip.value"
+                @toggle="chooseType(typeChip.value)"
+              />
+            </div>
 
-          <div class="activities-page__field">
-            <label for="activity-sort">Sort</label>
-            <select
-              id="activity-sort"
-              class="form-control"
-              name="activity-sort"
-              autocomplete="off"
-              :value="criteria.sort"
-              @change="updateCriteria({ sort: $event.target.value })"
-            >
-              <option value="soonest">Next session</option>
-              <option value="title-asc">Activity title: A–Z</option>
-              <option value="title-desc">Activity title: Z–A</option>
-            </select>
+            <!-- The order applies to the list. The calendar keeps every session on its own date, so
+                 the control shows with the list only; the choice stays in the URL for the way back. -->
+            <label v-if="criteria.view === 'list'" class="activities-page__sort">
+              <span>Sort</span>
+              <select
+                id="activity-sort"
+                name="activity-sort"
+                autocomplete="off"
+                :value="criteria.sort"
+                @change="updateCriteria({ sort: $event.target.value })"
+              >
+                <option value="soonest">Next session</option>
+                <option value="title-asc">Activity title: A–Z</option>
+                <option value="title-desc">Activity title: Z–A</option>
+              </select>
+            </label>
           </div>
 
           <button
@@ -313,6 +332,52 @@ const searchInput = useSearchDraft({
   font-weight: 600;
 }
 
+/* The type chips and Sort share one row: the chips at the start, Sort at the end. When the row
+   has no room for both, Sort moves to a line of its own at the start; on a narrow screen the
+   chips themselves wrap too. */
+.activities-page__refine {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.activities-page__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* A native select wearing the chip outline, as on Find nearby: the word Sort sits inside the
+   pill, and the select itself keeps a 44 px target. */
+.activities-page__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  padding: 0 0.5rem 0 0.9rem;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.activities-page__sort select {
+  min-height: 2.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.activities-page__clear {
+  justify-self: start;
+}
+
 .activities-page__results-heading {
   display: flex;
   align-items: baseline;
@@ -341,40 +406,26 @@ const searchInput = useSearchDraft({
   .activities-page {
     gap: 2.5rem;
   }
-
-  .activities-page__controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: end;
-  }
-
-  .activities-page__field--wide {
-    grid-column: 1 / -1;
-  }
-
-  .activities-page__clear {
-    justify-self: start;
-  }
 }
 
+/* From 1200 px the search and the chip row share one line, the search on the left; Clear filters
+   stays below them. */
 @media (min-width: 1200px) {
   .activities-page__controls {
-    grid-template-columns: minmax(18rem, 1.5fr) repeat(2, minmax(11rem, 0.65fr)) auto;
+    grid-template-columns: minmax(18rem, 1fr) auto;
+    align-items: end;
     gap: 1.25rem;
   }
 
-  .activities-page__field--wide {
-    grid-column: auto;
+  .activities-page__clear {
+    grid-column: 1 / -1;
   }
 
-  /* Text resizing can exhaust a wide screen's usable space. Keep the existing
-     two-column arrangement when the catalogue is narrow relative to its type. */
+  /* Text resizing can exhaust a wide screen's usable space: when the catalogue is narrow relative
+     to its type, the filters stay stacked. */
   @container (max-width: 60rem) {
     .activities-page__controls {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .activities-page__field--wide {
-      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 }

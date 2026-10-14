@@ -26,14 +26,19 @@ const places = (count) => `${count} ${count === 1 ? 'place' : 'places'}`
 
 /**
  * "12 places within 5 km of Clayton 3168; 8 match 'microwave', 4 may take small appliances".
- * With "Open now" on, the places whose hours could not be read stay in the list and the count
- * says so: "...; 2 with hours not checked".
+ * With "Open now" on (`openNow`) the count names the filter, so a count that leaves out the
+ * places closed at this minute is never heard as the number of places there: "2 places open now
+ * within 10 km of Clayton 3168". `count` includes the places whose hours could not be read, since
+ * they stay in the list; the sentence counts them apart, so it never calls them open: "1 place
+ * open now ...; 1 more with hours not checked". With "Open now" off they are only named: "...; 1
+ * with hours not checked".
  *
- * @param {{ count: number, scope: { kind: 'radius', radiusKm: number, originLabel: string } | { kind: 'viewport' } | { kind: 'all' }, item?: string, directCount?: number, categoryCount?: number, categoryLabel?: string, hoursUncheckedCount?: number, truncated?: boolean }} options
+ * @param {{ count: number, scope: { kind: 'radius', radiusKm: number, originLabel: string } | { kind: 'viewport' } | { kind: 'all' }, openNow?: boolean, item?: string, directCount?: number, categoryCount?: number, categoryLabel?: string, hoursUncheckedCount?: number, truncated?: boolean }} options
  */
 export function formatResultsStatus({
   count,
   scope,
+  openNow = false,
   item = '',
   directCount = 0,
   categoryCount = 0,
@@ -52,13 +57,17 @@ export function formatResultsStatus({
   } else {
     where = 'in the catalogue'
   }
-  let sentence = `${places(count)} ${where}`
+  let sentence = openNow
+    ? `${places(count - hoursUncheckedCount)} open now ${where}`
+    : `${places(count)} ${where}`
   if (item) {
     const clauses = [`${directCount} match '${item}'`]
     if (categoryLabel) clauses.push(`${categoryCount} may take ${categoryLabel}`)
     sentence += `; ${clauses.join(', ')}`
   }
-  if (hoursUncheckedCount > 0) sentence += `; ${hoursUncheckedCount} with hours not checked`
+  if (hoursUncheckedCount > 0) {
+    sentence += `; ${hoursUncheckedCount}${openNow ? ' more' : ''} with hours not checked`
+  }
   if (truncated) sentence += ', sorted within the first 1,000 loaded records'
   return sentence
 }

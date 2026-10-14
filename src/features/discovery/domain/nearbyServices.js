@@ -3,8 +3,9 @@ import { isCalendarDate, isHttpsUrl } from '@/shared/domain/catalogueValidation.
 /**
  * Geo maths for the results pipeline: coordinate checks, the haversine distance, the
  * radius filter and the viewport filter. A `venue` geo is a published address; an `area` geo is
- * a postcode centroid, measured and plotted at that point but never routed to. A service
- * with `geo: null` is the only one counted as missing a map position.
+ * a postcode centroid, measured and plotted at that point but never routed to. A service whose
+ * geo is null or not mappable is counted as missing a map position; `projectService` lets only
+ * `null` or a mappable geo through, so in the app that count is the services with `geo: null`.
  */
 
 export const isCoordinate = (point) =>

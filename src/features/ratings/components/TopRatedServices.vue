@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 
 import ServiceCard from '@/features/discovery/components/ServiceCard.vue'
+import { useMinuteClock } from '@/shared/composables/useMinuteClock.js'
 import { formatRelativeTime } from '@/shared/domain/relativeTime.js'
 
 import { rankRatedServices } from '../domain/rankServices.js'
@@ -10,6 +11,7 @@ import { rankRatedServices } from '../domain/rankServices.js'
  * Top five rated services, props-driven: the view composes the
  * catalogue and the summaries and passes them down; this component only ranks and renders.
  * `status` is the view's combined state: idle (nothing requested yet), loading, ready, error.
+ * Each card says today's state by its weekly hours at a clock read every minute.
  */
 const props = defineProps({
   services: { type: Array, default: () => [] },
@@ -23,6 +25,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['load'])
 
+const now = useMinuteClock()
 const isBusy = computed(() => props.status === 'loading')
 const requested = computed(() => props.status !== 'idle')
 const top = computed(() => rankRatedServices(props.services, props.summariesById))
@@ -31,6 +34,11 @@ const top = computed(() => rankRatedServices(props.services, props.summariesById
 // A saved copy is never called the current catalogue; its line says when it was saved.
 const complete = computed(
   () => !props.truncated && !props.failedIds.length && props.freshness !== 'cached',
+)
+const failedSummaryNotice = computed(() =>
+  props.failedIds.length === 1
+    ? '1 rating summary could not be retrieved or validated. It is not included in this ranking.'
+    : `${props.failedIds.length} rating summaries could not be retrieved or validated. They are not included in this ranking.`,
 )
 </script>
 
@@ -62,10 +70,7 @@ const complete = computed(
         Showing results saved {{ formatRelativeTime(savedAt) }}
       </p>
       <p v-if="truncated" role="status">Results incomplete: showing the first 1,000 records.</p>
-      <p v-if="failedIds.length" role="status">
-        {{ failedIds.length }} rating summaries could not be retrieved or validated. They are not
-        included in this ranking.
-      </p>
+      <p v-if="failedIds.length" role="status">{{ failedSummaryNotice }}</p>
       <p v-if="!top.length" role="status">
         {{
           failedIds.length
@@ -84,6 +89,7 @@ const complete = computed(
           :service="service"
           :show-rating="true"
           :rating-summary="summariesById[service.id]"
+          :now="now"
         />
       </div>
     </template>

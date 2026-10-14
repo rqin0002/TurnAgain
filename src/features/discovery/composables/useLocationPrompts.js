@@ -2,9 +2,6 @@ import { computed, nextTick, ref, toValue, watch } from 'vue'
 
 import { LOCATION_COPY } from './useLocationOrigin.js'
 
-const MAP_NOTICE_TEXT =
-  'Showing central Melbourne. Your location was not shared. Type a suburb or postcode to search near it.'
-
 /**
  * The location prompt flows of Find nearby: Use my location (the
  * map's control and the pending location chip), Nearest and Map ask the device from the person's
@@ -31,7 +28,12 @@ export function useLocationPrompts({
   const pendingIntent = ref(null)
   const locationMessage = ref('')
   const mapNotice = ref(false)
-  const mapNoticeText = computed(() => (mapNotice.value ? MAP_NOTICE_TEXT : ''))
+  // The central Melbourne notice gives the device's own reason (refused, timed out, unavailable,
+  // unsupported), the same copy the Where field shows for the other prompt flows.
+  const mapNoticeMessage = ref('')
+  const mapNoticeText = computed(() =>
+    mapNotice.value ? `Showing central Melbourne. ${mapNoticeMessage.value}` : '',
+  )
 
   const focusWhereField = async () => {
     await nextTick()
@@ -52,6 +54,7 @@ export function useLocationPrompts({
     }
     const typedKept = originStatus.value === 'ready'
     if (intent === 'map' && !typedKept) {
+      mapNoticeMessage.value = LOCATION_COPY[device]
       mapNotice.value = true
       if (!toValue(isMapView)) await update({ view: 'map' })
       await showMelbourne()
@@ -81,5 +84,12 @@ export function useLocationPrompts({
     mapNotice.value = false
   }
 
-  return { locationMessage, mapNotice, mapNoticeText, requestLocation, dismissMapNotice }
+  return {
+    locationMessage,
+    mapNotice,
+    mapNoticeMessage,
+    mapNoticeText,
+    requestLocation,
+    dismissMapNotice,
+  }
 }
