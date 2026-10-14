@@ -6,6 +6,11 @@ import { defineConfig, devices } from '@playwright/test'
  * are already up; `npm run test:e2e:emulators` starts them around it. Vitest never collects
  * tests/e2e, so `npm run check` is unchanged. The preview server is built and started here
  * unless port 4173 already answers, and tests/e2e/global-setup.js seeds the emulators first.
+ * The Functions emulator must run with EMAIL_DRY_RUN=1 (in functions/.env, or in the
+ * .env.demo-turnagain or .env.local beside it), so a spec that books a session or emails
+ * participants records the send instead of sending it; the global setup stops unless those files
+ * set it. The npm script cannot set the flag inline, because npm runs scripts through cmd.exe on
+ * Windows.
  */
 export default defineConfig({
   testDir: 'tests/e2e',

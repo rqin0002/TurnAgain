@@ -61,3 +61,5 @@ __screenshots__/
 
 test-results/
 playwright-report/
+# Vitest cache
+.vitest/
