@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
+import { useItemCategories } from '@/features/discovery/composables/useItemCategories.js'
 import ActivityForm from '@/features/staff/components/ActivityForm.vue'
 import ServiceForm from '@/features/staff/components/ServiceForm.vue'
 import SessionForm from '@/features/staff/components/SessionForm.vue'
@@ -23,6 +25,9 @@ import {
   validateServiceDraft,
   validateSessionDraft,
 } from '@/features/staff/domain/recordDrafts.js'
+import { describeAccess } from '@/features/staff/domain/accessDraft.js'
+import { describeHours } from '@/features/staff/domain/hoursDraft.js'
+import { describeLocation } from '@/features/staff/domain/serviceLocation.js'
 import AppButton from '@/shared/components/AppButton.vue'
 import StatePanel from '@/shared/components/StatePanel.vue'
 import { isValidId } from '@/shared/domain/catalogueValidation.js'
@@ -33,7 +38,11 @@ import { isValidId } from '@/shared/domain/catalogueValidation.js'
  * activity), the form is one of three explicit templates, and the states are loading, not-found,
  * editing, saving, saved (the banner takes focus), conflict (the draft stays until Reload, which
  * then lists each changed field with "Use mine") and error. A create that succeeds becomes
- * the record's edit page. Nothing is ever removed: archive and cancel are register actions.
+ * the record's edit page, with the saved record on it even when the catalogue reload after the
+ * save fails. The service form lists the item categories the shared catalogue holds (the twelve
+ * plus those an admin added) and the validator accepts exactly those; an admin can add one in
+ * place, which writes the catalogue at once and never the service. Nothing is ever removed:
+ * archive and cancel are register actions.
  */
 const props = defineProps({
   kind: { type: String, required: true },
@@ -90,6 +99,10 @@ const { notice: correctionNotice, saveWith } = useCorrectionBinding({
   kind: () => props.kind,
   recordId: () => props.recordId,
 })
+const authStore = useAuthStore()
+const itemCategories = useItemCategories()
+// Only an admin is offered "Add new category"; the rules check the role again on the write.
+const canAddCategories = computed(() => authStore.canAccess(['admin']))
 const activities = computed(() => catalogue.activities.value)
 const validate = (draft) => {
   now.value = new Date()
@@ -99,6 +112,7 @@ const validate = (draft) => {
     activities: activities.value,
     locked: locked.value,
     storedType: record.value?.registrationType ?? null,
+    categoryIds: itemCategories.ids.value,
   })
 }
 
@@ -137,7 +151,7 @@ watch(
 // History to another record (or between a create and an edit page) keeps this instance, because
 // the staff RouterView is unkeyed: the form starts over from that page's record, after
 // useRecordForm has asked about unsaved changes. The replace that follows a create keeps its saved
-// draft; onSubmit hands it the stored record.
+// draft; onSubmit hands it the saved record.
 watch(
   () => [props.kind, props.recordId],
   ([, nextId], [, previousId]) => {
@@ -152,7 +166,17 @@ const heading = computed(() => {
   return `Edit ${record.value?.name ?? record.value?.title ?? config.value.noun}`
 })
 const labels = computed(() => DRAFT_FIELD_LABELS[props.kind])
-const showValue = (value) => {
+// A service's address and map position are one entry, shown as one line; its access checklist
+// and its week of opening hours are shown as the lines they save.
+const DESCRIBE_SERVICE_FIELD = Object.freeze({
+  location: describeLocation,
+  access: describeAccess,
+  openingHours: describeHours,
+})
+const showValue = (field, value) => {
+  if (props.kind === 'services' && DESCRIBE_SERVICE_FIELD[field]) {
+    return DESCRIBE_SERVICE_FIELD[field](value)
+  }
   if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : '(none)'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   return value === '' || value === null ? '(empty)' : String(value)
@@ -192,8 +216,8 @@ const onUseMine = async (field) => {
   } else if (conflictFields.value.length > 0) {
     changesHeading.value?.focus()
   } else {
-    // A field with no control of its own on the page (a checkbox group, a map field while "Show on
-    // map" is off) falls back to the page heading.
+    // A field with no control of its own on the page (a checkbox group) falls back to the page
+    // heading; the address and map group is a fieldset that takes the focus itself.
     const control = formRef.value?.querySelector(`#${config.value.noun}-${field}`)
     ;(control ?? pageHeading.value)?.focus()
   }
@@ -228,8 +252,9 @@ const onSubmit = async () => {
       name: 'staff-record-edit',
       params: { kind: props.kind, recordId: saved.id },
     })
-    // The page is now the record's edit page: the stored record (its stamps and counters, read
-    // back by the save's catalogue reload) becomes the draft, and the saved banner stays.
+    // The page is now the record's edit page: the record (the copy the save put into the
+    // catalogue, replaced by the stored one once a reload succeeds) becomes the draft, and the
+    // saved banner stays.
     if (record.value) {
       form.reset(config.value.toDraft(record.value))
       state.value = 'saved'
@@ -300,10 +325,10 @@ const onSubmit = async () => {
           <li v-for="entry in conflictFields" :key="entry.field">
             <p class="record-changes__field">{{ labels[entry.field] ?? entry.field }}</p>
             <p>
-              Your value: <span dir="auto">{{ showValue(entry.mine) }}</span>
+              Your value: <span dir="auto">{{ showValue(entry.field, entry.mine) }}</span>
             </p>
             <p>
-              Current value: <span dir="auto">{{ showValue(entry.current) }}</span>
+              Current value: <span dir="auto">{{ showValue(entry.field, entry.current) }}</span>
             </p>
             <p v-if="entry.locked" class="record-changes__locked">
               Locked: this session has bookings, so the current value stays.
@@ -331,6 +356,10 @@ const onSubmit = async () => {
             :errors="errors"
             :is-new="isNew"
             :now="now"
+            :categories="itemCategories.categories.value"
+            :category-status="itemCategories.status.value"
+            :can-add-categories="canAddCategories"
+            :create-category="itemCategories.create"
           />
           <ActivityForm
             v-else-if="kind === 'activities'"

@@ -50,6 +50,7 @@ export const SERVICE_CONTENT_KEYS = Object.freeze([
   'geo',
   'itemCategories',
   'acceptanceConditions',
+  'excludedConditions',
   'preparation',
   'access',
   'openingHours',

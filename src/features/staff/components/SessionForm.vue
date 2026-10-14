@@ -11,7 +11,10 @@ import { SESSION_LOCK_MESSAGE, recordIdFrom } from '../domain/recordDrafts.js'
  * A session with bookings keeps its time, venue and activity: those fields are disabled
  * under the sentence that says why. The counters are shown, never edited. The
  * registration type is fixed once the session exists. The id appears on a create only and
- * follows the activity, date and start time until the person edits it.
+ * follows the activity, date and start time until the person edits it. An archived activity is
+ * still a choice, marked "(archived)": its sessions stay off the public pages while it is
+ * archived. An end time earlier than the start time is the next day (a session past midnight), as
+ * the Ends hint says.
  */
 const props = defineProps({
   modelValue: { type: Object, required: true },
@@ -29,7 +32,14 @@ const suggestedId = (value) =>
 const update = (changes) => {
   const next = { ...props.modelValue, ...changes }
   const current = props.modelValue.id
-  if (props.isNew && (current === '' || current === suggestedId(props.modelValue))) {
+  // On a create the id follows the activity, date and start time while the person has not touched
+  // it: a change to any other field recomputes the suggestion when the id is still empty or still
+  // the previous suggestion. A change to the id itself is the person's, whatever it looks like.
+  if (
+    !Object.hasOwn(changes, 'id') &&
+    props.isNew &&
+    (current === '' || current === suggestedId(props.modelValue))
+  ) {
     next.id = suggestedId(next)
   }
   emit('update:modelValue', next)
@@ -38,6 +48,8 @@ const activityTitle = computed(
   () => props.activities.find((activity) => activity.id === draft.value.activityId)?.title ?? '',
 )
 const isTurnAgain = computed(() => draft.value.registrationType === 'turnagain')
+const activityLabel = (activity) =>
+  activity.status === 'archived' ? `${activity.title} (archived)` : activity.title
 </script>
 
 <template>
@@ -55,7 +67,7 @@ const isTurnAgain = computed(() => draft.value.registrationType === 'turnagain')
         >
           <option value="">Choose an activity</option>
           <option v-for="activity in activities" :key="activity.id" :value="activity.id">
-            {{ activity.title }}
+            {{ activityLabel(activity) }}
           </option>
         </select>
       </template>
@@ -107,7 +119,12 @@ const isTurnAgain = computed(() => draft.value.registrationType === 'turnagain')
         />
       </template>
     </FormField>
-    <FormField v-bind="field('endTime')" label="Ends" required>
+    <FormField
+      v-bind="field('endTime')"
+      label="Ends"
+      hint="If this is earlier than the start time, the session ends the next day."
+      required
+    >
       <template #default="{ control }">
         <input
           v-bind="control"

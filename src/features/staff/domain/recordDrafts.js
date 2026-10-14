@@ -3,11 +3,7 @@ import { MELBOURNE_TIME_ZONE, melbourneDayKey } from '@shared/melbourneTime.js'
 import { ACTIVITY_STATUSES, ACTIVITY_TYPES } from '@/features/activities/domain/activitySchema.js'
 import { REGISTRATION_TYPES } from '@/features/activities/domain/sessionSchema.js'
 import { ITEM_CATEGORY_IDS } from '@/features/discovery/domain/itemCategories.js'
-import {
-  GEO_PRECISIONS,
-  SERVICE_ACTIONS,
-  SERVICE_STATUSES,
-} from '@/features/discovery/domain/serviceSchema.js'
+import { SERVICE_ACTIONS, SERVICE_STATUSES } from '@/features/discovery/domain/serviceSchema.js'
 import {
   ID_PATTERN,
   POSTCODE_PATTERN,
@@ -15,32 +11,70 @@ import {
   isHttpsUrl,
 } from '@/shared/domain/catalogueValidation.js'
 
+import { ACCESS_NOTES, accessDraftLines, blankAccessDraft, toAccessDraft } from './accessDraft.js'
+import {
+  HOURS_NOTES,
+  blankHoursDraft,
+  checkHoursDraft,
+  hoursDraftLines,
+  toHoursDraft,
+} from './hoursDraft.js'
+import { copyGeo, isPositionCurrent, locationKey, locationProblem } from './serviceLocation.js'
+
 /**
- * The three staff forms' drafts: every text field a string, every list one entry per line,
- * numbers as strings, a session's date and times in Melbourne wall time. The validators check
- * every field type (required and length, pattern, list bounds with
- * every element checked, numeric range, cross-field) against the bounds the rules and the schema
- * modules hold, and turn a valid draft into the record the writers store. Pure.
+ * The three staff forms' drafts: every text field a string; every list (a service's accepted
+ * items, other names, areas served, conditions, things not accepted and before-you-go steps; an
+ * activity's suitable items, accepted and excluded conditions and things to bring) an array of
+ * entries, entered a row at a time, whose empty rows never reach the draft; a service's access
+ * as a checklist with notes (accessDraft.js) and its opening hours as a week with notes
+ * (hoursDraft.js), each saved as the text lines the record stores; numbers as strings; a
+ * session's date and times in Melbourne wall time. The validators check every field type
+ * (required and length, pattern, list bounds with every entry checked, numeric range,
+ * cross-field) against the bounds the rules and the schema modules hold, and turn a valid draft
+ * into the record the writers store: entries trimmed, empty ones dropped, never merged, sorted or
+ * re-cased. Pure.
  */
 
-export const GEO_PRECISION_HELP =
-  "Choose 'area' when the source publishes no exact venue; never enter coordinates that the source does not give"
+/**
+ * The bounds of every service list entered a row at a time (the rules' and the schema's): at
+ * least `minimum` entries (0 for an optional list), at most `maximum`, each at most
+ * `entryMaximum` characters. The notes under the access checklist and the hours week have their
+ * own bounds (ACCESS_NOTES, HOURS_NOTES).
+ */
+export const SERVICE_ENTRY_LISTS = Object.freeze({
+  acceptedItems: Object.freeze({ minimum: 1, maximum: 40, entryMaximum: 100 }),
+  aliases: Object.freeze({ minimum: 1, maximum: 20, entryMaximum: 100 }),
+  searchAreas: Object.freeze({ minimum: 1, maximum: 20, entryMaximum: 100 }),
+  acceptanceConditions: Object.freeze({ minimum: 0, maximum: 8, entryMaximum: 200 }),
+  excludedConditions: Object.freeze({ minimum: 0, maximum: 20, entryMaximum: 200 }),
+  preparation: Object.freeze({ minimum: 0, maximum: 8, entryMaximum: 200 }),
+})
+
+/** The bounds of every activity list (the rules' and the schema's), shaped as above. */
+export const ACTIVITY_ENTRY_LISTS = Object.freeze({
+  suitableItems: Object.freeze({ minimum: 1, maximum: 12, entryMaximum: 160 }),
+  acceptedConditions: Object.freeze({ minimum: 1, maximum: 12, entryMaximum: 160 }),
+  excludedConditions: Object.freeze({ minimum: 0, maximum: 12, entryMaximum: 160 }),
+  whatToBring: Object.freeze({ minimum: 1, maximum: 12, entryMaximum: 160 }),
+})
+
+/**
+ * The hint a list's group shows, from its bounds: "One item per row: at least one, up to 40."
+ * for a required list, "One condition per row: optional, up to 8." for an optional one.
+ */
+export function entryListHint(noun, { minimum, maximum }) {
+  return `One ${noun} per row: ${minimum > 0 ? 'at least one' : 'optional'}, up to ${maximum}.`
+}
+
+/** The most item categories one service may carry (the rules' and the schema's bound). */
+export const MAX_ITEM_CATEGORIES = 10
+
 export const SESSION_LOCK_MESSAGE =
   'This session has bookings, so its time, venue and activity are locked. To change them, cancel this session, create a new one and email the participants.'
 
-// Victoria's bounding box: a pin outside it is a typing or source error.
-const VICTORIA = Object.freeze({ south: -39.2, north: -33.9, west: 140.9, east: 150.0 })
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/u
 const HOUR_MS = 3_600_000
 const MELBOURNE_OFFSET_HOURS = [11, 10]
-
-export const isInsideVictoria = (latitude, longitude) =>
-  Number.isFinite(latitude) &&
-  Number.isFinite(longitude) &&
-  latitude >= VICTORIA.south &&
-  latitude <= VICTORIA.north &&
-  longitude >= VICTORIA.west &&
-  longitude <= VICTORIA.east
 
 /** "Clayton Repair Hub" -> "clayton-repair-hub": lower case, [a-z0-9] runs, at most 60 characters. */
 export function recordIdFrom(text) {
@@ -52,12 +86,10 @@ export function recordIdFrom(text) {
   return runs.join('-').slice(0, 60).replace(/-+$/u, '')
 }
 
-const lines = (text) =>
-  String(text ?? '')
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-const joinLines = (list) => (Array.isArray(list) ? list.join('\n') : '')
+// A list's entries as they are saved: each trimmed, empty ones dropped, order and case kept.
+// Anything but an array has no entries.
+const entriesOf = (value) =>
+  Array.isArray(value) ? value.map((entry) => String(entry ?? '').trim()).filter(Boolean) : []
 const text = (value) => String(value ?? '').trim()
 const orNull = (value) => (text(value) === '' ? null : text(value))
 
@@ -92,6 +124,25 @@ export function melbourneInstant(date, time) {
   return null
 }
 
+/** The calendar day after a 'YYYY-MM-DD' date: arithmetic on the date alone, no time zone. */
+const nextDayKey = (date) => {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10)
+}
+
+/**
+ * The Melbourne day a session draft ends on: the draft's date, or the next day when the end time
+ * is earlier than the start time (a session that runs past midnight, 22:00 to 01:00). An end time
+ * equal to the start stays on the same day, where the end-after-start check refuses it.
+ */
+const sessionEndDate = (draft) =>
+  isCalendarDate(draft.date) &&
+  TIME_PATTERN.test(draft.startTime) &&
+  TIME_PATTERN.test(draft.endTime) &&
+  draft.endTime < draft.startTime
+    ? nextDayKey(draft.date)
+    : draft.date
+
 // ---- messages ---------------------------------------------------------------------------------
 
 const required = (label) => `Enter ${label}.`
@@ -104,20 +155,30 @@ const checkText = (value, { label, maximum, optional = false }) => {
   if (trimmed === '') return optional ? '' : required(label)
   return trimmed.length > maximum ? tooLong(maximum) : ''
 }
-const checkList = (value, { label, minimum, maximum, entryMaximum }) => {
-  const entries = lines(value)
-  if (entries.length < minimum) {
-    return minimum === 1 ? `List at least one ${label}, one per line.` : ''
-  }
-  if (entries.length > maximum) return `List at most ${maximum} entries, one per line.`
+// One check for every list, entered a row at a time: at least `minimum` entries (0 or 1), at most
+// `maximum`, each at most `entryMaximum` characters once trimmed. `label` names one entry in the
+// message ("Add at least one accepted item."); `plural` names several.
+const checkList = (value, { label, plural = `${label}s`, minimum, maximum, entryMaximum }) => {
+  const entries = entriesOf(value)
+  if (entries.length < minimum) return `Add at least one ${label}.`
+  if (entries.length > maximum) return `Keep at most ${maximum} ${plural}.`
   if (entries.some((entry) => entry.length > entryMaximum)) {
-    return `Keep each line to ${entryMaximum} characters or fewer.`
+    return `Keep each ${label} to ${entryMaximum} characters or fewer.`
   }
   return ''
 }
 const checkCheckedDate = (value, now) => {
   if (!isCalendarDate(value)) return 'Enter the date you checked the source.'
   return value > melbourneDayKey(now) ? 'The checked date cannot be in the future.' : ''
+}
+// Ids outside `known` are kept in the draft and marked on the form, so Save says to untick them.
+const checkCategories = (ids, known) => {
+  if (ids.length > MAX_ITEM_CATEGORIES) {
+    return `Choose at most ${MAX_ITEM_CATEGORIES} item categories.`
+  }
+  return ids.every((id) => known.includes(id))
+    ? ''
+    : 'Untick the categories marked "not in the list".'
 }
 const checkHttps = (value) => (isHttpsUrl(text(value)) ? '' : HTTPS)
 const checkId = (value, isNew) => {
@@ -136,34 +197,40 @@ const result = (errors, values) => ({
 
 // ---- services -----------------------------------------------------------------------------------
 
+/*
+ * A service draft keeps its address, suburb, postcode, Show on map and map position in one
+ * `location` value (serviceLocation.js), so the conflict list restores them together and a
+ * position is saved only for the address it was found for.
+ */
+
 export function blankServiceDraft() {
   return {
     id: '',
     name: '',
     actionTypes: [],
-    acceptedItems: '',
-    aliases: '',
+    acceptedItems: [],
+    aliases: [],
     summary: '',
-    address: '',
-    suburb: '',
-    postcode: '',
-    searchAreas: '',
+    location: {
+      address: '',
+      suburb: '',
+      postcode: '',
+      showOnMap: true,
+      geo: null,
+      matchedFor: '',
+    },
+    searchAreas: [],
     status: 'published',
     sourceOrganisation: '',
     sourceUrl: '',
     sourceCheckedAt: '',
     itemCategories: [],
-    acceptanceConditions: '',
-    preparation: '',
-    access: '',
-    openingHours: '',
+    acceptanceConditions: [],
+    excludedConditions: [],
+    preparation: [],
+    access: blankAccessDraft(),
+    openingHours: blankHoursDraft(),
     cost: '',
-    showOnMap: false,
-    latitude: '',
-    longitude: '',
-    precision: 'venue',
-    geoSourceUrl: '',
-    geoCheckedAt: '',
     revision: 0,
     createdAt: null,
   }
@@ -174,39 +241,44 @@ export function toServiceDraft(record) {
     id: record.id,
     name: record.name,
     actionTypes: [...record.actionTypes],
-    acceptedItems: joinLines(record.acceptedItems),
-    aliases: joinLines(record.aliases),
+    acceptedItems: [...record.acceptedItems],
+    aliases: [...record.aliases],
     summary: record.summary,
-    address: record.address ?? '',
-    suburb: record.suburb,
-    postcode: record.postcode,
-    searchAreas: joinLines(record.searchAreas),
+    location: {
+      address: record.address ?? '',
+      suburb: record.suburb,
+      postcode: record.postcode,
+      showOnMap: Boolean(record.geo),
+      geo: record.geo ? copyGeo(record.geo) : null,
+      matchedFor: record.geo ? locationKey(record) : '',
+    },
+    searchAreas: [...record.searchAreas],
     status: record.status,
     sourceOrganisation: record.source.organisation,
     sourceUrl: record.source.url,
     sourceCheckedAt: record.source.checkedAt,
     itemCategories: [...record.itemCategories],
-    acceptanceConditions: joinLines(record.acceptanceConditions),
-    preparation: joinLines(record.preparation),
-    access: joinLines(record.access),
-    openingHours: joinLines(record.openingHours),
+    acceptanceConditions: [...record.acceptanceConditions],
+    // A record stored before the field existed has no list of things not accepted.
+    excludedConditions: [...(record.excludedConditions ?? [])],
+    preparation: [...record.preparation],
+    access: toAccessDraft(record.access),
+    openingHours: toHoursDraft(record.openingHours),
     cost: record.cost ?? '',
-    showOnMap: record.geo !== null,
-    latitude: record.geo ? String(record.geo.latitude) : '',
-    longitude: record.geo ? String(record.geo.longitude) : '',
-    precision: record.geo?.precision ?? 'venue',
-    geoSourceUrl: record.geo?.sourceUrl ?? '',
-    geoCheckedAt: record.geo?.checkedAt ?? '',
     revision: record.revision,
     createdAt: record.createdAt,
   }
 }
 
-const parseCoordinate = (value) => (text(value) === '' ? Number.NaN : Number(text(value)))
-
-export function validateServiceDraft(draft, { isNew = false, now = new Date() } = {}) {
-  const latitude = parseCoordinate(draft.latitude)
-  const longitude = parseCoordinate(draft.longitude)
+/**
+ * `categoryIds`: the category ids the page knows (the twelve plus those an admin added, from
+ * useItemCategories); without it, the twelve.
+ */
+export function validateServiceDraft(
+  draft,
+  { isNew = false, now = new Date(), categoryIds = ITEM_CATEGORY_IDS } = {},
+) {
+  const { location } = draft
   const errors = {
     id: checkId(draft.id, isNew),
     name: checkText(draft.name, { label: 'the service name', maximum: 150 }),
@@ -217,25 +289,17 @@ export function validateServiceDraft(draft, { isNew = false, now = new Date() } 
         : 'Choose at least one action.',
     acceptedItems: checkList(draft.acceptedItems, {
       label: 'accepted item',
-      minimum: 1,
-      maximum: 40,
-      entryMaximum: 100,
+      ...SERVICE_ENTRY_LISTS.acceptedItems,
     }),
-    aliases: checkList(draft.aliases, {
-      label: 'other name people use',
-      minimum: 1,
-      maximum: 20,
-      entryMaximum: 100,
-    }),
+    aliases: checkList(draft.aliases, { label: 'other name', ...SERVICE_ENTRY_LISTS.aliases }),
     summary: checkText(draft.summary, { label: 'a summary', maximum: 600 }),
-    address: checkText(draft.address, { label: 'the address', maximum: 200, optional: true }),
-    suburb: checkText(draft.suburb, { label: 'the suburb', maximum: 100 }),
-    postcode: POSTCODE_PATTERN.test(text(draft.postcode)) ? '' : POSTCODE,
+    address: checkText(location.address, { label: 'the address', maximum: 200, optional: true }),
+    suburb: checkText(location.suburb, { label: 'the suburb', maximum: 100 }),
+    postcode: POSTCODE_PATTERN.test(text(location.postcode)) ? '' : POSTCODE,
     searchAreas: checkList(draft.searchAreas, {
-      label: 'suburb or area served',
-      minimum: 1,
-      maximum: 20,
-      entryMaximum: 100,
+      label: 'suburb or area',
+      plural: 'suburbs or areas',
+      ...SERVICE_ENTRY_LISTS.searchAreas,
     }),
     status: SERVICE_STATUSES.includes(draft.status) ? '' : 'Choose a status.',
     sourceOrganisation: checkText(draft.sourceOrganisation, {
@@ -244,67 +308,60 @@ export function validateServiceDraft(draft, { isNew = false, now = new Date() } 
     }),
     sourceUrl: checkHttps(draft.sourceUrl),
     sourceCheckedAt: checkCheckedDate(draft.sourceCheckedAt, now),
-    itemCategories:
-      draft.itemCategories.length <= 10 &&
-      draft.itemCategories.every((id) => ITEM_CATEGORY_IDS.includes(id))
-        ? ''
-        : 'Choose at most 10 item categories.',
+    itemCategories: checkCategories(draft.itemCategories, categoryIds),
     acceptanceConditions: checkList(draft.acceptanceConditions, {
-      minimum: 0,
-      maximum: 8,
-      entryMaximum: 200,
+      label: 'acceptance condition',
+      ...SERVICE_ENTRY_LISTS.acceptanceConditions,
     }),
-    preparation: checkList(draft.preparation, { minimum: 0, maximum: 8, entryMaximum: 200 }),
-    access: checkList(draft.access, { minimum: 0, maximum: 6, entryMaximum: 200 }),
-    openingHours: checkList(draft.openingHours, { minimum: 0, maximum: 8, entryMaximum: 100 }),
+    excludedConditions: checkList(draft.excludedConditions, {
+      label: 'entry under Not accepted',
+      plural: 'entries under Not accepted',
+      ...SERVICE_ENTRY_LISTS.excludedConditions,
+    }),
+    preparation: checkList(draft.preparation, {
+      label: 'step before you go',
+      plural: 'steps before you go',
+      ...SERVICE_ENTRY_LISTS.preparation,
+    }),
+    access: checkList(draft.access.notes, { label: 'access note', ...ACCESS_NOTES }),
+    openingHours: checkHoursDraft(draft.openingHours),
+    openingHoursNotes: checkList(draft.openingHours.notes, {
+      label: 'note about hours',
+      plural: 'notes about hours',
+      ...HOURS_NOTES,
+    }),
     cost: checkText(draft.cost, { label: 'the cost', maximum: 200, optional: true }),
-    latitude: '',
-    longitude: '',
-    precision: '',
-    geoSourceUrl: '',
-    geoCheckedAt: '',
+    location: '',
   }
-  if (draft.showOnMap) {
-    errors.latitude = Number.isFinite(latitude) ? '' : 'Enter the latitude as a number.'
-    errors.longitude = Number.isFinite(longitude) ? '' : 'Enter the longitude as a number.'
-    if (!errors.latitude && !errors.longitude && !isInsideVictoria(latitude, longitude)) {
-      errors.latitude = 'These coordinates are outside Victoria.'
-    }
-    errors.precision = GEO_PRECISIONS.includes(draft.precision) ? '' : 'Choose venue or area.'
-    errors.geoSourceUrl = checkHttps(draft.geoSourceUrl)
-    errors.geoCheckedAt = checkCheckedDate(draft.geoCheckedAt, now)
+  // The position is checked once the place fields themselves are valid, so a blank form asks for
+  // the suburb and postcode first rather than for a position it cannot have yet.
+  if (!errors.address && !errors.suburb && !errors.postcode) {
+    errors.location = locationProblem(location)
   }
   return result(errors, {
     id: text(draft.id),
     name: text(draft.name),
     actionTypes: SERVICE_ACTIONS.filter((action) => draft.actionTypes.includes(action)),
-    acceptedItems: lines(draft.acceptedItems),
-    aliases: lines(draft.aliases),
+    acceptedItems: entriesOf(draft.acceptedItems),
+    aliases: entriesOf(draft.aliases),
     summary: text(draft.summary),
-    address: orNull(draft.address),
-    suburb: text(draft.suburb),
-    postcode: text(draft.postcode),
-    searchAreas: lines(draft.searchAreas),
+    address: orNull(location.address),
+    suburb: text(location.suburb),
+    postcode: text(location.postcode),
+    searchAreas: entriesOf(draft.searchAreas),
     status: draft.status,
     source: {
       organisation: text(draft.sourceOrganisation),
       url: text(draft.sourceUrl),
       checkedAt: draft.sourceCheckedAt,
     },
-    geo: draft.showOnMap
-      ? {
-          latitude,
-          longitude,
-          precision: draft.precision,
-          sourceUrl: text(draft.geoSourceUrl),
-          checkedAt: draft.geoCheckedAt,
-        }
-      : null,
+    geo: location.showOnMap && isPositionCurrent(location) ? copyGeo(location.geo) : null,
     itemCategories: [...draft.itemCategories],
-    acceptanceConditions: lines(draft.acceptanceConditions),
-    preparation: lines(draft.preparation),
-    access: lines(draft.access),
-    openingHours: lines(draft.openingHours),
+    acceptanceConditions: entriesOf(draft.acceptanceConditions),
+    excludedConditions: entriesOf(draft.excludedConditions),
+    preparation: entriesOf(draft.preparation),
+    access: accessDraftLines(draft.access),
+    openingHours: hoursDraftLines(draft.openingHours),
     cost: orNull(draft.cost),
     revision: draft.revision,
     createdAt: draft.createdAt,
@@ -319,11 +376,11 @@ export function blankActivityDraft() {
     title: '',
     summary: '',
     activityType: 'repair',
-    suitableItems: '',
-    acceptedConditions: '',
-    excludedConditions: '',
+    suitableItems: [],
+    acceptedConditions: [],
+    excludedConditions: [],
     costLabel: '',
-    whatToBring: '',
+    whatToBring: [],
     accessibilityLabel: '',
     cancellationLabel: '',
     providerName: '',
@@ -341,11 +398,11 @@ export function toActivityDraft(record) {
     title: record.title,
     summary: record.summary,
     activityType: record.activityType,
-    suitableItems: joinLines(record.suitableItems),
-    acceptedConditions: joinLines(record.acceptedConditions),
-    excludedConditions: joinLines(record.excludedConditions),
+    suitableItems: [...record.suitableItems],
+    acceptedConditions: [...record.acceptedConditions],
+    excludedConditions: [...record.excludedConditions],
     costLabel: record.costLabel,
-    whatToBring: joinLines(record.whatToBring),
+    whatToBring: [...record.whatToBring],
     accessibilityLabel: record.accessibilityLabel,
     cancellationLabel: record.cancellationLabel,
     providerName: record.providerName,
@@ -357,8 +414,8 @@ export function toActivityDraft(record) {
   }
 }
 
-const activityList = (value, label, minimum = 1) =>
-  checkList(value, { label, minimum, maximum: 12, entryMaximum: 160 })
+const activityList = (draft, name, label) =>
+  checkList(draft[name], { label, ...ACTIVITY_ENTRY_LISTS[name] })
 
 export function validateActivityDraft(draft, { isNew = false, now = new Date() } = {}) {
   const errors = {
@@ -366,11 +423,11 @@ export function validateActivityDraft(draft, { isNew = false, now = new Date() }
     title: checkText(draft.title, { label: 'the activity title', maximum: 150 }),
     summary: checkText(draft.summary, { label: 'a summary', maximum: 1200 }),
     activityType: ACTIVITY_TYPES.includes(draft.activityType) ? '' : 'Choose a type.',
-    suitableItems: activityList(draft.suitableItems, 'suitable item'),
-    acceptedConditions: activityList(draft.acceptedConditions, 'accepted condition'),
-    excludedConditions: activityList(draft.excludedConditions, 'excluded condition', 0),
+    suitableItems: activityList(draft, 'suitableItems', 'suitable item'),
+    acceptedConditions: activityList(draft, 'acceptedConditions', 'accepted condition'),
+    excludedConditions: activityList(draft, 'excludedConditions', 'excluded condition'),
     costLabel: checkText(draft.costLabel, { label: 'the cost', maximum: 300 }),
-    whatToBring: activityList(draft.whatToBring, 'thing to bring'),
+    whatToBring: activityList(draft, 'whatToBring', 'thing to bring'),
     accessibilityLabel: checkText(draft.accessibilityLabel, {
       label: 'the accessibility information',
       maximum: 500,
@@ -389,11 +446,11 @@ export function validateActivityDraft(draft, { isNew = false, now = new Date() }
     title: text(draft.title),
     summary: text(draft.summary),
     activityType: draft.activityType,
-    suitableItems: lines(draft.suitableItems),
-    acceptedConditions: lines(draft.acceptedConditions),
-    excludedConditions: lines(draft.excludedConditions),
+    suitableItems: entriesOf(draft.suitableItems),
+    acceptedConditions: entriesOf(draft.acceptedConditions),
+    excludedConditions: entriesOf(draft.excludedConditions),
     costLabel: text(draft.costLabel),
-    whatToBring: lines(draft.whatToBring),
+    whatToBring: entriesOf(draft.whatToBring),
     accessibilityLabel: text(draft.accessibilityLabel),
     cancellationLabel: text(draft.cancellationLabel),
     providerName: text(draft.providerName),
@@ -495,7 +552,9 @@ export function validateSessionDraft(
   { isNew = false, now = new Date(), activities = [], locked = false, storedType = null } = {},
 ) {
   const startsAt = locked ? draft.storedStartsAt : melbourneInstant(draft.date, draft.startTime)
-  const endsAt = locked ? draft.storedEndsAt : melbourneInstant(draft.date, draft.endTime)
+  const endsAt = locked
+    ? draft.storedEndsAt
+    : melbourneInstant(sessionEndDate(draft), draft.endTime)
   const turnagain = draft.registrationType === 'turnagain'
   const capacity = turnagain && isWholeNumber(draft.capacity) ? Number(text(draft.capacity)) : null
   const errors = {
@@ -588,26 +647,19 @@ export const DRAFT_FIELD_LABELS = Object.freeze({
     acceptedItems: 'Items accepted',
     aliases: 'Other names',
     summary: 'Summary',
-    address: 'Address',
-    suburb: 'Suburb',
-    postcode: 'Postcode',
+    location: 'Address and map position',
     searchAreas: 'Areas served',
     status: 'Status',
     sourceOrganisation: 'Source organisation',
     sourceUrl: 'Source link',
     sourceCheckedAt: 'Source checked',
     itemCategories: 'Item categories',
-    acceptanceConditions: 'Acceptance conditions',
+    acceptanceConditions: 'Conditions',
+    excludedConditions: 'Not accepted',
     preparation: 'Before you go',
     access: 'Access',
     openingHours: 'Opening hours',
     cost: 'Cost',
-    showOnMap: 'Show on map',
-    latitude: 'Latitude',
-    longitude: 'Longitude',
-    precision: 'Map precision',
-    geoSourceUrl: 'Location source link',
-    geoCheckedAt: 'Location checked',
   }),
   activities: Object.freeze({
     id: 'Id',
@@ -645,7 +697,7 @@ export const DRAFT_FIELD_LABELS = Object.freeze({
 })
 
 const STORED_TO_DRAFT = Object.freeze({
-  services: Object.freeze({ source: 'sourceOrganisation', geo: 'latitude', keys: 'name' }),
+  services: Object.freeze({ source: 'sourceOrganisation', geo: 'location', keys: 'name' }),
   activities: Object.freeze({ keys: 'title', timestampsOrdered: 'sourceCheckedAt' }),
   sessions: Object.freeze({
     keys: 'venueName',

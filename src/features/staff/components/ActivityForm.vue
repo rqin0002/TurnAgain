@@ -2,13 +2,17 @@
 import { computed } from 'vue'
 
 import { formatActivityType } from '@/features/activities/domain/activityCatalogue.js'
+import { ACTIVITY_TYPES } from '@/features/activities/domain/activitySchema.js'
 import FormField from '@/shared/components/FormField.vue'
 
-import { recordIdFrom } from '../domain/recordDrafts.js'
+import { ACTIVITY_ENTRY_LISTS, entryListHint, recordIdFrom } from '../domain/recordDrafts.js'
+
+import EntryListField from './EntryListField.vue'
 
 /**
  * The activity fields: the view owns the <form>, the summary and the buttons.
- * Lists take one entry per line. The id appears on a create only and follows the title until the
+ * Every list is entered a row at a time (EntryListField); the summary, cost, accessibility and
+ * cancellation stay paragraphs. The id appears on a create only and follows the title until the
  * person edits it.
  */
 const props = defineProps({
@@ -18,13 +22,50 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue'])
 
-const TYPES = ['repair', 'reuse', 'workshop']
-const LISTS = [
-  { name: 'suitableItems', label: 'Suitable items', required: true },
-  { name: 'acceptedConditions', label: 'Accepted conditions', required: true },
-  { name: 'excludedConditions', label: 'Excluded conditions', required: false },
-  { name: 'whatToBring', label: 'What to bring', required: true },
-]
+// The lists entered a row at a time: `noun` words the hint ("One item per row: …"), `entryLabel`
+// names each row ("Accepted condition 2", "Remove accepted condition 2"), so the two condition
+// lists never share a name; `countNoun` words the count line near the limit. The bounds are the
+// validator's.
+const LISTS = Object.freeze(
+  [
+    {
+      name: 'suitableItems',
+      legend: 'Suitable items',
+      noun: 'item',
+      entryLabel: 'Item',
+      addLabel: 'Add item',
+      countNoun: 'items',
+    },
+    {
+      name: 'acceptedConditions',
+      legend: 'Accepted conditions',
+      noun: 'condition',
+      entryLabel: 'Accepted condition',
+      addLabel: 'Add accepted condition',
+      countNoun: 'accepted conditions',
+    },
+    {
+      name: 'excludedConditions',
+      legend: 'Excluded conditions',
+      noun: 'condition',
+      entryLabel: 'Excluded condition',
+      addLabel: 'Add excluded condition',
+      countNoun: 'excluded conditions',
+    },
+    {
+      name: 'whatToBring',
+      legend: 'What to bring',
+      noun: 'thing to bring',
+      entryLabel: 'Thing to bring',
+      addLabel: 'Add a thing to bring',
+      countNoun: 'things to bring',
+    },
+  ].map((list) => ({
+    ...list,
+    ...ACTIVITY_ENTRY_LISTS[list.name],
+    hint: entryListHint(list.noun, ACTIVITY_ENTRY_LISTS[list.name]),
+  })),
+)
 const LONG_TEXTS = [
   { name: 'costLabel', label: 'Cost' },
   { name: 'accessibilityLabel', label: 'Accessibility' },
@@ -96,32 +137,28 @@ const setTitle = (event) => {
           :value="draft.activityType"
           @change="update({ activityType: $event.target.value })"
         >
-          <option v-for="type in TYPES" :key="type" :value="type">
+          <option v-for="type in ACTIVITY_TYPES" :key="type" :value="type">
             {{ formatActivityType(type) }}
           </option>
         </select>
       </template>
     </FormField>
 
-    <FormField
+    <EntryListField
       v-for="list in LISTS"
+      :id="`activity-${list.name}`"
       :key="list.name"
-      v-bind="field(list.name)"
-      :label="list.label"
-      :hint="list.required ? 'One per line.' : 'One per line; optional.'"
-      :required="list.required"
-    >
-      <template #default="{ control }">
-        <textarea
-          v-bind="control"
-          class="form-control"
-          rows="4"
-          dir="auto"
-          :value="draft[list.name]"
-          @input="update({ [list.name]: $event.target.value })"
-        ></textarea>
-      </template>
-    </FormField>
+      :legend="list.legend"
+      :hint="list.hint"
+      :entries="draft[list.name]"
+      :entry-label="list.entryLabel"
+      :add-label="list.addLabel"
+      :count-noun="list.countNoun"
+      :maximum="list.maximum"
+      :entry-maximum="list.entryMaximum"
+      :error="errors[list.name] ?? ''"
+      @update:entries="update({ [list.name]: $event })"
+    />
 
     <FormField
       v-for="entry in LONG_TEXTS"

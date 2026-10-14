@@ -1,32 +1,56 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { melbourneDayKey } from '@shared/melbourneTime.js'
 
 import { ITEM_CATEGORIES } from '@/features/discovery/domain/itemCategories.js'
 import { formatActionType } from '@/features/discovery/domain/servicePresentation.js'
+import { SERVICE_ACTIONS } from '@/features/discovery/domain/serviceSchema.js'
 
 import AppButton from '@/shared/components/AppButton.vue'
 import FormField from '@/shared/components/FormField.vue'
 
-import { GEO_PRECISION_HELP, recordIdFrom } from '../domain/recordDrafts.js'
+import {
+  MAX_ITEM_CATEGORIES,
+  SERVICE_ENTRY_LISTS,
+  entryListHint,
+  recordIdFrom,
+} from '../domain/recordDrafts.js'
 import { STALE_SOURCE_DAYS, daysSinceChecked, staleSourceLabel } from '../domain/registerColumns.js'
 
+import AccessChecklist from './AccessChecklist.vue'
+import EntryListField from './EntryListField.vue'
+import NewCategoryPanel from './NewCategoryPanel.vue'
+import OpeningHoursEditor from './OpeningHoursEditor.vue'
+import ServiceLocationFields from './ServiceLocationFields.vue'
+
 /**
- * The service fields: the view owns the <form>, the summary and the buttons. One
- * entry per line in every list; "Mark checked today" sets the Melbourne day of the press; the
- * source badge says, against `now`, how stale it is past 180 days; "Show on map" reveals the
- * coordinates and their provenance with the precision help text. The id appears on a create only
- * and follows the name until the person edits it.
+ * The service fields: the view owns the <form>, the summary and the buttons. Every list is
+ * entered a row at a time (EntryListField): items accepted, other names and areas served above
+ * Item categories; conditions, things not accepted and before-you-go steps after the address.
+ * Then Access, a checklist of common facts with notes (AccessChecklist), and Opening hours, a
+ * weekly editor with notes (OpeningHoursEditor), whose week becomes the line "Open now" reads.
+ * Item categories lists `categories` (the twelve plus those an admin added) and any id the draft
+ * holds that the list does not, marked "not in the list" and never dropped; an admin
+ * (`canAddCategories`) can create a shared category in place (`createCategory`), which is ticked
+ * when the service has room for it.
+ * "Mark checked today" sets the Melbourne day of the press; the source badge says, against `now`,
+ * how stale it is past 180 days; the address and the map position are one group
+ * (ServiceLocationFields), whose position comes from looking the address up, never from typed
+ * coordinates. The id appears on a create only and follows the name until the person edits it.
  */
 const props = defineProps({
   modelValue: { type: Object, required: true },
   errors: { type: Object, default: () => ({}) },
   isNew: { type: Boolean, default: false },
   now: { type: Date, required: true },
+  // `{ id, label }` for every category the page knows; the twelve until the page passes more.
+  categories: { type: Array, default: () => ITEM_CATEGORIES },
+  categoryStatus: { type: String, default: 'ready' },
+  canAddCategories: { type: Boolean, default: false },
+  createCategory: { type: Function, default: null },
 })
 const emit = defineEmits(['update:modelValue'])
 
-const ACTIONS = ['repair', 'reuse', 'recycle']
 const draft = computed(() => props.modelValue)
 const update = (changes) => emit('update:modelValue', { ...props.modelValue, ...changes })
 const field = (name) => ({
@@ -56,6 +80,140 @@ const groupError = (name) => (props.errors[name] ? `service-${name}-error` : und
 // The press reads the clock, so a page left open past midnight stamps the day it is pressed.
 const markCheckedToday = () => update({ sourceCheckedAt: melbourneDayKey(new Date()) })
 const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.slice(1)}`
+// The lists entered a row at a time: `noun` words the hint ("One item per row: …"), `entryLabel`
+// names each row ("Item 2", "Remove item 2"), `countNoun` the count line near the limit; the
+// bounds are the validator's.
+const entryLists = (lists) =>
+  Object.freeze(
+    lists.map((list) => ({
+      ...list,
+      ...SERVICE_ENTRY_LISTS[list.name],
+      hint: list.hint ?? entryListHint(list.noun, SERVICE_ENTRY_LISTS[list.name]),
+    })),
+  )
+const UPPER_LISTS = entryLists([
+  {
+    name: 'acceptedItems',
+    legend: 'Items accepted',
+    noun: 'item',
+    entryLabel: 'Item',
+    addLabel: 'Add item',
+    countNoun: 'items',
+  },
+  {
+    name: 'aliases',
+    legend: 'Other names people use',
+    noun: 'name',
+    entryLabel: 'Name',
+    addLabel: 'Add name',
+    countNoun: 'names',
+  },
+  {
+    name: 'searchAreas',
+    legend: 'Suburbs and areas served',
+    noun: 'suburb or area',
+    entryLabel: 'Area',
+    addLabel: 'Add area',
+    countNoun: 'areas',
+  },
+])
+// The conditions a drop-off must meet and the things the place does not take are two lists, as
+// on an activity (accepted and excluded conditions).
+const LOWER_LISTS = entryLists([
+  {
+    name: 'acceptanceConditions',
+    legend: 'Conditions',
+    hint: `What a drop-off must meet to be accepted. ${entryListHint('condition', SERVICE_ENTRY_LISTS.acceptanceConditions)}`,
+    entryLabel: 'Condition',
+    addLabel: 'Add condition',
+    countNoun: 'conditions',
+  },
+  {
+    name: 'excludedConditions',
+    legend: 'Not accepted',
+    hint: `Things this place does not take. ${entryListHint('thing', SERVICE_ENTRY_LISTS.excludedConditions)}`,
+    entryLabel: 'Thing not accepted',
+    addLabel: 'Add a thing not accepted',
+    countNoun: 'things not accepted',
+  },
+  {
+    name: 'preparation',
+    legend: 'Before you go',
+    noun: 'step',
+    entryLabel: 'Step',
+    addLabel: 'Add step',
+    countNoun: 'steps',
+  },
+])
+// One list's EntryListField props: the first row's id is `service-<field>`, so the page can focus
+// the field by its id.
+const listProps = (list) => ({
+  id: `service-${list.name}`,
+  legend: list.legend,
+  hint: list.hint,
+  entries: draft.value[list.name],
+  entryLabel: list.entryLabel,
+  addLabel: list.addLabel,
+  countNoun: list.countNoun,
+  maximum: list.maximum,
+  entryMaximum: list.entryMaximum,
+  error: props.errors[list.name] ?? '',
+})
+
+// The categories to tick: the page's list, then any id the draft holds that the list does not
+// (kept and shown, so the person can see it and untick it).
+const categoryOptions = computed(() => {
+  const known = new Set(props.categories.map((category) => category.id))
+  const unlisted = draft.value.itemCategories
+    .filter((id) => !known.has(id))
+    .map((id) => ({ id, label: id, unlisted: true }))
+  return [...props.categories, ...unlisted]
+})
+const optionLabel = (category) =>
+  category.unlisted ? `${category.id} (not in the list)` : categoryLabel(category.label)
+
+const categoriesGroup = ref(null)
+const addCategoryButton = ref(null)
+const addingCategory = ref(false)
+const categoryMessage = ref('')
+const openCategoryPanel = () => {
+  categoryMessage.value = ''
+  addingCategory.value = true
+}
+const closeCategoryPanel = async () => {
+  addingCategory.value = false
+  await nextTick()
+  addCategoryButton.value?.$el?.focus()
+}
+// After a create (or a name that already exists) the area closes; the category is ticked when the
+// service has room for it, the status line says what happened, and the focus goes to the
+// category's checkbox, or back to Add new category if the list does not show it yet.
+const onCategoryCreated = async ({ outcome, id, label }) => {
+  addingCategory.value = false
+  const name = categoryLabel(label)
+  const ticked = props.modelValue.itemCategories
+  if (ticked.includes(id)) {
+    categoryMessage.value = `${name} is already a category and is ticked.`
+  } else if (ticked.length >= MAX_ITEM_CATEGORIES) {
+    const lead =
+      outcome === 'created'
+        ? `Added ${name}. Other services can use it now.`
+        : `${name} is already a category.`
+    categoryMessage.value = `${lead} This service already has ${MAX_ITEM_CATEGORIES} categories: untick one, then tick ${name}.`
+  } else {
+    update({ itemCategories: [...ticked, id] })
+    categoryMessage.value =
+      outcome === 'created'
+        ? `Added ${name} and ticked it. Other services can use it now; this service keeps it when you save.`
+        : `${name} is already a category, so it is ticked now.`
+  }
+  await nextTick()
+  const checkbox = categoriesGroup.value?.querySelector(`input[value="${id}"]`)
+  ;(checkbox ?? addCategoryButton.value?.$el)?.focus()
+}
+
+// The record the form holds: a lookup still running for another record must not land here.
+const recordKey = computed(() => (props.isNew ? '' : props.modelValue.id))
 </script>
 
 <template>
@@ -93,7 +251,7 @@ const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.
 
     <fieldset class="record-form__group" :aria-describedby="groupError('actionTypes')">
       <legend>Actions</legend>
-      <label v-for="action in ACTIONS" :key="action" class="record-form__check">
+      <label v-for="action in SERVICE_ACTIONS" :key="action" class="record-form__check">
         <input
           type="checkbox"
           :value="action"
@@ -121,34 +279,25 @@ const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.
       </template>
     </FormField>
 
-    <FormField
-      v-for="list in [
-        { name: 'acceptedItems', label: 'Items accepted', required: true },
-        { name: 'aliases', label: 'Other names people use', required: true },
-        { name: 'searchAreas', label: 'Suburbs and areas served', required: true },
-      ]"
+    <EntryListField
+      v-for="list in UPPER_LISTS"
       :key="list.name"
-      v-bind="field(list.name)"
-      :label="list.label"
-      hint="One per line."
-      :required="list.required"
-    >
-      <template #default="{ control }">
-        <textarea
-          v-bind="control"
-          class="form-control"
-          rows="4"
-          dir="auto"
-          :value="draft[list.name]"
-          @input="update({ [list.name]: $event.target.value })"
-        ></textarea>
-      </template>
-    </FormField>
+      v-bind="listProps(list)"
+      @update:entries="update({ [list.name]: $event })"
+    />
 
-    <fieldset class="record-form__group" :aria-describedby="groupError('itemCategories')">
+    <fieldset
+      ref="categoriesGroup"
+      class="record-form__group"
+      :aria-describedby="groupError('itemCategories')"
+    >
       <legend>Item categories</legend>
+      <p v-if="categoryStatus === 'error'" class="record-form__note">
+        The shared category list could not be loaded, so categories an admin added may be missing;
+        the built-in ones are shown.
+      </p>
       <div class="record-form__checks">
-        <label v-for="category in ITEM_CATEGORIES" :key="category.id" class="record-form__check">
+        <label v-for="category in categoryOptions" :key="category.id" class="record-form__check">
           <input
             type="checkbox"
             :value="category.id"
@@ -156,75 +305,59 @@ const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.
             :aria-invalid="errors.itemCategories ? 'true' : undefined"
             @change="toggle('itemCategories', category.id, $event.target.checked)"
           />
-          {{ categoryLabel(category.label) }}
+          <span dir="auto">{{ optionLabel(category) }}</span>
         </label>
       </div>
+      <NewCategoryPanel
+        v-if="canAddCategories && createCategory && addingCategory"
+        :create-category="createCategory"
+        @created="onCategoryCreated"
+        @cancel="closeCategoryPanel"
+      />
+      <AppButton
+        v-else-if="canAddCategories && createCategory"
+        ref="addCategoryButton"
+        variant="secondary"
+        class="record-form__add"
+        @click="openCategoryPanel"
+      >
+        Add new category
+      </AppButton>
+      <p class="record-form__status" role="status">{{ categoryMessage }}</p>
       <p v-if="errors.itemCategories" id="service-itemCategories-error" class="record-form__error">
         {{ errors.itemCategories }}
       </p>
     </fieldset>
 
-    <FormField v-bind="field('address')" label="Street address" hint="Leave empty when unknown.">
-      <template #default="{ control }">
-        <input
-          v-bind="control"
-          class="form-control"
-          type="text"
-          dir="auto"
-          :value="draft.address"
-          @input="update({ address: $event.target.value })"
-        />
-      </template>
-    </FormField>
-    <FormField v-bind="field('suburb')" label="Suburb" required>
-      <template #default="{ control }">
-        <input
-          v-bind="control"
-          class="form-control"
-          type="text"
-          dir="auto"
-          :value="draft.suburb"
-          @input="update({ suburb: $event.target.value })"
-        />
-      </template>
-    </FormField>
-    <FormField v-bind="field('postcode')" label="Postcode" required>
-      <template #default="{ control }">
-        <input
-          v-bind="control"
-          class="form-control"
-          type="text"
-          inputmode="numeric"
-          maxlength="4"
-          :value="draft.postcode"
-          @input="update({ postcode: $event.target.value })"
-        />
-      </template>
-    </FormField>
+    <ServiceLocationFields
+      :model-value="draft.location"
+      :errors="errors"
+      :service-name="draft.name"
+      :record-key="recordKey"
+      @update:model-value="update({ location: $event })"
+    />
 
-    <FormField
-      v-for="list in [
-        { name: 'acceptanceConditions', label: 'Acceptance conditions' },
-        { name: 'preparation', label: 'Before you go' },
-        { name: 'access', label: 'Access' },
-        { name: 'openingHours', label: 'Opening hours' },
-      ]"
+    <EntryListField
+      v-for="list in LOWER_LISTS"
       :key="list.name"
-      v-bind="field(list.name)"
-      :label="list.label"
-      hint="One per line; optional."
-    >
-      <template #default="{ control }">
-        <textarea
-          v-bind="control"
-          class="form-control"
-          rows="3"
-          dir="auto"
-          :value="draft[list.name]"
-          @input="update({ [list.name]: $event.target.value })"
-        ></textarea>
-      </template>
-    </FormField>
+      v-bind="listProps(list)"
+      @update:entries="update({ [list.name]: $event })"
+    />
+
+    <AccessChecklist
+      id="service-access"
+      :model-value="draft.access"
+      :error="errors.access ?? ''"
+      @update:model-value="update({ access: $event })"
+    />
+
+    <OpeningHoursEditor
+      id="service-openingHours"
+      :model-value="draft.openingHours"
+      :error="errors.openingHours ?? ''"
+      :notes-error="errors.openingHoursNotes ?? ''"
+      @update:model-value="update({ openingHours: $event })"
+    />
 
     <FormField v-bind="field('cost')" label="Cost" hint="Optional.">
       <template #default="{ control }">
@@ -292,85 +425,6 @@ const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.
       <p v-if="staleDays !== null" class="staff-badge">{{ staleSourceLabel(staleDays) }}</p>
       <AppButton variant="secondary" @click="markCheckedToday"> Mark checked today </AppButton>
     </fieldset>
-
-    <fieldset class="record-form__group">
-      <legend>Map</legend>
-      <label class="record-form__check">
-        <input
-          id="service-showOnMap"
-          type="checkbox"
-          :checked="draft.showOnMap"
-          @change="update({ showOnMap: $event.target.checked })"
-        />
-        Show on map
-      </label>
-      <template v-if="draft.showOnMap">
-        <FormField v-bind="field('latitude')" label="Latitude" required>
-          <template #default="{ control }">
-            <input
-              v-bind="control"
-              class="form-control"
-              type="text"
-              inputmode="decimal"
-              :value="draft.latitude"
-              @input="update({ latitude: $event.target.value })"
-            />
-          </template>
-        </FormField>
-        <FormField v-bind="field('longitude')" label="Longitude" required>
-          <template #default="{ control }">
-            <input
-              v-bind="control"
-              class="form-control"
-              type="text"
-              inputmode="decimal"
-              :value="draft.longitude"
-              @input="update({ longitude: $event.target.value })"
-            />
-          </template>
-        </FormField>
-        <FormField
-          v-bind="field('precision')"
-          label="Precision"
-          :hint="GEO_PRECISION_HELP"
-          required
-        >
-          <template #default="{ control }">
-            <select
-              v-bind="control"
-              class="form-control"
-              :value="draft.precision"
-              @change="update({ precision: $event.target.value })"
-            >
-              <option value="venue">Venue</option>
-              <option value="area">Area</option>
-            </select>
-          </template>
-        </FormField>
-        <FormField v-bind="field('geoSourceUrl')" label="Location source link" required>
-          <template #default="{ control }">
-            <input
-              v-bind="control"
-              class="form-control"
-              type="url"
-              :value="draft.geoSourceUrl"
-              @input="update({ geoSourceUrl: $event.target.value })"
-            />
-          </template>
-        </FormField>
-        <FormField v-bind="field('geoCheckedAt')" label="Location checked" required>
-          <template #default="{ control }">
-            <input
-              v-bind="control"
-              class="form-control"
-              type="date"
-              :value="draft.geoCheckedAt"
-              @input="update({ geoCheckedAt: $event.target.value })"
-            />
-          </template>
-        </FormField>
-      </template>
-    </fieldset>
   </div>
 </template>
 
@@ -411,6 +465,17 @@ const categoryLabel = (label) => `${label[0].toLocaleUpperCase('en-AU')}${label.
   color: var(--color-danger);
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.record-form__note,
+.record-form__status {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.record-form__add {
+  justify-self: start;
 }
 
 .staff-badge {

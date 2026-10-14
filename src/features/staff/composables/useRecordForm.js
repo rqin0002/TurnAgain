@@ -14,11 +14,13 @@ import { DUPLICATE_ID_MESSAGE } from '../data/staffWrites.js'
  * lists the person's changed fields beside the current values; nothing is merged on its own, so a
  * Save straight after Reload writes the latest record and no stale field. A changed field
  * the latest record locks (`lockedFields(latest)`: a session with bookings keeps its time,
- * venue and activity) is listed as `locked` and "Use mine" is refused for it. A dirty form asks
- * before the page changes: leaving its route, or the same route moving to another record (history
- * between two edit pages keeps the instance); a query or hash change does not ask. The instance
- * is reused across records, so a save or a Reload still in flight when the form is reset (the
- * next record, or the form unmounted) settles without touching the new draft: `submit` then
+ * venue and activity) is listed as `locked` and "Use mine" is refused for it. A form with unsaved
+ * changes asks before the page changes: a dirty draft, or changes a Reload still lists (the
+ * person's typed values, a locked one included, until "Use mine" takes them off the list or a
+ * save clears it). It asks on leaving its route, or the same route moving to another record
+ * (history between two edit pages keeps the instance); a query or hash change does not ask. The
+ * instance is reused across records, so a save or a Reload still in flight when the form is reset
+ * (the next record, or the form unmounted) settles without touching the new draft: `submit` then
  * resolves null and the view skips its saved epilogue. `fieldOf` maps a stored field a
  * classification names to the form's field (the identity by default).
  */
@@ -59,6 +61,8 @@ export function useRecordForm({
     Object.keys(draft.value).filter((key) => !sameValue(draft.value[key], baseline.value[key])),
   )
   const dirty = computed(() => dirtyFields.value.length > 0)
+  // Changes a Reload listed are not in the draft any more, but they are still the person's work.
+  const unsaved = computed(() => dirty.value || conflictFields.value.length > 0)
   const summary = computed(() => Object.values(errors.value).filter(Boolean))
   const submitting = computed(() => state.value === 'saving')
   const message = computed(() =>
@@ -168,7 +172,7 @@ export function useRecordForm({
   // carries it over, so the edit page a create becomes still asks); the update guard covers the
   // same record with other params.
   const confirmLeave = (to, from) => {
-    if (to.path === from.path || !dirty.value || state.value === 'saved') return true
+    if (to.path === from.path || !unsaved.value || state.value === 'saved') return true
     return window.confirm(LEAVE_CONFIRM)
   }
   onBeforeRouteLeave(confirmLeave)
