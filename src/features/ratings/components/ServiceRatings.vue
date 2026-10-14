@@ -54,6 +54,15 @@ const privateConnectionError = computed(() =>
 const privatePanelTitle = computed(() =>
   privateStatus.value === 'error' ? 'Your rating could not be loaded' : 'Your rating was not saved',
 )
+// A refusal (`permission`) is not undone by saving again, so only other failures invite a retry.
+const invitesSaveRetry = computed(
+  () => privateStatus.value === 'ready' && privateError.value?.code !== 'permission',
+)
+// An account that may not rate (staff, admin) and a listing that cannot be rated get the summary
+// alone, laid across the row.
+const showsEditor = computed(
+  () => summaryStatus.value !== 'unrateable' && privateStatus.value !== 'read-only',
+)
 let lastSaveInput = null
 const editorId = computed(() => `rating-editor-${props.serviceId}`)
 // Service content arrives after the router's initial hash scroll. Complete an
@@ -84,6 +93,15 @@ watch(summaryStatus, async (status, previous) => {
   const focusWasInEditor =
     focused === null || focused === document.body || editor.value?.contains(focused) === true
   if (!focusWasInEditor) return
+  await nextTick()
+  ratingsHeading.value?.focus({ preventScroll: true })
+})
+
+// The editor also closes when the signed-in account turns out not to be a member's (its role
+// changed while the page was open). Focus the person had inside it moves to the heading rather
+// than the body; focus elsewhere, and a page that opens without an editor, are left alone.
+watch(privateStatus, async (status) => {
+  if (status !== 'read-only' || editor.value?.contains(document.activeElement) !== true) return
   await nextTick()
   ratingsHeading.value?.focus({ preventScroll: true })
 })
@@ -144,7 +162,10 @@ const retryPrivate = async () => {
       <p>Experiences shared by people using TurnAgain.</p>
     </header>
 
-    <div class="service-ratings__layout">
+    <div
+      class="service-ratings__layout"
+      :class="{ 'service-ratings__layout--summary-only': !showsEditor }"
+    >
       <div class="service-ratings__evidence">
         <p v-if="summaryStatus === 'loading'" class="visually-hidden" role="status">
           Loading community ratings…
@@ -180,40 +201,44 @@ const retryPrivate = async () => {
           </div>
         </div>
 
-        <a
-          v-if="sourceUrl"
-          class="rating-provider-link"
-          :href="sourceUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Check provider details<span class="visually-hidden"> (opens in a new tab)</span>
-        </a>
+        <div class="service-ratings__guidance">
+          <a
+            v-if="sourceUrl"
+            class="rating-provider-link"
+            :href="sourceUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Check provider details<span class="visually-hidden"> (opens in a new tab)</span>
+          </a>
 
-        <details class="rating-explainer">
-          <summary>What these ratings can tell you</summary>
-          <ul>
-            <li>
-              Each account has one score per service. Updating it replaces the previous score.
-            </li>
-            <li>
-              The average includes all submitted scores. The distribution shows where experiences
-              differ. Percentages are rounded.
-            </li>
-            <li>
-              Visits are not independently verified. Ratings do not confirm eligibility, opening
-              hours or whether an item will be accepted.
-            </li>
-            <li>
-              Written notes are private to their author and are not part of this public summary.
-            </li>
-          </ul>
-          <p>Check the linked provider source before travelling.</p>
-        </details>
+          <details class="rating-explainer">
+            <summary>What these ratings can tell you</summary>
+            <ul>
+              <li>
+                Each member account has one score per service. Updating it replaces the previous
+                score.
+              </li>
+              <li>Staff and admin accounts see the community ratings but cannot rate a service.</li>
+              <li>
+                The average includes all submitted scores. The distribution shows where experiences
+                differ. Percentages are rounded.
+              </li>
+              <li>
+                Visits are not independently verified. Ratings do not confirm eligibility, opening
+                hours or whether an item will be accepted.
+              </li>
+              <li>
+                Written notes are private to their author and are not part of this public summary.
+              </li>
+            </ul>
+            <p>Check the linked provider source before travelling.</p>
+          </details>
+        </div>
       </div>
 
       <section
-        v-if="summaryStatus !== 'unrateable'"
+        v-if="showsEditor"
         ref="editor"
         class="service-ratings__editor"
         :aria-labelledby="editorId"
@@ -274,7 +299,7 @@ const retryPrivate = async () => {
             />
             <div v-else-if="privateErrorMessage" class="service-ratings__private-error">
               <p class="service-ratings__error" role="alert">{{ privateErrorMessage }}</p>
-              <p v-if="privateStatus === 'ready'" class="service-ratings__muted">
+              <p v-if="invitesSaveRetry" class="service-ratings__muted">
                 Your changes are still here. Try saving again.
               </p>
               <button
@@ -625,6 +650,24 @@ const retryPrivate = async () => {
   .service-ratings__layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: clamp(2rem, 4vw, 3.5rem);
+  }
+
+  /* Without the editor the evidence spans the row: the summary keeps the first column and the
+     provider link and explainer take the second, so no empty column is left where the editor
+     would be. */
+  .service-ratings__layout--summary-only {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .service-ratings__layout--summary-only .service-ratings__evidence {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: clamp(2rem, 4vw, 3.5rem);
+  }
+
+  .service-ratings__layout--summary-only .service-ratings__guidance > :first-child {
+    margin-top: 0;
   }
 }
 

@@ -38,6 +38,10 @@ const reviewDescription = computed(() =>
     .join(' '),
 )
 const reviewErrorMessage = computed(() => errors.reviewText.replace(/^Review/u, 'Note'))
+// A saved note a save would now refuse stays in the form for the person to correct; the message
+// gives the validator's reason in terms of the saved note.
+const savedNoteError = (reason) =>
+  `${reason.replace(/^Review/u, 'Your saved note')} Replace or clear it before saving.`
 
 watch(
   () => props.rating,
@@ -46,9 +50,7 @@ watch(
     fields.reviewText = rating?.reviewText ?? ''
     noteOpen.value = Boolean(rating?.reviewText)
     errors.score = ''
-    errors.reviewText = rating?.reviewError
-      ? 'Your saved note contains unsupported characters. Replace or clear it before saving.'
-      : ''
+    errors.reviewText = rating?.reviewError ? savedNoteError(rating.reviewError) : ''
     summaryError.value = ''
   },
   { immediate: true },

@@ -36,15 +36,21 @@ const isValidRepositoryResult = (result) =>
 
 /**
  * Coordinates the public rating summary with the signed-in member's own rating for one service.
- * Reads follow the auth store's `status`, `user` and `identityEpoch`: private state
- * waits while the store restores, is anonymous when nobody is signed in, and reloads when the
- * identity changes under the same account. Repository work is not cancelled; generation guards
- * keep stale work from changing the UI. Writes go straight to the repository (no
- * pending-write queue); the summary a save returns replaces the public one.
+ * Only a member account has an own rating: a signed-in staff or admin account (or any account
+ * whose role is not `member`) is 'read-only', sees the summary alone and never reads or saves a
+ * rating. The role is the auth store's `user.role`, read from the account's profile, never how
+ * the page was reached; the Firestore rules refuse a rating from any other account whatever the
+ * page shows. Reads follow the store's `status`, `user` and `identityEpoch`: private state waits
+ * while the store restores, is anonymous when nobody is signed in, and starts again when the
+ * identity or its role changes under the same account (the own rating, errors and notices are
+ * dropped, and `formKey` changes so a form keyed on it starts afresh). Repository work is not
+ * cancelled; generation guards keep stale work from changing the UI. Writes go straight to the
+ * repository (no pending-write queue); the summary a save returns replaces the public one.
  *
  * @param {object} options
  * @param {import('vue').MaybeRefOrGetter<string>} options.serviceId Canonical resolved service ID.
- * @param {object} [options.authStore] Injectable store with `status`, `user`, `identityEpoch`.
+ * @param {object} [options.authStore] Injectable store with `status`, `user` (`uid`, `role`) and
+ *   `identityEpoch`.
  * @param {object} [options.repository] Injectable rating repository.
  * @returns {{
  *   formKey: import('vue').ComputedRef<string>,
@@ -52,7 +58,7 @@ const isValidRepositoryResult = (result) =>
  *   myRating: import('vue').Ref<object | null>,
  *   privateError: import('vue').Ref<{ code: string, message: string } | null>,
  *   privateErrorMessage: import('vue').Ref<string>,
- *   privateStatus: import('vue').Ref<'idle' | 'waiting-for-auth' | 'anonymous' | 'loading' | 'ready' | 'saving' | 'error'>,
+ *   privateStatus: import('vue').Ref<'idle' | 'waiting-for-auth' | 'anonymous' | 'read-only' | 'loading' | 'ready' | 'saving' | 'error'>,
  *   reloadMyRating: () => Promise<void>,
  *   reloadSummary: () => Promise<void>,
  *   saveRating: (input: unknown) => Promise<object | null>,
@@ -77,15 +83,19 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
   const identityEpoch = computed(() =>
     Number.isInteger(resolvedAuthStore.identityEpoch) ? resolvedAuthStore.identityEpoch : 0,
   )
-  const hasPrivateAccess = computed(
-    () =>
-      currentServiceId.value !== '' &&
-      resolvedAuthStore.status === 'signed-in' &&
-      currentUserId.value !== '',
+  const currentRole = computed(() => resolvedAuthStore.user?.role ?? null)
+  const isSignedIn = computed(
+    () => resolvedAuthStore.status === 'signed-in' && currentUserId.value !== '',
   )
-  // Restoring is the only state that may still become signed-in without the user acting.
-  const idlePrivateStatus = () =>
-    resolvedAuthStore.status === 'restoring' ? 'waiting-for-auth' : 'anonymous'
+  // A missing or unknown role never rates: only an exact 'member' does.
+  const canRate = computed(() => isSignedIn.value && currentRole.value === 'member')
+  const hasPrivateAccess = computed(() => currentServiceId.value !== '' && canRate.value)
+  // Restoring is the only state that may still become signed-in without the user acting. A
+  // signed-in account that may not rate is read-only, never anonymous: it is not asked to sign in.
+  const idlePrivateStatus = () => {
+    if (resolvedAuthStore.status === 'restoring') return 'waiting-for-auth'
+    return isSignedIn.value && !canRate.value ? 'read-only' : 'anonymous'
+  }
 
   const summary = ref(null)
   const summaryStatus = ref('idle')
@@ -256,7 +266,7 @@ export function useServiceRatings({ serviceId, authStore, repository } = {}) {
 
   watch(currentServiceId, loadSummary, { flush: 'sync', immediate: true })
   watch(
-    [currentServiceId, () => resolvedAuthStore.status, currentUserId, identityEpoch],
+    [currentServiceId, () => resolvedAuthStore.status, currentUserId, currentRole, identityEpoch],
     () => {
       if (hasPrivateAccess.value) {
         void loadMyRating()

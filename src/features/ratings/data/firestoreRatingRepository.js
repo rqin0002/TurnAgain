@@ -2,7 +2,11 @@ import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore
 
 import { firebaseAuth } from '@/firebase/firebaseAuthClient.js'
 import { firestoreLite } from '@/firebase/firebaseFirestoreLiteClient.js'
-import { RepositoryError, toRepositoryError } from '@/shared/data/RepositoryError.js'
+import {
+  RepositoryError,
+  notifyPermissionDenied,
+  toRepositoryError,
+} from '@/shared/data/RepositoryError.js'
 import { isPlainObject, isValidId } from '@/shared/domain/catalogueValidation.js'
 
 import { projectRatingSummary } from '../domain/rankServices.js'
@@ -12,6 +16,7 @@ import { storeRatingSummary } from './ratingSummaryRepository.js'
 /**
  * Ratings on Firestore Lite: the summary must pre-exist and is never reset; a
  * missing or malformed summary is `not-found` ("can't be rated yet"), never a zero.
+ * Only an active member account saves a rating: the save transaction checks the profile it reads.
  * Every error is a RepositoryError; the composable renders `message`.
  */
 
@@ -29,6 +34,8 @@ const hasExactFields = (candidate, fields) =>
   Object.keys(candidate).length === fields.length &&
   fields.every((field) => Object.hasOwn(candidate, field))
 
+// A stored note is measured in UTF-16 code units, the unit of the validator, the form's counter
+// and the rules' size(), so an emoji counts as two everywhere.
 const projectRating = (candidate, serviceId, userId) => {
   const createdAt = timestampMillis(candidate?.createdAt)
   const updatedAt = timestampMillis(candidate?.updatedAt)
@@ -39,7 +46,7 @@ const projectRating = (candidate, serviceId, userId) => {
     (candidate.reviewText !== null &&
       (typeof candidate.reviewText !== 'string' ||
         candidate.reviewText.length === 0 ||
-        Array.from(candidate.reviewText).length > 1000)) ||
+        candidate.reviewText.length > 1000)) ||
     candidate.status !== 'active' ||
     createdAt === null ||
     updatedAt === null ||
@@ -77,7 +84,11 @@ const notRateable = () =>
 const unavailableService = () =>
   new RepositoryError('not-found', 'This service is not available for ratings.')
 const ineligible = () =>
-  new RepositoryError('permission', 'Sign in with an active account to rate this service.')
+  new RepositoryError('permission', 'Sign in with an active member account to rate this service.')
+// For an active account that is not a member's (staff, admin): it is already signed in, so the
+// copy says what it may not do instead of asking it to sign in.
+const memberOnly = () =>
+  new RepositoryError('permission', 'Only member accounts can rate services.')
 const malformed = () =>
   new RepositoryError('invalid-data', 'Ratings are temporarily unavailable.', {
     details: { reason: 'stored' },
@@ -155,8 +166,13 @@ export async function saveMyRating(serviceId, userId, input) {
       if (!serviceSnapshot.exists() || serviceSnapshot.data().status !== 'published') {
         throw unavailableService()
       }
-      if (!profileSnapshot.exists() || profileSnapshot.data().status !== 'active') {
-        throw ineligible()
+      // Only an active member account rates (the rules refuse anyone else as well). The profile
+      // read here decides, not the role or status the page has cached: a refusal means that copy
+      // is out of date, so the auth store is asked to read the profile again.
+      const profile = profileSnapshot.exists() ? profileSnapshot.data() : null
+      if (profile?.status !== 'active' || profile.role !== 'member') {
+        notifyPermissionDenied()
+        throw profile?.status === 'active' ? memberOnly() : ineligible()
       }
 
       const currentSummary = summarySnapshot.exists()
