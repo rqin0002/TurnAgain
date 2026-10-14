@@ -7,7 +7,7 @@ import { deepFreeze } from '@/shared/domain/deepFreeze.js'
  */
 
 export const API_BASE_URL = 'https://australia-southeast1-fit5032-7b50f.cloudfunctions.net/api'
-export const API_DOCS_URL = 'https://github.com/rqin0002/TurnAgain/blob/main/docs/API.md'
+export const API_DOCS_URL = 'https://github.com/rqin0002/TurnAgain/blob/main/API.md'
 export const CONTACT_URL = 'https://github.com/rqin0002/TurnAgain/issues'
 
 export const ABOUT_ANCHORS = Object.freeze(['checked', 'contact', 'privacy', 'api'])
@@ -184,7 +184,7 @@ export const ABOUT_CONTENT = deepFreeze({
         title: 'Available now',
         items: [
           'Search by item name, suburb or Victorian postcode—or browse without entering either.',
-          'Filter selected services by repair, reuse or recycling and sort results by name.',
+          'Filter selected services by repair, reuse or recycling and sort results by name, by distance from the place you chose, or by rating.',
           'Open a service record to see listed items, its linked source and catalogue check date.',
           'View community rating summaries and, after signing in, add or update your own rating.',
           'Save a service to your account so you can find it again.',
@@ -202,7 +202,7 @@ export const ABOUT_CONTENT = deepFreeze({
           'TurnAgain takes bookings only for the repair sessions it runs; other sessions, and any fees, are handled through the provider’s own process.',
           'Capacity is shown only when published; provider-managed availability must be checked with the provider.',
           'TurnAgain does not arrange collections or confirm that an item will be accepted.',
-          'Offline, TurnAgain is cached browsing of already-loaded pages: pages and results you opened in this session keep working without a connection, but a page you have not opened yet, and a fresh start, need a connection. There is no service worker.',
+          'Offline, TurnAgain is cached browsing of already-loaded pages: pages and results you opened during this visit keep working without a connection, but a page you have not opened yet, or reopening TurnAgain, needs a connection.',
         ],
       },
     ],
@@ -231,7 +231,7 @@ export const ABOUT_CONTENT = deepFreeze({
         'Your account: the display name and email you registered with, your role, and the services you save. Your email is used to verify the account and to send you the emails you ask for.',
         'Your ratings: one score per service and, if you write one, a private note that only you can read.',
         'A booking holds the name you give for the session register, your account’s email address at the time you book and, if you add one, a short note about what you are bringing. The name and email let TurnAgain send your confirmation and let staff see who is coming; the note is for staff only and is never put in an email.',
-        'A correction holds your message and, only if you give it, an email address for follow-up; only staff see it, in their corrections queue, and it is never exported.',
+        'A correction holds your message, an email address only if you give it and, when you are signed in, your account id (so staff can tell your reports from anonymous ones); only staff see it, in their corrections queue, and it is never exported.',
       ],
     },
     never: {
@@ -244,7 +244,7 @@ export const ABOUT_CONTENT = deepFreeze({
     handling: {
       title: 'How data moves',
       items: [
-        'Emails TurnAgain sends go through Brevo, an email delivery service, using the address on your account or booking. TurnAgain keeps a record of each send (its status and the names and sizes of any attachments), never the message itself.',
+        'Emails TurnAgain sends go through Brevo, an email delivery service, using the address on your account or booking. TurnAgain keeps a record of each send: its status, who asked for it, the address it went to, the subject of a staff email and the names and sizes of any attachments, never the body of the message.',
         'Staff can export participant lists for the sessions they run, and nothing else about members.',
         'Nothing is sold or shared for advertising. Sign in is by email and password through Firebase Authentication.',
       ],
@@ -261,7 +261,7 @@ export const ABOUT_CONTENT = deepFreeze({
     baseUrlLabel: 'Base URL',
     baseUrl: API_BASE_URL,
     curl: `curl "${API_BASE_URL}/services?q=repair&pageSize=1"`,
-    docs: { label: 'Read the API documentation (docs/API.md)', href: API_DOCS_URL },
+    docs: { label: 'Read the API documentation (API.md)', href: API_DOCS_URL },
   },
 
   help: {
