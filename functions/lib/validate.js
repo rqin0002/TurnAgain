@@ -9,10 +9,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 
 // One document id: a uid or a service, activity or session id, 1-128 letters, digits, '_' or '-',
 // starting with a letter or digit. It restates the rules' isValidId and
-// src/shared/domain/catalogueValidation.js because functions/ cannot import src/. A booking id
-// joins a uid and a session id with '_' and can reach 257 characters, so this pattern does not
-// cover it.
+// src/shared/domain/catalogueValidation.js because functions/ cannot import src/.
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
+// A booking id joins a uid and a session id with '_' (the rules' bookings create check), so it
+// holds at least one '_' and can reach 257 characters; assertBookingId checks that shape.
+const BOOKING_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,256}$/u
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
 export function invalidArgument(fields) {
@@ -34,6 +35,19 @@ export function requestData(request) {
 export function assertId(value, field) {
   if (isMissing(value)) fail(field, 'required')
   if (typeof value !== 'string' || !ID_PATTERN.test(value)) fail(field, 'invalid')
+  return value
+}
+
+/**
+ * A booking id as the rules store it: `<uid>_<sessionId>`, so the id alphabet, at least one '_'
+ * and at most 257 characters. The shape only: whether the booking exists, and whose it is, are
+ * the handler's reads.
+ */
+export function assertBookingId(value, field) {
+  if (isMissing(value)) fail(field, 'required')
+  if (typeof value !== 'string' || !BOOKING_ID_PATTERN.test(value) || !value.includes('_')) {
+    fail(field, 'invalid')
+  }
   return value
 }
 

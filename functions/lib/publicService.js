@@ -87,6 +87,7 @@ const PROJECTIONS = Object.freeze({
   geo: publicGeo,
   openingHours: stringList,
   acceptanceConditions: stringList,
+  excludedConditions: stringList,
   preparation: stringList,
   access: stringList,
   cost: (value) => (value === null || isString(value) ? value : undefined),

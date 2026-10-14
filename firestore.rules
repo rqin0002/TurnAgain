@@ -5,17 +5,22 @@ rules_version = '2';
 // ============================================================================
 // catalogues/current (public get): datasetId, schemaVersion, catalogueType,
 //   checkedAt, coverage, updatedAt.
+// itemCategories/catalogue (public get): categories (id -> label, terms,
+//   broadMatches), order, revision, updatedAt. Created with the twelve bundled
+//   categories (by the seed, or by the first category an admin adds); each
+//   later admin write appends exactly one category; never deleted.
 // services/{serviceId} (public when published; staff read any status): the
-//   22 keys of isValidService: id, name, actionTypes, acceptedItems,
+//   23 keys of isValidService: id, name, actionTypes, acceptedItems,
 //   aliases, summary, address, suburb, postcode, searchAreas, status, source
 //   map, createdAt, updatedAt, geo, itemCategories, acceptanceConditions,
-//   preparation, access, openingHours, cost, revision. Staff create (with the
-//   zero summary in the same batch) and update (revision + 1); the seed writes
-//   as the admin under the same rules; never deleted.
+//   excludedConditions, preparation, access, openingHours, cost, revision.
+//   Staff create (with the zero summary in the same batch) and update
+//   (revision + 1); the seed writes as the admin under the same rules; never
+//   deleted.
 // services/{serviceId}/aggregates/rating-summary (public get): ratingCount,
 //   ratingSum, five-bucket histogram, updatedAt.
-// services/{serviceId}/ratings/{uid} (owner only): score, reviewText, status,
-//   createdAt, updatedAt.
+// services/{serviceId}/ratings/{uid} (owner get; only a member account creates
+//   or updates its own): score, reviewText, status, createdAt, updatedAt.
 // users/{uid} (owner get; admin get, list and count): uid, email, displayName,
 //   role, status, revision, savedServiceIds, createdAt, updatedAt. Owner create
 //   and four update branches; never deleted.
@@ -41,8 +46,9 @@ rules_version = '2';
 //   the 20 keys of isValidBooking: uid, email, contactName, itemDescription,
 //   sessionId, activityId, activityTitle, venueName, address, suburb,
 //   postcode, startsAt, endsAt, status, reference, waitlistedAt, promotedAt,
-//   cancelledAt, createdAt, updatedAt. The owner creates, cancels and rebooks
-//   in one write with the session's counters; only promoteNextBooking
+//   cancelledAt, createdAt, updatedAt. The owner, an active member account,
+//   creates, cancels and rebooks in one write with the session's counters
+//   (staff and admin accounts make no booking); only promoteNextBooking
 //   (Admin SDK) promotes; never deleted.
 // emailLogs/{logId} (staff get and bounded list) and emailSends/{sendKey} (no
 //   client access): written by the two email functions with the Admin SDK.
@@ -87,11 +93,19 @@ service cloud.firestore {
         && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
+    // A single line of text: no C0 control (tab, line feed and carriage return included), DEL or C1.
+    function isSingleLineText(v) {
+      return v.matches('[^\\x00-\\x1F\\x7F-\\x9F]*');
+    }
+
+    // An address the rules store: lower-case, one '@' with a dot after it and, because that
+    // pattern alone admits a line break, a single line.
     function isValidEmail(value) {
       return value is string
         && value.size() >= 3
         && value.size() <= 254
         && value == value.lower()
+        && isSingleLineText(value)
         && value.matches('^[^@ ]+@[^@ ]+[.][^@ ]+$');
     }
 
@@ -238,6 +252,50 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    // The item-category catalogue document: exactly these four fields, 1 to 100 ids in `order`,
+    // each once, each with its entry in `categories` and no entry without an id in `order`.
+    function isValidItemCategoryCatalogue(data) {
+      return hasExactFields(data, ['categories', 'order', 'revision', 'updatedAt'])
+        && data.categories is map
+        && data.order is list
+        && data.order.size() >= 1
+        && data.order.size() <= 100
+        && data.order.toSet().size() == data.order.size()
+        && data.categories.size() == data.order.size()
+        && data.categories.keys().hasAll(data.order)
+        && data.revision is int
+        && data.updatedAt == request.time;
+    }
+
+    // One category an admin adds: a one-line name of 2 to 60 characters, 1 to 11 search terms of
+    // at most 60 (the name and up to ten more), and no broader categories (only the bundled
+    // twelve have those). Rules cannot loop, so only the first term is typed and bounded; the app
+    // checks every term.
+    function isValidAddedItemCategory(entry) {
+      return hasExactFields(entry, ['label', 'terms', 'broadMatches'])
+        && entry.label is string
+        && entry.label.size() >= 2
+        && entry.label.size() <= 60
+        && isSingleLineText(entry.label)
+        && entry.terms is list
+        && entry.terms.size() >= 1
+        && isStringList(entry.terms, 11, 60)
+        && entry.broadMatches is list
+        && entry.broadMatches.size() == 0;
+    }
+
+    // `after` is `before` with one more id at the end of `order` and that id's entry added to
+    // `categories`; every other entry is unchanged, so nothing is renamed, removed or reordered.
+    function appendsOneItemCategory(before, after) {
+      let added = after.order[before.order.size()];
+      return after.order == before.order.concat([added])
+        && isValidId(added)
+        && added.size() <= 40
+        && !(added in before.categories)
+        && after.categories.diff(before.categories).affectedKeys().hasOnly([added])
+        && isValidAddedItemCategory(after.categories[added]);
+    }
+
     function isValidProfile(data, uid) {
       return hasExactFields(
           data,
@@ -259,12 +317,15 @@ service cloud.firestore {
         && data.displayName is string
         && data.displayName.size() >= 1
         && data.displayName.size() <= 50
+        && isSingleLineText(data.displayName)
         && data.role in ['member', 'staff', 'admin']
         && data.status in ['active', 'disabled']
         && data.revision is int
         && data.revision >= 1
         && data.savedServiceIds is list
         && data.savedServiceIds.size() <= 100
+        // Rules cannot loop, so only the first id is checked; the app checks them all on read.
+        && (data.savedServiceIds.size() == 0 || isValidId(data.savedServiceIds[0]))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp
         && data.createdAt <= data.updatedAt;
@@ -363,6 +424,13 @@ service cloud.firestore {
         && profile.data.email == request.auth.token.email;
     }
 
+    // An active member account: the only role that rates a service or books a session. The role
+    // test is kept out of isActiveProfile, which every staff and admin write relies on; it reads
+    // the same users/{uid} document isActiveProfile reads.
+    function isActiveMember(uid) {
+      return isActiveProfile(uid) && get(profilePath(uid)).data.role == 'member';
+    }
+
     function hasStaffRole() {
       let profile = get(profilePath(request.auth.uid));
       return hasVerifiedIdentity()
@@ -413,9 +481,10 @@ service cloud.firestore {
         && isValidDateString(g.checkedAt);
     }
 
-    // The 22 keys of a stored service and the bounds serviceSchema.js
+    // The 23 keys of a stored service and the bounds serviceSchema.js
     // mirrors (name 1-150, summary 1-600, source.organisation 1-150, the list sizes, nullable
-    // address/suburb/postcode/cost).
+    // address/suburb/postcode/cost). Access holds up to 13 lines: the staff checklist's seven
+    // facts and six notes.
     function isValidService(d, id) {
       return hasExactFields(
           d,
@@ -437,6 +506,7 @@ service cloud.firestore {
             'geo',
             'itemCategories',
             'acceptanceConditions',
+            'excludedConditions',
             'preparation',
             'access',
             'openingHours',
@@ -472,8 +542,9 @@ service cloud.firestore {
         && (d.geo == null || isValidGeo(d.geo))
         && isStringList(d.itemCategories, 10, 40)
         && isStringList(d.acceptanceConditions, 8, 200)
+        && isStringList(d.excludedConditions, 20, 200)
         && isStringList(d.preparation, 8, 200)
-        && isStringList(d.access, 6, 200)
+        && isStringList(d.access, 13, 200)
         && isStringList(d.openingHours, 8, 100)
         && (d.cost == null || (d.cost is string && d.cost.size() <= 200))
         && d.revision is int
@@ -645,11 +716,6 @@ service cloud.firestore {
       return exists(p)
         && get(p).data.uid == request.auth.uid
         && get(p).data.sessionId == sessionId;
-    }
-
-    // A single line of text: no C0 control (tab, line feed and carriage return included), DEL or C1.
-    function isSingleLineText(v) {
-      return v.matches('[^\\x00-\\x1F\\x7F-\\x9F]*');
     }
 
     function hasNoControlChars(v) {
@@ -847,6 +913,25 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    match /itemCategories/{documentId} {
+      // Anyone reads the one document (an absent one reads as absent: nothing added yet). Only an
+      // active, verified admin writes it: the create (the seed, or the first category an admin
+      // adds) is checked for its shape and starts at revision 1; every later write appends exactly
+      // one valid category at revision + 1. The create's entries are not checked one by one (rules
+      // cannot loop); the seed and the app write only checked ones.
+      allow get: if documentId == 'catalogue';
+      allow create: if documentId == 'catalogue'
+        && isAdmin()
+        && isValidItemCategoryCatalogue(request.resource.data)
+        && request.resource.data.revision == 1;
+      allow update: if documentId == 'catalogue'
+        && isAdmin()
+        && isValidItemCategoryCatalogue(request.resource.data)
+        && request.resource.data.revision == resource.data.revision + 1
+        && appendsOneItemCategory(resource.data, request.resource.data);
+      allow list, delete: if false;
+    }
+
     match /services/{serviceId} {
       // Published content is public; a staff identity reads any status
       // (and an absent document, which the seed's plan needs to confirm a create). The repository
@@ -874,6 +959,8 @@ service cloud.firestore {
         allow get: if isPublishedService(serviceId) || hasStaffRole();
         allow list: if false;
 
+        // Moved only together with the caller's own rating in the same write
+        // (ratingMutationMatchesSummary), so the rating rules decide who may move it.
         allow update: if hasVerifiedIdentity()
           && isValidRatingSummary(resource.data)
           && isValidRatingSummary(request.resource.data)
@@ -918,9 +1005,11 @@ service cloud.firestore {
           && isActiveProfile(uid);
         allow list: if false;
 
+        // Only a member account rates: staff and admin accounts read the public summary like
+        // everyone else but never create or change a rating of their own (isActiveMember).
         allow create: if isOwner(uid)
           && isPublishedService(serviceId)
-          && isActiveProfile(uid)
+          && isActiveMember(uid)
           && isValidRating(request.resource.data)
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time
@@ -928,7 +1017,7 @@ service cloud.firestore {
 
         allow update: if isOwner(uid)
           && isPublishedService(serviceId)
-          && isActiveProfile(uid)
+          && isActiveMember(uid)
           && isValidRating(request.resource.data)
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.updatedAt == request.time
@@ -1004,7 +1093,7 @@ service cloud.firestore {
           )
           // The member's counter write moves by exactly the delta of the
           // caller's own booking written in the same request, with the status re-derived; revision
-          // never moves here.
+          // never moves here. Only an active member books, so only a member moves the counters.
           || (
             resource.data.status in ['scheduled', 'full']
             && request.resource.data.diff(resource.data).affectedKeys()
@@ -1013,7 +1102,7 @@ service cloud.firestore {
               == (request.resource.data.bookedCount == request.resource.data.capacity
                 ? 'full'
                 : 'scheduled')
-            && isActiveProfile(request.auth.uid)
+            && isActiveMember(request.auth.uid)
             && memberCountersMatchBooking(sessionId, resource.data, request.resource.data)
           )
         );
@@ -1068,10 +1157,12 @@ service cloud.firestore {
           (isActiveProfile(request.auth.uid) && resource.data.uid == request.auth.uid)
           || hasStaffRole()
         );
-      // A bookable session, snapshots equal to the session and the
-      // activity title, a seat only while one is free and nobody waits, and the session's
-      // counters moved by this booking in the same write.
-      allow create: if isActiveProfile(request.auth.uid)
+      // Bookings are made from member accounts only: staff and admin accounts keep the reads
+      // above (the registers) and make, cancel or rebook no booking of their own; a booking such
+      // an account made earlier stays stored. A bookable session, snapshots equal to the session
+      // and the activity title, a seat only while one is free and nobody waits, and the
+      // session's counters moved by this booking in the same write.
+      allow create: if isActiveMember(request.auth.uid)
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == request.auth.token.email
         && isValidBooking(request.resource.data, bookingId)
@@ -1108,7 +1199,7 @@ service cloud.firestore {
         )
         && (
           (
-            isActiveProfile(request.auth.uid)
+            isActiveMember(request.auth.uid)
             && resource.data.uid == request.auth.uid
             && resource.data.status in ['confirmed', 'waitlisted']
             && request.resource.data.status == 'cancelled'
@@ -1119,7 +1210,7 @@ service cloud.firestore {
             && get(sessionPath(resource.data.sessionId)).data.startsAt > request.time
           )
           || (
-            isActiveProfile(request.auth.uid)
+            isActiveMember(request.auth.uid)
             && resource.data.uid == request.auth.uid
             && resource.data.status == 'cancelled'
             && request.resource.data.status in ['confirmed', 'waitlisted']
