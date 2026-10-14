@@ -9,6 +9,7 @@ import { validatePasswordResetInput } from '@/features/auth/domain/authValidatio
 import { useAuthStore } from '@/features/auth/stores/authStore.js'
 import AppButton from '@/shared/components/AppButton.vue'
 import FormField from '@/shared/components/FormField.vue'
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 import { resolveSafeRedirect } from '@/shared/domain/safeRedirect.js'
 
 const route = useRoute()
@@ -33,10 +34,16 @@ const { values, errors, summary, submitting, submit, reset } = useAuthForm({
   },
 })
 
-const tryAnotherEmail = () => {
-  reset()
-  requested.value = false
-}
+// Try another email unmounts the inbox panel that holds it: when the button had focus, focus goes
+// to the email field of the form that comes back instead of falling to <body>.
+const tryAnotherEmail = () =>
+  focusAfterAction(
+    () => {
+      reset()
+      requested.value = false
+    },
+    () => document.getElementById('password-reset-email'),
+  )
 </script>
 
 <template>

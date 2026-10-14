@@ -58,6 +58,23 @@
   margin: 0 0 0.75rem;
 }
 
+/* A status region stays mounted while it is empty, so assistive technology is already watching
+   it when its text arrives. While empty it leaves the grid flow (no gap) and draws no box, yet it
+   stays in the accessibility tree, which display: none would not. */
+.auth-form__live:empty {
+  position: absolute;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+/* The sign-in page's verification notice and its resend button share one box while the resend
+   is offered; otherwise the wrapper draws nothing and adds no gap of its own. */
+.auth-form__verification:not(.auth-form__summary) {
+  display: contents;
+}
+
 .auth-form__submit {
   width: 100%;
 }

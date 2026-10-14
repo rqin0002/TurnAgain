@@ -46,6 +46,34 @@ const emailOnly = (input) => {
   return { isValid: !errors.email, values, errors }
 }
 
+// A password is used exactly as typed: no trimming, no whitespace folding.
+const rawPassword = (value) => (typeof value === 'string' ? value : '')
+
+/**
+ * The rule every new password follows, at registration and when it is changed: 8 to 128 Unicode
+ * code points, measured as typed. Returns the field's error, or '' when the password is allowed.
+ */
+const newPasswordError = (password, emptyMessage) => {
+  if (!password) {
+    return emptyMessage
+  }
+  if (stringLength(password) < PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`
+  }
+  if (stringLength(password) > PASSWORD_MAX_LENGTH) {
+    return 'Password must be 128 characters or fewer.'
+  }
+  return ''
+}
+
+/** The confirmation must equal the new password exactly. */
+const confirmationError = (confirmation, password, emptyMessage) => {
+  if (!confirmation) {
+    return emptyMessage
+  }
+  return confirmation === password ? '' : 'Passwords must match exactly.'
+}
+
 /**
  * @param {unknown} [input={}] Raw registration form fields.
  * @returns {{
@@ -60,14 +88,16 @@ export function validateRegistrationInput(input = {}) {
     displayName: normalizeText(fields.displayName),
     email: normalizeEmail(fields.email),
   }
-  const password = typeof fields.password === 'string' ? fields.password : ''
-  const passwordConfirmation =
-    typeof fields.passwordConfirmation === 'string' ? fields.passwordConfirmation : ''
+  const password = rawPassword(fields.password)
   const errors = {
     displayName: '',
     email: validateEmail(values.email),
-    password: '',
-    passwordConfirmation: '',
+    password: newPasswordError(password, 'Enter a password.'),
+    passwordConfirmation: confirmationError(
+      rawPassword(fields.passwordConfirmation),
+      password,
+      'Confirm your password.',
+    ),
   }
 
   if (!values.displayName) {
@@ -76,20 +106,6 @@ export function validateRegistrationInput(input = {}) {
     errors.displayName = 'Display name must be 50 characters or fewer.'
   } else if (!DISPLAY_NAME_PATTERN.test(values.displayName)) {
     errors.displayName = 'Use letters, spaces, apostrophes, full stops, and hyphens only.'
-  }
-
-  if (!password) {
-    errors.password = 'Enter a password.'
-  } else if (stringLength(password) < PASSWORD_MIN_LENGTH) {
-    errors.password = `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`
-  } else if (stringLength(password) > PASSWORD_MAX_LENGTH) {
-    errors.password = 'Password must be 128 characters or fewer.'
-  }
-
-  if (!passwordConfirmation) {
-    errors.passwordConfirmation = 'Confirm your password.'
-  } else if (passwordConfirmation !== password) {
-    errors.passwordConfirmation = 'Passwords must match exactly.'
   }
 
   return {
@@ -127,4 +143,36 @@ export function validatePasswordResetInput(input = {}) {
 /** The change-email form of the account page. */
 export function validateEmailChangeInput(input = {}) {
   return emailOnly(input)
+}
+
+/**
+ * The change-password form of the account page. The current password is only required: Auth
+ * decides whether it is right. The new password follows the registration rule and the
+ * confirmation must equal it exactly. No password is returned; the page hands the typed values
+ * straight to the auth store.
+ *
+ * @param {unknown} [input={}] Raw change-password form fields.
+ * @returns {{
+ *   isValid: boolean,
+ *   values: {},
+ *   errors: { currentPassword: string, newPassword: string, passwordConfirmation: string }
+ * }}
+ */
+export function validatePasswordChangeInput(input = {}) {
+  const fields = getInput(input)
+  const newPassword = rawPassword(fields.newPassword)
+  const errors = {
+    currentPassword: rawPassword(fields.currentPassword) ? '' : 'Enter your current password.',
+    newPassword: newPasswordError(newPassword, 'Enter a new password.'),
+    passwordConfirmation: confirmationError(
+      rawPassword(fields.passwordConfirmation),
+      newPassword,
+      'Confirm your new password.',
+    ),
+  }
+  return {
+    isValid: Object.values(errors).every((message) => !message),
+    values: {},
+    errors,
+  }
 }

@@ -1,11 +1,14 @@
 import {
   createUserWithEmailAndPassword,
   deleteUser,
+  EmailAuthProvider,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  updatePassword as firebaseUpdatePassword,
   updateProfile,
   verifyBeforeUpdateEmail,
 } from 'firebase/auth'
@@ -17,10 +20,11 @@ import { toAuthError } from './AuthError.js'
 
 /**
  * The app's only door to Firebase Auth: sign-in, sign-out, registration, verification, password
- * reset, email change and the ID token. Each export wraps the SDK calls it needs and turns every
- * rejection into an AuthError; profile documents are not handled here (userRepository.js and the
- * auth store do that). Registration is the one export that runs several SDK calls: it creates the
- * account, stores the typed name and, if the name cannot be stored, removes the new account again.
+ * reset, email change, re-authentication, password change and the ID token. Each export wraps the
+ * SDK calls it needs and turns every rejection into an AuthError; profile documents are not
+ * handled here (userRepository.js and the auth store do that). Registration is the one export that
+ * runs several SDK calls: it creates the account, stores the typed name and, if the name cannot be
+ * stored, removes the new account again.
  */
 
 /**
@@ -34,16 +38,24 @@ const SILENT_RESET_CODES = new Set([
 ])
 
 /**
- * Verification links return to the sign-in page with `?verified=1`. The origin is the
- * running site's: localhost and the emulator are authorised by default; the Cloudflare Pages host
- * must be added to the Auth authorised domains (docs/DEPLOYMENT.md, go-live step 6). When the
- * registration had one, the link also carries its already-resolved `redirect`.
+ * Verification links return to the sign-in page with `?verified=1` on the running site's origin.
+ * Firebase Auth sends the email only when that host, localhost included, is on the project's
+ * authorised domains list (Firebase console, Authentication settings); otherwise the send is
+ * refused with `auth/unauthorized-continue-uri`, which AuthError reports in its own words. When
+ * the registration had one, the link also carries its already-resolved `redirect`.
  */
 const continueSettings = (redirect = null) => {
   if (typeof window === 'undefined') return undefined
   const signInUrl = `${window.location.origin}/login?verified=1`
   return { url: redirect ? `${signInUrl}&redirect=${encodeURIComponent(redirect)}` : signInUrl }
 }
+
+/**
+ * Password-reset and change-email links end on the sign-in page of the running site, where the
+ * person signs in with the new password or address. No continue URL is sent without a window.
+ */
+const signInContinueSettings = () =>
+  typeof window === 'undefined' ? undefined : { url: `${window.location.origin}/login` }
 
 const guarded = async (run) => {
   try {
@@ -127,7 +139,7 @@ export function sendVerification(user, { redirect = null } = {}) {
 export function requestPasswordReset(email) {
   return guarded(async () => {
     try {
-      await sendPasswordResetEmail(firebaseAuth, normalizeEmail(email))
+      await sendPasswordResetEmail(firebaseAuth, normalizeEmail(email), signInContinueSettings())
     } catch (error) {
       if (!SILENT_RESET_CODES.has(error?.code)) {
         throw error
@@ -138,7 +150,32 @@ export function requestPasswordReset(email) {
 
 /** `verifyBeforeUpdateEmail`: the Auth email changes when the link is opened. */
 export function requestEmailChange(user, newEmail) {
-  return guarded(() => verifyBeforeUpdateEmail(user, normalizeEmail(newEmail)))
+  return guarded(() =>
+    verifyBeforeUpdateEmail(user, normalizeEmail(newEmail), signInContinueSettings()),
+  )
+}
+
+/**
+ * Proves the signed-in user's password again (re-authentication), which Auth asks for before a
+ * password change. The credential is built from this user's own Auth email, so only the account
+ * the user object holds can be re-authenticated; a wrong password rejects 'invalid-credentials'.
+ * The uid does not change, so no sign-in event reaches the auth listener.
+ */
+export function reauthenticate(user, currentPassword) {
+  return guarded(async () => {
+    await reauthenticateWithCredential(
+      user,
+      EmailAuthProvider.credential(user.email, currentPassword),
+    )
+  })
+}
+
+/**
+ * Sets a new password on the signed-in user. Auth answers with fresh tokens for this browser, so
+ * the session here continues; the uid does not change, so no sign-in event fires.
+ */
+export function updatePassword(user, newPassword) {
+  return guarded(() => firebaseUpdatePassword(user, newPassword))
 }
 
 /** Refreshes `emailVerified` and `email` from the server; the same User object is updated in place. */

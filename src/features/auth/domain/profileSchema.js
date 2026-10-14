@@ -1,3 +1,5 @@
+import { hasControlCharacter } from '@shared/controlCharacters.js'
+
 import {
   ROLES,
   hasExactKeys,
@@ -8,9 +10,10 @@ import {
 
 /**
  * Shape check for a stored users/{uid} document before the app trusts it: allowed keys, uid,
- * email, display name (1–50, counted with String.length), role, status, revision and the saved
- * service list (at most 100). Older records may lack revision and savedServiceIds;
- * projectProfile fills their defaults and sets needsUpgrade so the store writes them once.
+ * email, display name (1–50, counted with String.length, one line with no control character),
+ * role, status, revision and the saved service list (at most 100). Older records may lack
+ * revision and savedServiceIds; projectProfile fills their defaults and sets needsUpgrade so the
+ * store writes them once.
  * Timestamps are not checked here (a just-written document holds serverTimestamp sentinels);
  * firestore.rules enforces them on every write.
  */
@@ -46,8 +49,14 @@ export const isStoredEmail = (value) =>
   value === normalizeEmail(value) &&
   EMAIL_PATTERN.test(value)
 
+// The rules' isSingleLineText as well: no C0 control (tab, line feed and carriage return included),
+// DEL or C1 control. A name set outside the app can carry one, and the rules refuse a profile
+// with it.
 const isDisplayName = (value) =>
-  typeof value === 'string' && value.length >= 1 && value.length <= DISPLAY_NAME_MAX_LENGTH
+  typeof value === 'string' &&
+  value.length >= 1 &&
+  value.length <= DISPLAY_NAME_MAX_LENGTH &&
+  !hasControlCharacter(value)
 
 const isSavedServiceList = (value) =>
   Array.isArray(value) && value.length <= SAVED_SERVICES_LIMIT && value.every(isValidId)

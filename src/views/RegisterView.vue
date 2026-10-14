@@ -1,7 +1,7 @@
 <script setup>
 import '@/features/auth/styles/auth.css'
 
-import { computed, onScopeDispose } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { useAuthForm } from '@/features/auth/composables/useAuthForm.js'
@@ -27,6 +27,11 @@ const loginDestination = computed(() =>
     : { name: 'login' },
 )
 
+// Filled when the account exists and its verification email went out but the move to the sign-in
+// page failed (for example its page code did not download): the outcome is then reported here, in
+// a status region that is always mounted, instead of as a failure.
+const registeredNotice = ref('')
+
 const { values, errors, summary, submitting, submit } = useAuthForm({
   initial: { displayName: '', email: '', password: '', passwordConfirmation: '' },
   validate: validateRegistrationInput,
@@ -42,13 +47,18 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
       // A 'superseded' registration (another identity signed in from a second tab while the
       // email was sending) navigates nowhere: the store holds that session and the guest-only
       // route handles this page.
-      await router.replace({
-        name: 'login',
-        query: {
-          registered: '1',
-          ...(redirectTarget.value ? { redirect: redirectTarget.value } : {}),
-        },
-      })
+      try {
+        await router.replace({
+          name: 'login',
+          query: {
+            registered: '1',
+            ...(redirectTarget.value ? { redirect: redirectTarget.value } : {}),
+          },
+        })
+      } catch {
+        registeredNotice.value =
+          'Verification email sent. Open the link in it, then sign in. Check your spam folder if it does not arrive.'
+      }
     }
   },
 })
@@ -66,6 +76,13 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
         <form class="auth-form" novalidate :aria-busy="submitting" @submit.prevent="submit">
           <p v-if="summary" class="auth-form__summary" role="alert" tabindex="-1" data-form-summary>
             {{ summary }}
+          </p>
+          <p
+            class="auth-form__summary auth-form__summary--info"
+            :class="{ 'visually-hidden': !registeredNotice }"
+            role="status"
+          >
+            {{ registeredNotice }}
           </p>
 
           <FormField id="register-display-name" label="Name" :error="errors.displayName" required>

@@ -8,9 +8,11 @@ const INVALID_SUMMARY = 'Check the highlighted fields and try again.'
  * One scaffold for the auth forms: reactive values and per-field errors,
  * a form-level summary, a submitting flag, focus on the first invalid control, and the native
  * controls read at submit time because password managers fill them without an input event. The
- * action receives the validator's values (never a password) and the raw values (with it). An
- * AuthError or RepositoryError renders its message in the summary, so `AuthError('offline')` has
- * one surface; anything else renders the shared generic line (`describeError`).
+ * action receives the validator's values (never a password) and the raw values (with it). A
+ * rejected action's summary is `describeFailure(error)`: by default an AuthError or
+ * RepositoryError renders its message, so `AuthError('offline')` has one surface, and anything
+ * else renders the shared generic line (`describeError`); a form whose outcome needs other words
+ * (the account page's password change) passes its own.
  * The controls stay enabled while the action runs (a disabled control would drop focus to the
  * body); the guard below refuses a second submit instead. A rejected action moves focus to the
  * form's summary alert, the element marked `data-form-summary` with `tabindex="-1"`.
@@ -18,10 +20,16 @@ const INVALID_SUMMARY = 'Check the highlighted fields and try again.'
  * @param {{
  *   initial: Record<string, string>,
  *   validate: (raw: Record<string, string>) => { isValid: boolean, values: object, errors: Record<string, string> },
- *   submit: (values: object, raw: Record<string, string>) => Promise<unknown>
+ *   submit: (values: object, raw: Record<string, string>) => Promise<unknown>,
+ *   describeFailure?: (error: unknown) => string
  * }} options
  */
-export function useAuthForm({ initial, validate, submit: action }) {
+export function useAuthForm({
+  initial,
+  validate,
+  submit: action,
+  describeFailure = describeError,
+}) {
   const names = Object.keys(initial)
   const values = reactive({ ...initial })
   const errors = reactive(Object.fromEntries(names.map((name) => [name, ''])))
@@ -75,7 +83,7 @@ export function useAuthForm({ initial, validate, submit: action }) {
       await action(validation.values, { ...values })
       return true
     } catch (error) {
-      summary.value = describeError(error)
+      summary.value = describeFailure(error)
       await focusSummary(form)
       return false
     } finally {

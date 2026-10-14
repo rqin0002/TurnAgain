@@ -14,12 +14,14 @@ import {
   currentUser,
   getIdToken,
   onAuthChanged,
+  reauthenticate,
   reloadUser,
   requestEmailChange as requestAuthEmailChange,
   requestPasswordReset as requestAuthPasswordReset,
   sendVerification,
   signIn,
   signOut,
+  updatePassword,
 } from '../data/firebaseAuthRepository.js'
 import {
   createProfile,
@@ -35,15 +37,25 @@ import { decideRouteAccess } from '../router/routeAccess.js'
  * Owns who is signed in. Firebase Auth proves the identity; users/{uid} supplies the name,
  * role, status and saved services. The status becomes 'signed-in' only after the Auth email is
  * verified and an active profile has been read (or created on the first verified sign-in).
+ * An unverified account is signed out again at once, and is sent a verification email only when
+ * none went to its address since the page loaded or when the person asks for another.
  * The profile is re-read after each navigation to a signed-in page (at most once a minute), on
  * each new staff page, when the tab becomes visible and after a denied request, so a role change
  * or a disabled account takes effect without a reload. Results that arrive after the identity
- * changed are dropped.
+ * changed are dropped, and a sign-in gives up after SIGN_IN_TIMEOUT_MS instead of waiting on.
+ * When reading the account failed for want of a connection (offline, or loading it timed out),
+ * the store tries again once the browser reports the connection back.
  * main.js passes the router to init() so this module never imports it (no import cycle).
  */
 
 export const READY_TIMEOUT_MS = 8000
 export const PROFILE_CACHE_MS = 60_000
+/**
+ * The longest login() waits, from the call until the store has settled on the identity: the SDK
+ * sign-in, then a reload, an email and a sign-out (unverified) or the profile read and first
+ * write (verified). Past it the sign-in ends with a retryable error instead of waiting on.
+ */
+export const SIGN_IN_TIMEOUT_MS = 20_000
 
 /** RepositoryError.code -> lastError. The 8-second race sets 'timeout' itself. */
 export const READ_FAILURES = Object.freeze({
@@ -55,6 +67,43 @@ export const READ_FAILURES = Object.freeze({
   'not-found': 'profile-unavailable',
   conflict: 'profile-unavailable',
 })
+
+/**
+ * The lastError values a returning connection can cure. A network failure is recorded as
+ * 'offline' (see READ_FAILURES); 'timeout' means the account did not load within READY_TIMEOUT_MS.
+ */
+const CONNECTION_FAILURES = new Set(['offline', 'timeout'])
+
+/**
+ * The outcomes of a resolution that found the account unverified and signed it out again;
+ * login() rejects with the AuthError of the same code.
+ */
+const UNVERIFIED_OUTCOMES = new Set([
+  'email-unverified',
+  'verification-sent',
+  'verification-recently-sent',
+  'verification-unsent',
+])
+
+/**
+ * What an unverified resolution says about the verification email: nothing was sent (one already
+ * went to the address), one was sent, Firebase refused another as too soon after the last (so an
+ * email went out a short time ago), or the send failed for another reason.
+ *
+ * @param {boolean} attempted - whether this resolution tried to send the email
+ * @param {unknown} sendFailure - what the send rejected with (an AuthError), or null
+ */
+const unverifiedOutcome = (attempted, sendFailure) => {
+  if (!attempted) {
+    return 'email-unverified'
+  }
+  if (sendFailure === null) {
+    return 'verification-sent'
+  }
+  return sendFailure?.code === 'too-many-requests'
+    ? 'verification-recently-sent'
+    : 'verification-unsent'
+}
 
 const readFailure = (error) => {
   if (isRepositoryError(error)) {
@@ -121,8 +170,22 @@ export const useAuthStore = defineStore('auth', () => {
   // The account register() is creating: `{ email, uid }`, the uid known once createAccount()
   // returns; its transient signed-in event is the only event the store ignores.
   let registration = null
-  // Why the last 'verification-unsent' outcome could not resend the email; login() rethrows it.
+  // What the last unverified resolution's send rejected with, or null; login() keeps its code as
+  // the cause of a 'verification-unsent' or 'verification-recently-sent' outcome.
   let verificationFailure = null
+  // The addresses (normalised) a verification email went to since the page loaded, from
+  // register() or an unverified sign-in, plus those Firebase refused another for as too soon
+  // after the last. An unverified sign-in to one of them sends nothing and points to that email:
+  // Firebase refuses a second send shortly after the first.
+  const verificationSentTo = new Set()
+  // The address whose unverified sign-in sends an email even so: set by resendVerification() for
+  // the length of its sign-in, because the person asked for another.
+  let resendRequestedFor = null
+  // The last resolution that ended on an unverified account, recorded before its own sign-out.
+  // That sign-out fires the null event that replaces it, so lastEvent never holds it; a login()
+  // that receives its user from the SDK only once that sign-out has begun finds the outcome here
+  // instead of waiting for another event.
+  let unverifiedEvent = { session: 0, uid: null, outcome: null }
   let loggingOut = false
   const waiters = []
 
@@ -253,24 +316,31 @@ export const useAuthStore = defineStore('auth', () => {
           return 'stale'
         }
         if (firebaseUser.emailVerified !== true) {
-          // 'email-unverified' tells the user the email went out again, so a failed resend (rate
-          // limit, offline) is reported with its own code instead; the sign-out happens either way.
+          // One email per address unless the person asks for another; the outcome says which
+          // email to open, and the sign-out happens whatever the send did.
+          const address = normalizeEmail(firebaseUser.email)
+          const attempted = address === resendRequestedFor || !verificationSentTo.has(address)
           let sendFailure = null
-          try {
-            await sendVerification(firebaseUser)
-          } catch (error) {
-            sendFailure = error
+          if (attempted) {
+            try {
+              await sendVerification(firebaseUser)
+            } catch (error) {
+              sendFailure = error
+            }
+          }
+          const outcome = unverifiedOutcome(attempted, sendFailure)
+          if (outcome !== 'verification-unsent') {
+            verificationSentTo.add(address)
           }
           // signOut() acts on whoever the SDK holds now: never for a newer identity.
           if (!isCurrent()) {
             return 'stale'
           }
+          // Still current, so `session` is this resolution's own.
+          unverifiedEvent = { session, uid: firebaseUser.uid, outcome }
+          verificationFailure = sendFailure
           await signOut()
-          if (sendFailure !== null) {
-            verificationFailure = sendFailure
-            return 'verification-unsent'
-          }
-          return 'email-unverified'
+          return outcome
         }
         // reload() flips emailVerified locally only; the rules read the token, so refresh it before
         // the first profile read or write.
@@ -385,7 +455,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * The resolution for `uid` that is running now, or the one that finished after `sinceSession`
-   * (the latest current one); `null` when the identity has moved on to somebody else or nobody.
+   * (the latest current one, or an unverified one its own sign-out replaced); `null` when the
+   * identity has moved on to somebody else or nobody.
    */
   const resolutionFor = (uid, sinceSession) => {
     if (resolving !== null && resolvingUid === uid) {
@@ -393,6 +464,9 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if (lastEvent.session > sinceSession && lastEvent.uid === uid) {
       return Promise.resolve(lastEvent.outcome)
+    }
+    if (unverifiedEvent.session > sinceSession && unverifiedEvent.uid === uid) {
+      return Promise.resolve(unverifiedEvent.outcome)
     }
     return null
   }
@@ -432,6 +506,19 @@ export const useAuthStore = defineStore('auth', () => {
           void revalidateProfile({ reason: 'permission-denied' })
         }
       })
+      // The connection came back after reading the account failed for want of it: try again now,
+      // as Retry would, so the account loads (or a pending email change finishes) without the
+      // person pressing it. A failure of another kind is left to the Retry control.
+      window.addEventListener('online', () => {
+        if (!CONNECTION_FAILURES.has(lastError.value)) {
+          return
+        }
+        if (status.value === 'error') {
+          void retry()
+        } else if (status.value === 'signed-in') {
+          void revalidateProfile({ reason: 'online' })
+        }
+      })
     }
   }
 
@@ -457,7 +544,8 @@ export const useAuthStore = defineStore('auth', () => {
    * re-check is skipped for 60 s after a read, while every other reason re-reads,
    * 'staff-navigation' included (a staff or admin route); the Auth user is reloaded before
    * comparing emails; a failed read keeps status and user; a result that lands after the identity
-   * moved on changes nothing.
+   * moved on changes nothing; one older than the profile already held (a lower revision, read
+   * before the person's own save landed) leaves the user and the epoch as they are.
    */
   const revalidateProfile = async ({ reason = 'manual' } = {}) => {
     if (resolving !== null) {
@@ -504,6 +592,11 @@ export const useAuthStore = defineStore('auth', () => {
         }
         profileReadAt.value = Date.now()
         if (status.value !== 'signed-in' || user.value === null || user.value.uid !== uid) {
+          return
+        }
+        // The revision only ever grows, so a lower one is a snapshot read before the person's own
+        // save landed: adopting it would undo that save on screen and drop in-flight requests.
+        if (profile.revision < user.value.revision) {
           return
         }
         const roleChanged = profile.role !== user.value.role
@@ -554,12 +647,15 @@ export const useAuthStore = defineStore('auth', () => {
    * Signs in with email and password and waits until the store has settled on that identity.
    * Resolves with the signed-in user once the profile is committed, or with null when the session
    * moved on without it (a disabled account, a sign-out or a newer sign-in); the store has then
-   * already replaced the route. Rejects with an AuthError when the sign-in is refused, with
-   * AuthError 'email-unverified' while the email is not verified, with the error that stopped a
-   * new verification email from being sent, or with AuthError 'offline' or 'profile-unavailable'
-   * when the profile could not be read.
+   * already replaced the route. Rejects with an AuthError when the sign-in is refused; while the
+   * email is not verified (the account is signed out again) with 'email-unverified' (nothing sent:
+   * an email already went to the address since the page loaded), 'verification-sent' (sent now),
+   * 'verification-recently-sent' (Firebase refused another as too soon after the last) or
+   * 'verification-unsent' (the send failed otherwise, named as its reason), the first three
+   * naming the account's address; or with 'offline' or 'profile-unavailable' when the profile
+   * could not be read.
    */
-  const login = async ({ email, password }) => {
+  const signInAndSettle = async ({ email, password }) => {
     const sinceSession = session
     const eventsBefore = listenerEvents
     const uidBefore = lastEventUid
@@ -582,17 +678,33 @@ export const useAuthStore = defineStore('auth', () => {
     if (outcome === 'signed-in') {
       return user.value
     }
-    if (outcome === 'email-unverified') {
-      throw new AuthError('email-unverified')
-    }
-    if (outcome === 'verification-unsent') {
-      throw verificationFailure
+    if (UNVERIFIED_OUTCOMES.has(outcome)) {
+      throw new AuthError(outcome, {
+        email: firebaseUser.email,
+        cause: verificationFailure,
+        reason: verificationFailure?.code,
+      })
     }
     if (outcome === 'error') {
       throw new AuthError(lastError.value === 'offline' ? 'offline' : 'profile-unavailable')
     }
     // 'account-disabled', 'signed-out', 'stale': the session moved on; a replace already happened.
     return null
+  }
+
+  /**
+   * signInAndSettle with a deadline: after SIGN_IN_TIMEOUT_MS it rejects with AuthError
+   * 'sign-in-timeout', so a sign-in form's submit always ends. The deadline changes no store
+   * state (the status is never set to 'signed-out' for it). A resolution that finishes later
+   * still commits whoever the SDK holds, but this call has already settled, so its caller never
+   * navigates on that late answer.
+   */
+  const login = (credentials) => {
+    let timer = null
+    const deadline = new Promise((_resolve, reject) => {
+      timer = setTimeout(() => reject(new AuthError('sign-in-timeout')), SIGN_IN_TIMEOUT_MS)
+    })
+    return Promise.race([signInAndSettle(credentials), deadline]).finally(() => clearTimeout(timer))
   }
 
   /**
@@ -620,6 +732,14 @@ export const useAuthStore = defineStore('auth', () => {
    * Creates the account, sends the verification email and signs out; never a silent sign-in.
    * Resolves 'registered', or 'superseded' when another identity took over while the email was
    * sending (a sign-in from a second tab): that identity is left signed in and untouched.
+   * A createAccount() failure rejects with its own error. Once the account exists, an email that
+   * could not be sent rejects with AuthError 'account-created-email-unsent' (the send failure as
+   * its cause), after the same sign-out: the person is told the account exists and that signing
+   * in sends the email again, never to register again. A failed sign-out is not reported over
+   * either outcome: the store never committed the new account, and the next time the app
+   * resolves it (a sign-in or a page load) the unverified account is signed out again. A sent
+   * email is remembered, so signing in before its link is opened points to it instead of sending
+   * another; after a failed one, signing in sends it.
    */
   const register = async ({ email, password, displayName, redirect = null }) => {
     const startedIn = session
@@ -627,16 +747,21 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const created = await createAccount({ email, password, displayName })
       registration.uid = created.uid
-      let ownsSession = false
+      let sendFailure = null
       try {
         await sendVerification(created, { redirect })
-      } finally {
-        // Only the account this call created is signed out, and only while no newer identity
-        // event has begun: otherwise the SDK's current user is somebody else's session.
-        ownsSession = currentUser()?.uid === created.uid && startedIn === session
-        if (ownsSession) {
-          await signOut()
-        }
+        verificationSentTo.add(normalizeEmail(created.email))
+      } catch (error) {
+        sendFailure = error
+      }
+      // Only the account this call created is signed out, and only while no newer identity
+      // event has begun: otherwise the SDK's current user is somebody else's session.
+      const ownsSession = currentUser()?.uid === created.uid && startedIn === session
+      if (ownsSession) {
+        await signOut().catch(() => undefined)
+      }
+      if (sendFailure !== null) {
+        throw new AuthError('account-created-email-unsent', { cause: sendFailure })
       }
       return ownsSession ? 'registered' : 'superseded'
     } finally {
@@ -644,16 +769,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** "Send the verification email again": a sign-in attempt does exactly that. */
+  /**
+   * "Send the verification email again": a sign-in attempt that sends the email even when one
+   * already went to this address. Resolves 'sent' once it went out, 'signed-in' when the account
+   * turned out to be verified, 'ended' when the session moved on; otherwise rejects with the
+   * sign-in's AuthError ('verification-recently-sent' when Firebase refused another as too soon
+   * after the last).
+   */
   const resendVerification = async ({ email, password }) => {
+    resendRequestedFor = normalizeEmail(email)
     try {
       const signedIn = await login({ email, password })
       return signedIn === null ? 'ended' : 'signed-in'
     } catch (error) {
-      if (isAuthError(error) && error.code === 'email-unverified') {
+      if (isAuthError(error) && error.code === 'verification-sent') {
         return 'sent'
       }
       throw error
+    } finally {
+      resendRequestedFor = null
     }
   }
 
@@ -665,6 +799,58 @@ export const useAuthStore = defineStore('auth', () => {
       throw new AuthError('requires-recent-login')
     }
     await requestAuthEmailChange(firebaseUser, newEmail)
+  }
+
+  /**
+   * Changes the signed-in user's password: re-authenticates the account the SDK holds with the
+   * current password, then sets the new one. Each step runs only while the SDK still holds the
+   * account the store shows (same uid, no newer store session), checked before each step, so a
+   * sign-in from another tab stops the change before anything is updated. Neither step changes
+   * the uid, so no listener event follows: the user, the epoch and the page stay as they are and
+   * the SDK keeps this tab signed in with fresh tokens. The passwords are passed through, never
+   * kept.
+   * Resolves once Auth has confirmed the new password. Rejects with AuthError
+   * 'invalid-credentials' for a wrong current password; 'requires-recent-login' when nobody or
+   * another account is signed in, or the session ended (a revoked session or a disabled account
+   * also leaves the page, as the profile re-check does); otherwise the failure of the step that
+   * failed ('too-many-requests', 'weak-password', 'network', 'offline', 'unknown').
+   */
+  const changePassword = async ({ currentPassword, newPassword }) => {
+    const startedIn = session
+    const uid = user.value?.uid ?? null
+    const firebaseUser = currentUser()
+    const holdsSameAccount = () =>
+      startedIn === session &&
+      isSignedIn.value &&
+      user.value?.uid === uid &&
+      currentUser()?.uid === uid
+    if (uid === null || firebaseUser === null || !holdsSameAccount()) {
+      throw new AuthError('requires-recent-login')
+    }
+    try {
+      await reauthenticate(firebaseUser, currentPassword)
+      if (!holdsSameAccount()) {
+        throw new AuthError('requires-recent-login')
+      }
+      await updatePassword(firebaseUser, newPassword)
+    } catch (error) {
+      const ended = endedSessionReason(error)
+      if (ended === null) {
+        throw error
+      }
+      // The SDK has already signed out; when its null event has not reached the store yet, the
+      // page leaves here, as the profile re-check does. A disabled account is never told that
+      // its password was wrong.
+      if (startedIn === session) {
+        if (ended === 'account-disabled') {
+          await logout('account-disabled')
+        } else {
+          settleSignedOut()
+          leaveProtectedRoute()
+        }
+      }
+      throw new AuthError('requires-recent-login', { cause: error })
+    }
   }
 
   const requireWritableProfile = () => {
@@ -736,6 +922,7 @@ export const useAuthStore = defineStore('auth', () => {
     resendVerification,
     requestPasswordReset,
     requestEmailChange,
+    changePassword,
     revalidateProfile,
     saveService,
     unsaveService,

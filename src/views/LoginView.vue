@@ -55,9 +55,22 @@ const withRedirect = (name) =>
 const destination = () => redirectTarget.value ?? defaultDestination(authStore)
 
 const form = ref(null)
+// The verification notice and the "sent again" notice are status regions that stay mounted with
+// empty text, so a screen reader is already watching them when their sentence arrives.
 const verificationNotice = ref('')
 const resendNotice = ref('')
 const resendPending = ref(false)
+// True once a sign-in found the account unverified, whether or not that attempt's email went
+// out; the resend button stays on offer until the next sign-in attempt.
+const resendOffered = ref(false)
+// The unverified outcomes that are not a failure: each names the email to open (one already sent,
+// one sent now, or one sent a short time ago), so it reads as the verification notice, not as an
+// alert.
+const VERIFICATION_NOTICE_CODES = new Set([
+  'email-unverified',
+  'verification-sent',
+  'verification-recently-sent',
+])
 
 const { values, errors, summary, submitting, submit } = useAuthForm({
   initial: { email: '', password: '' },
@@ -65,6 +78,7 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
   submit: async (validated, raw) => {
     verificationNotice.value = ''
     resendNotice.value = ''
+    resendOffered.value = false
     try {
       const signedIn = await authStore.login({ email: validated.email, password: raw.password })
       // null: the store already replaced the route (account disabled or session ended).
@@ -72,10 +86,17 @@ const { values, errors, summary, submitting, submit } = useAuthForm({
         await router.push(destination())
       }
     } catch (error) {
-      if (error?.code !== 'email-unverified') {
-        throw error
+      if (VERIFICATION_NOTICE_CODES.has(error?.code)) {
+        verificationNotice.value = error.message
+        resendOffered.value = true
+        return
       }
-      verificationNotice.value = error.message
+      if (error?.code === 'verification-unsent') {
+        // Unverified, and this attempt's email did not go out: the alert says why, and the
+        // resend stays on offer for a later try.
+        resendOffered.value = true
+      }
+      throw error
     }
   },
 })
@@ -106,8 +127,16 @@ const resendVerification = async () => {
       resendNotice.value = 'Verification email sent again. Open the link in it, then sign in.'
     }
   } catch (error) {
-    // The notice above says the email went out; only the resend's own error may show now. Its
-    // button leaves with it, so focus moves to the alert instead of dropping to the body.
+    if (VERIFICATION_NOTICE_CODES.has(error?.code)) {
+      // Not a failure: the notice now names the email to open. It is emptied first so the same
+      // sentence again is still announced; focus stays on the resend button, which stays.
+      verificationNotice.value = ''
+      await nextTick()
+      verificationNotice.value = error.message
+      return
+    }
+    // The verification notice says the email went out; only the resend's own error may show now.
+    // The resend stays on offer for a later try, and focus moves to the alert so it is read.
     verificationNotice.value = ''
     summary.value = describeError(error)
     await nextTick()
@@ -141,9 +170,18 @@ const resendVerification = async () => {
           <p v-if="queryNotice" class="auth-form__summary auth-form__summary--info" role="status">
             {{ queryNotice }}
           </p>
-          <div v-if="verificationNotice" class="auth-form__summary auth-form__summary--info">
-            <p role="status">{{ verificationNotice }}</p>
+          <p v-if="summary" class="auth-form__summary" role="alert" tabindex="-1" data-form-summary>
+            {{ summary }}
+          </p>
+          <div
+            class="auth-form__verification"
+            :class="{ 'auth-form__summary auth-form__summary--info': resendOffered }"
+          >
+            <p id="login-verification-notice" class="auth-form__live" role="status" dir="auto">
+              {{ verificationNotice }}
+            </p>
             <AppButton
+              v-if="resendOffered"
               variant="secondary"
               type="button"
               :busy="resendPending"
@@ -152,11 +190,12 @@ const resendVerification = async () => {
               Send the verification email again
             </AppButton>
           </div>
-          <p v-if="resendNotice" class="auth-form__summary auth-form__summary--info" role="status">
+          <p
+            id="login-resend-notice"
+            class="auth-form__summary auth-form__summary--info auth-form__live"
+            role="status"
+          >
             {{ resendNotice }}
-          </p>
-          <p v-if="summary" class="auth-form__summary" role="alert" tabindex="-1" data-form-summary>
-            {{ summary }}
           </p>
 
           <FormField id="login-email" label="Email address" :error="errors.email" required>
