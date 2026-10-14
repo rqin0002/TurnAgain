@@ -40,7 +40,7 @@ const selectedPhrase = (count) =>
 
 export const PARTICIPANT_EMAIL_MESSAGES = Object.freeze({
   unknown:
-    "We can't tell whether this was sent; Check status or Send again (participants may receive it twice)",
+    "We can't tell whether this was sent; Check status or New send (participants may receive it twice)",
   failed: "Couldn't send; Retry sends the same message again",
   retryRefused: 'This retry no longer matches the earlier send, so nothing was sent. Use New send.',
   notParticipants: (count) =>
@@ -98,8 +98,29 @@ const STATE_OF_STATUS = Object.freeze({
   sending: 'unknown',
 })
 
+const partStatuses = (response) => [
+  response?.results?.participants?.status,
+  response?.results?.copy?.status,
+]
+// A part the provider never answered for, or one still in flight.
+const hasPendingPart = (response) =>
+  partStatuses(response).some((status) => status === 'unknown' || status === 'sending')
+// A failed part: the only kind a repeat of the operation sends again.
+const hasFailedPart = (response) => partStatuses(response).includes('failed')
+
+// "1 participant has an address ..." or "3 participants have addresses ...".
+const undeliverablePhrase = (count) =>
+  count === 1
+    ? "1 participant has an address that can't receive mail"
+    : `${count} participants have addresses that can't receive mail`
+
 /**
- * The result banner.
+ * The result banner: what reached the email provider and the control the form offers to change
+ * it (Retry for a failed part, which a repeat sends again; Check status for an unsettled one,
+ * which a repeat only reads again). The function skips a part that has no address able to receive
+ * mail (for the participants, also when nobody was selected), and a repeat never sends a skipped
+ * part, so a send whose every part was skipped says nobody could be emailed and why, and names no
+ * control.
  *
  * @param {{ status: string, results: { participants: object, copy: object | null } } | null} response
  */
@@ -108,20 +129,32 @@ export function sessionSendBanner(response) {
   if (response.status === 'dry-run') return EMAIL_STATUS_COPY['dry-run']
   const { participants, copy } = response.results
   const count = participants.recipientCount
-  const pending = [participants.status, copy?.status].some(
-    (status) => status === 'unknown' || status === 'sending',
-  )
+  const skipped = participants.skippedCount ?? 0
+  if (
+    response.status === 'failed' &&
+    participants.status === 'skipped' &&
+    (copy === null || copy.status === 'skipped')
+  ) {
+    const reasons = []
+    if (skipped > 0) reasons.push(undeliverablePhrase(skipped))
+    if (copy) reasons.push("your account's email address can't receive mail")
+    return `Nobody could be emailed: ${reasons.join('; ')}.`
+  }
   let text
   if (response.status === 'accepted') {
     if (participants.status === 'skipped') text = 'Copy sent to you'
     else if (copy)
       text = `Sent to the email provider for ${formatParticipantCount(count)}; copy sent to you`
     else text = `Sent to the email provider for ${formatParticipantCount(count)}`
-  } else if (response.status === 'partial' && !pending) {
+  } else if (response.status === 'partial' && !hasPendingPart(response)) {
     if (participants.status === 'accepted') {
-      text = "Participants: sent; your copy: couldn't send, Retry copy"
+      // A copy is skipped only when the signed-in account's own address can't receive mail.
+      text =
+        copy?.status === 'failed'
+          ? "Participants: sent; your copy: couldn't send. Retry sends your copy again"
+          : "Participants: sent; your copy: couldn't send. Your account's email address can't receive mail"
     } else if (copy?.status === 'accepted') {
-      text = "Participants: couldn't send; your copy: sent, Retry participants"
+      text = "Participants: couldn't send; your copy: sent. Retry sends to the participants again"
     } else {
       text = PARTICIPANT_EMAIL_MESSAGES.failed
     }
@@ -130,11 +163,8 @@ export function sessionSendBanner(response) {
   } else {
     text = PARTICIPANT_EMAIL_MESSAGES.unknown
   }
-  const skipped = participants.skippedCount ?? 0
   if (skipped === 0) return text
-  return skipped === 1
-    ? `${text}. 1 participant has an address that can't receive mail and was skipped.`
-    : `${text}. ${skipped} participants have addresses that can't receive mail and were skipped.`
+  return `${text}. ${undeliverablePhrase(skipped)} and ${skipped === 1 ? 'was' : 'were'} skipped.`
 }
 
 const fingerprint = (values) =>
@@ -151,11 +181,14 @@ const fingerprint = (values) =>
  * memory only: `operationId` is made when the form starts and kept until a send whose every
  * requested part is accepted or dry-run.
  *
- * Retry repeats the last operation exactly (its id and content) and is withdrawn as soon as the
- * subject, the message, the selection or a box changes; New send takes a fresh id on confirm and
- * says who may already have the earlier message. A Retry
- * the function refuses (`operation-mismatch`) is reported and leaves New send, never turning into
- * a new operation by itself. "Previous emails" rows that may have reached people (`unknown`,
+ * Retry repeats the last operation exactly (its id and content). It is offered after a thrown send
+ * and while a part failed or is unsettled; with a part unsettled it reads Check status, as the
+ * result line does, because a repeat only reads that part's record again. A result whose every
+ * part was skipped (no address that can receive mail) offers New send only. Retry is withdrawn as
+ * soon as the subject, the message, the selection or a box changes; New send takes a fresh id on
+ * confirm and says who may already have the earlier message. A Retry the function refuses
+ * (`operation-mismatch`) is reported and leaves New send, never turning into a new operation by
+ * itself. "Previous emails" rows that may have reached people (`unknown`,
  * `partial`, `sending`) offer New send with a warning built from the row. With nobody selected,
  * Send is possible only with "Send me a copy" (the zero-participant demonstration), and
  * unticking it clears "Attach participant list" (the list rides on the copy only). New send after
@@ -255,10 +288,21 @@ export function useParticipantEmail({
   const composing = computed(() => ['composing', 'no-participants'].includes(state.value))
   const settledWithDoubt = computed(() => ['failed', 'partial', 'unknown'].includes(state.value))
   const canSend = computed(() => composing.value && validation.value.isValid)
+  // While a part is unsettled the result line says "Check status or New send", so the control
+  // says Check status too: a repeat only reads that part's record again (a part that failed is
+  // still sent again).
+  const checksStatus = computed(() => state.value === 'unknown' || hasPendingPart(result.value))
   const canRetry = computed(
-    () => settledWithDoubt.value && lastSend.value !== null && !edited.value && !retryRefused.value,
+    () =>
+      settledWithDoubt.value &&
+      lastSend.value !== null &&
+      !edited.value &&
+      !retryRefused.value &&
+      // A repeat sends failed parts again and reads unsettled ones; after a thrown send it may be
+      // the first call to arrive. A result with neither kind of part would come back unchanged.
+      (result.value === null || hasFailedPart(result.value) || checksStatus.value),
   )
-  const retryLabel = computed(() => (state.value === 'unknown' ? 'Check status' : 'Retry'))
+  const retryLabel = computed(() => (checksStatus.value ? 'Check status' : 'Retry'))
   const canNewSend = computed(
     () => settledWithDoubt.value || (state.value === 'sent' && edited.value),
   )

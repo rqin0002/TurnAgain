@@ -16,6 +16,7 @@ export const BOOKING_MESSAGES = deepFreeze({
   waitlistHeading: "You're on the waitlist",
   confirmedHeading: "You're booked",
   cancelledHeading: 'This booking is cancelled',
+  sessionCancelledHeading: 'This session was cancelled',
   duplicate: 'You already have a booking for this session.',
   overlap: 'This session overlaps another of your bookings.',
   bookAnyway: 'Book anyway',
@@ -27,7 +28,12 @@ export const BOOKING_MESSAGES = deepFreeze({
   sessionNotInList: 'Session not in the list',
   undeliverable:
     "This account's email address can't receive mail, so no confirmation was sent. Your booking is unaffected.",
-  sessionFilled: 'The last place was taken while you were reviewing. Nothing was booked.',
+  sessionFilled: 'The session changed while you were reviewing. Nothing was booked.',
+  // Bookings are made from member accounts only: the first sentence answers an active staff or
+  // admin account, which is already signed in; the second a disabled or missing profile.
+  memberOnly: 'Only member accounts can book sessions.',
+  activeMemberNeeded: 'Sign in with an active member account to book a session.',
+  memberBookingNote: 'Bookings are made from member accounts.',
   sessionNotFound: 'We could not find that session.',
   emailChecking: 'Checking the email status',
   bookingPageHeading: 'Your booking',
@@ -45,9 +51,9 @@ export const BOOKING_MESSAGES = deepFreeze({
   },
 })
 
-/** The email status line. */
+/** The email status line, one sentence per status whatever the email's kind. */
 export const EMAIL_STATUS_COPY = deepFreeze({
-  sending: 'Sending your confirmation',
+  sending: 'Sending your email',
   accepted: 'Sent to the email provider',
   failed: "Couldn't send",
   unknown: "We can't tell whether it was sent",
@@ -107,7 +113,7 @@ const REFUSAL_COPY = Object.freeze({
   'undeliverable-address': BOOKING_MESSAGES.undeliverable,
   'resend-too-soon': 'Wait a minute before sending again.',
   'attempts-exhausted': "You've reached 3 attempts today. Try again tomorrow.",
-  promoted: 'Staff confirmed this booking; its email was sent separately.',
+  promoted: 'Staff send the email for a place offered from the waitlist.',
   'kind-mismatch': 'This booking changed. Reload the page.',
   'functions-off': '',
 })

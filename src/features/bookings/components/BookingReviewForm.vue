@@ -1,6 +1,6 @@
 <script setup>
 import { formatSessionWhen } from '@shared/melbourneTime.js'
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 
 import AppButton from '@/shared/components/AppButton.vue'
 import FormField from '@/shared/components/FormField.vue'
@@ -11,11 +11,13 @@ import { BOOKING_LIMITS, validateBookingInput } from '../domain/bookingValidatio
 // The review form. It validates, then emits the cleaned values; the
 // view owns the transaction. `submitting` comes back from the view, and AppButton swallows a
 // click while it is busy, so a double click submits once. The page's retry submits the current
-// values through the exposed `submit()`.
+// values through the exposed `submit()`. `emailEnabled` is false in a build that cannot send the
+// confirmation email; the email hint then says so instead of promising one.
 const props = defineProps({
   session: { type: Object, required: true },
   activity: { type: Object, required: true },
   email: { type: String, required: true },
+  emailEnabled: { type: Boolean, default: true },
   initialName: { type: String, default: '' },
   intent: {
     type: String,
@@ -28,6 +30,11 @@ const props = defineProps({
 const emit = defineEmits(['submit'])
 
 const form = ref(null)
+const emailHint = computed(() =>
+  props.emailEnabled
+    ? "We'll send your confirmation here"
+    : 'Email sending is not enabled in this build; your booking is still saved',
+)
 const values = reactive({
   contactName: props.initialName,
   itemDescription: '',
@@ -87,7 +94,7 @@ defineExpose({ submit: onSubmit })
       </template>
     </FormField>
 
-    <FormField id="booking-email" label="Email" hint="We'll send your confirmation here">
+    <FormField id="booking-email" label="Email" :hint="emailHint">
       <template #default="{ control }">
         <input v-bind="control" class="form-control" type="email" :value="email" readonly />
       </template>

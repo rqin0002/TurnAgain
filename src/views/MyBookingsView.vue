@@ -108,11 +108,15 @@ const confirmCancel = async (bookingId) => {
 <template>
   <section class="page-section">
     <div ref="page" class="shell my-bookings">
-      <header>
+      <header class="my-bookings__header">
+        <!-- A fixed destination, so the link says where it goes: it never steps back through
+             history to a booking page while promising the account. The arrow and the words share
+             one span because the link is a flex box: as separate flex items they would lose the
+             space between them. -->
+        <RouterLink class="text-button back-link" :to="{ name: 'account' }">
+          <span><span aria-hidden="true">←</span> Back to your account</span>
+        </RouterLink>
         <h1 class="page-title">My bookings</h1>
-        <p>
-          <RouterLink :to="{ name: 'account' }">Your account</RouterLink>
-        </p>
         <p class="my-bookings__notice" role="status">{{ notice }}</p>
       </header>
 
@@ -165,7 +169,9 @@ const confirmCancel = async (bookingId) => {
                   :disabled="sessionState !== 'current'"
                   @click="addToCalendar(booking, session)"
                 >
-                  Add to calendar (.ics)
+                  Add to calendar (.ics)<span class="visually-hidden">
+                    for {{ booking.activityTitle }}</span
+                  >
                 </AppButton>
                 <p
                   v-if="isCancelClosedByStart(booking, session, now)"
@@ -185,7 +191,7 @@ const confirmCancel = async (bookingId) => {
                   :data-cancel-for="booking.id"
                   @click="openCancelDialog(booking)"
                 >
-                  Cancel<span class="visually-hidden"> {{ booking.activityTitle }}</span>
+                  Cancel <span class="visually-hidden">{{ booking.activityTitle }}</span>
                 </AppButton>
                 <p v-if="!sessionsLoading && sessionState === 'unconfirmed'">
                   {{ BOOKING_MESSAGES.refreshToConfirm }}
@@ -213,6 +219,13 @@ const confirmCancel = async (bookingId) => {
   display: grid;
   max-width: 48rem;
   gap: 1.75rem;
+}
+
+/* The header's items keep their own width, so the return link's hover tint and 44px target
+   wrap its words instead of the whole row. */
+.my-bookings__header {
+  display: grid;
+  justify-items: start;
 }
 
 .my-bookings h2 {

@@ -5,6 +5,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import { invalidateActivityCatalogue } from '@/features/activities/composables/useActivityCatalogue.js'
 import { formatSessionStatus } from '@/features/activities/domain/activityCatalogue.js'
+import { useAuthStore } from '@/features/auth/stores/authStore.js'
 import BookingEmailStatus from '@/features/bookings/components/BookingEmailStatus.vue'
 import BookingStatusBadge from '@/features/bookings/components/BookingStatusBadge.vue'
 import CancelBookingDialog from '@/features/bookings/components/CancelBookingDialog.vue'
@@ -40,6 +41,7 @@ const requestOnMount = ref(route.query.new === '1')
 const cancelling = useCancelBooking()
 
 const heading = ref(null)
+const card = ref(null)
 const startedLine = ref(null)
 const reference = ref(null)
 const copyNotice = ref('')
@@ -48,11 +50,16 @@ const dialogOpen = ref(false)
 const now = ref(new Date())
 let revealed = false
 let refreshAfterClose = false
+let refocusHeading = false
 
+// The member's own cancel names the booking; otherwise an organiser's cancel comes first: it
+// leaves the booking live, and "You're booked" or "You're on the waitlist" would send the member
+// to a session that is off.
 const title = computed(() => {
   const current = booking.value
   if (!current) return ''
   if (current.status === 'cancelled') return BOOKING_MESSAGES.cancelledHeading
+  if (sessionState.value === 'cancelled') return BOOKING_MESSAGES.sessionCancelledHeading
   if (current.status === 'waitlisted') {
     return Number.isInteger(handoff.value?.position)
       ? BOOKING_MESSAGES.waitlistPositionHeading.replace('{n}', String(handoff.value.position))
@@ -64,8 +71,8 @@ const showsPlaceOpened = computed(
   () => booking.value?.status === 'confirmed' && handoff.value?.placeOpened === true,
 )
 const showsBooking = computed(() => status.value === 'ready' && booking.value !== null)
-// A promoted booking's confirmation was sent by staff: no email line for it without a
-// hand-off. The member's own cancellation email always has its line.
+// Staff send the email for a place offered from the waitlist: a promoted booking has no email
+// line without a hand-off. The member's own cancellation email always has its line.
 const showsEmail = computed(
   () =>
     booking.value !== null &&
@@ -110,15 +117,33 @@ watch(bookingId, (id, previous) => {
   icsNotice.value = ''
 })
 
+// A change of signed-in identity (another account, a sign-out, or this account's profile re-read
+// with a new role, revision or email) reloads the booking, which takes the card and its dialog down
+// for a moment. The dialog stays closed when the card comes back, so its Cancel booking is only
+// ever pressed by someone who opened it after the change; if focus was in the card, the heading
+// takes it once the booking is back instead of leaving it on <body>.
+const authStore = useAuthStore()
+watch(
+  () => authStore.identityEpoch,
+  () => {
+    refocusHeading = card.value?.contains(document.activeElement) ?? false
+    refreshAfterClose = false
+    dialogOpen.value = false
+    cancelling.clearError()
+  },
+)
+
 watch(status, async (value) => {
-  if (value !== 'ready' || revealed) return
+  if (value !== 'ready' || (revealed && !refocusHeading)) return
+  const firstReveal = !revealed
   revealed = true
+  refocusHeading = false
   now.value = new Date()
   // After the router's #main-content focus: a tick, then a task.
   await nextTick()
   await new Promise((resolve) => window.setTimeout(resolve, 0))
   heading.value?.focus()
-  void animateBookingReference(reference.value)
+  if (firstReveal) void animateBookingReference(reference.value)
 })
 
 // Once the first email status has rendered, `new` leaves the URL so history never re-sends.
@@ -172,7 +197,11 @@ const confirmCancel = async (id) => {
   if (!cancelled) return
   dialogOpen.value = false
   handoff.value = null
-  requestOnMount.value = false
+  // The cancel has just asked for the cancellation email; the line that comes back with the
+  // cancelled booking asks for its status at once, so it shows the outcome instead of a "Check
+  // email status" button. Without resend the function sends at most one email for each change of
+  // a booking, so the two calls never send it twice.
+  requestOnMount.value = true
   invalidateActivityCatalogue()
   await detail.load()
   await nextTick()
@@ -208,7 +237,7 @@ const confirmCancel = async (id) => {
         @retry="detail.retry"
       />
 
-      <article v-else-if="booking" class="booking-detail__card">
+      <article v-else-if="booking" ref="card" class="booking-detail__card">
         <header class="booking-detail__header">
           <h1 ref="heading" tabindex="-1">{{ title }}</h1>
           <p v-if="showsPlaceOpened">{{ BOOKING_MESSAGES.placeOpened }}</p>

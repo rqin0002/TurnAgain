@@ -2,7 +2,11 @@ import { doc, runTransaction, serverTimestamp } from 'firebase/firestore/lite'
 
 import { projectActivity } from '@/features/activities/domain/activitySchema.js'
 import { deriveSessionStatus, projectSession } from '@/features/activities/domain/sessionSchema.js'
-import { RepositoryError, toRepositoryError } from '@/shared/data/RepositoryError.js'
+import {
+  RepositoryError,
+  notifyPermissionDenied,
+  toRepositoryError,
+} from '@/shared/data/RepositoryError.js'
 
 import { BOOKING_MESSAGES } from '../domain/bookingMessages.js'
 import {
@@ -20,8 +24,9 @@ import {
  * Firestore and Auth are parameters, not imports, so a test can drive two signed-in users at
  * once; bookingRepository passes the app's instances. Every run of a callback reads the documents
  * it needs before deciding what to write, so a rerun decides again from fresh data. A refusal
- * decided here (session full or closed, duplicate, already cancelled, missing) is thrown as a
- * RepositoryError, not a Firestore error, so the SDK does not retry it.
+ * decided here (a caller who is not an active member, session full or closed, duplicate, already
+ * cancelled, missing) is thrown as a RepositoryError, not a Firestore error, so the SDK does not
+ * retry it.
  */
 
 /**
@@ -106,8 +111,31 @@ const readPublishedActivity = async (transaction, db, activityId) => {
 }
 
 /**
+ * Only an active member account books: the caller's own profile, read in the same transaction,
+ * decides, not the role or status the page has cached (the rules refuse anyone else as well).
+ * Any other profile is refused before anything is written, as a RepositoryError('permission')
+ * whose message says why, and the permission-denied event asks the auth store to read that
+ * cached copy again.
+ */
+const assertActiveMember = (profileSnapshot) => {
+  const profile = profileSnapshot.exists() ? profileSnapshot.data() : null
+  if (profile?.status === 'active' && profile.role === 'member') {
+    return
+  }
+  notifyPermissionDenied()
+  throw new RepositoryError(
+    'permission',
+    profile?.status === 'active'
+      ? BOOKING_MESSAGES.memberOnly
+      : BOOKING_MESSAGES.activeMemberNeeded,
+  )
+}
+
+/**
  * Creates the caller's booking, or rebooks a cancelled one, and moves the session counters in
- * the same commit (rules sessionCountersMoved / memberCountersMatchBooking).
+ * the same commit (rules sessionCountersMoved / memberCountersMatchBooking). The caller must be
+ * an active member (assertActiveMember above); that refusal is the one this function reports
+ * to the auth store itself.
  * A commit the rules still refuse after every run is a RepositoryError('permission') carrying
  * `details.sessionStartsAt` and no permission-denied event: createBooking decides whether it is a
  * session that has just started or a lost access, and only the latter re-checks the profile.
@@ -127,6 +155,7 @@ export async function createBookingTx(
   }
   const email = auth.currentUser.email
   const bookingId = bookingIdFor(uid, sessionId)
+  const profileRef = doc(db, 'users', uid)
   const sessionRef = doc(db, 'activitySessions', sessionId)
   const bookingRef = doc(db, 'bookings', bookingId)
   // The session start the last run read, for the clock-skew mapping of a refused commit.
@@ -134,6 +163,7 @@ export async function createBookingTx(
 
   try {
     return await runWithCommitRetry(db, async (transaction) => {
+      assertActiveMember(await transaction.get(profileRef))
       const sessionSnapshot = await readSessionSnapshot(transaction, sessionRef)
       const session = sessionSnapshot.exists()
         ? projectSession(sessionSnapshot.id, sessionSnapshot.data())

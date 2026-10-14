@@ -1,6 +1,7 @@
 <script setup>
 import { formatSessionWhen } from '@shared/melbourneTime.js'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
 import { formatSessionStatus } from '@/features/activities/domain/activityCatalogue.js'
 import ParticipantEmailForm from '@/features/staff/components/ParticipantEmailForm.vue'
@@ -61,6 +62,21 @@ const {
   notifyMessage,
   markNotified,
 } = staffSession
+
+// The register's "Email <session>" link and the overview's cancelled-session items end in
+// #session-email. With the session already loaded the router's focus hook lands on that section;
+// on a cold load the section is behind the loading panel when the hook runs, so the page scrolls
+// to it and focuses it once the session is ready.
+const route = useRoute()
+watch(pageState, async (state) => {
+  if (state !== 'ready' || route.hash !== '#session-email') return
+  await nextTick()
+  const section = document.getElementById('session-email')
+  if (!section) return
+  section.scrollIntoView({ block: 'start' })
+  section.focus({ preventScroll: true })
+})
+
 const participants = useParticipants(() => props.sessionId)
 const {
   bookings,

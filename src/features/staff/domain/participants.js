@@ -31,6 +31,7 @@ export const PARTICIPANT_TABLE_COLUMNS = Object.freeze(
       value: (row) => row.contactName,
       sort: 'text',
       filter: 'text',
+      quickFilter: true,
     },
     {
       key: 'email',
@@ -47,6 +48,7 @@ export const PARTICIPANT_TABLE_COLUMNS = Object.freeze(
       sort: 'text',
       filter: 'select',
       options: STATUS_OPTIONS,
+      quickFilter: true,
     },
     {
       key: 'reference',
@@ -150,16 +152,21 @@ export function selectionCountText(count, liveCount) {
     : `${count} selected`
 }
 
-/** The summary above Send: the sentence and every selected name, in selection order. */
-export function recipientSummary(selectedBookings, liveCount) {
+/**
+ * The summary above Send: the sentence and every selected name, in selection order. With nobody
+ * selected the sentence mentions the copy only when `copyToSender` is true (the default is false,
+ * so it never promises a copy it was not told about); without a copy nothing would be sent, and
+ * the sentence says only that nobody is selected.
+ */
+export function recipientSummary(selectedBookings, liveCount, { copyToSender = false } = {}) {
   const count = selectedBookings.length
+  const nobody = copyToSender
+    ? 'No participants selected; only your copy will be sent'
+    : 'No participants selected'
   return {
     count,
     total: liveCount,
-    sentence:
-      count === 0
-        ? 'No participants selected; only your copy will be sent'
-        : `Send to ${count} of ${formatParticipantCount(liveCount)}`,
+    sentence: count === 0 ? nobody : `Send to ${count} of ${formatParticipantCount(liveCount)}`,
     names: selectedBookings.map((booking) => booking.contactName),
   }
 }

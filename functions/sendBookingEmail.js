@@ -13,7 +13,7 @@ import {
 } from './lib/emailSends.js'
 import { BREVO_API_KEY, MAIL_FROM, isEmailDryRun } from './lib/params.js'
 import { isDeliverableAddress } from './lib/recipients.js'
-import { assertBoolean, assertEnum, assertId, requestData } from './lib/validate.js'
+import { assertBookingId, assertBoolean, assertEnum, requestData } from './lib/validate.js'
 import {
   BOOKING_EMAIL_KINDS,
   bookingEmailHasIcs,
@@ -79,7 +79,7 @@ function checkKind(kind, booking, caller) {
     throw precondition('kind-mismatch', 'This booking has changed since this page loaded.')
   }
   if (kind === 'confirmed' && booking.promotedAt != null) {
-    throw precondition('promoted', 'Staff sent the email for this place when it was offered.')
+    throw precondition('promoted', 'Staff send the email for a place offered from the waitlist.')
   }
 }
 
@@ -87,7 +87,7 @@ export async function handleSendBookingEmail(request) {
   const now = new Date()
   const caller = await requireCaller(request, { roles: CALLER_ROLES })
   const data = requestData(request)
-  const bookingId = assertId(data.bookingId, 'bookingId')
+  const bookingId = assertBookingId(data.bookingId, 'bookingId')
   const kind = assertEnum(data.kind, BOOKING_EMAIL_KINDS, 'kind')
   const resend = assertBoolean(data.resend, 'resend', { optional: true })
 

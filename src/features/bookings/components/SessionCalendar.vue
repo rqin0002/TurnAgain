@@ -43,7 +43,9 @@ const options = computed(() => ({
   events: props.events,
   editable: false,
   eventInteractive: true,
-  views: { dayGridMonth: { displayEventTime: false } },
+  // Every title starts with the Melbourne start time, so no view adds its own time text: the
+  // month grid would repeat it in each cell, and the list month in its time column.
+  displayEventTime: false,
   headingLevel: props.headingLevel,
   eventClick: (info) => {
     info.jsEvent.preventDefault()

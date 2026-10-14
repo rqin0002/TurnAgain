@@ -28,7 +28,9 @@ const unreadableAsNull = (caught) => {
  * submit returns the transaction result and stays "submitting" while the view navigates;
  * markBooked() settles "booked" when that navigation fails. Results that arrive after unmount or
  * after a newer load are ignored. A change of signed-in account reloads it, so results for the
- * previous account are ignored too (a sign-out clears it and reads nothing).
+ * previous account are ignored too (a sign-out clears it and reads nothing). Once the route has
+ * left the page its ids read '' and nothing is read either. `emailEnabled` says whether this
+ * build can send the confirmation email at all.
  *
  * @param {{ activityId: import('vue').MaybeRefOrGetter<string>, sessionId: import('vue').MaybeRefOrGetter<string> }} options
  */
@@ -56,6 +58,7 @@ export function useBookingReview({ activityId, sessionId }) {
   )
   const contactNameDefault = computed(() => authStore.user?.displayName ?? '')
   const accountEmail = computed(() => authStore.user?.email ?? '')
+  const emailEnabled = isBookingEmailEnabled()
 
   const settle = (nextState, nextReason = null) => {
     state.value = nextState
@@ -73,8 +76,9 @@ export function useBookingReview({ activityId, sessionId }) {
     existingBooking.value = null
     overlapping.value = null
     offeredWaitlist.value = false
-    // Signed out: the auth guard is about to leave this page, so nothing is read.
-    if (!authStore.user) return
+    // Signed out (the auth guard is about to leave this page), or the route has already moved on
+    // and the ids read '': nothing is read.
+    if (!authStore.user || requestedActivityId === '' || requestedSessionId === '') return
     try {
       const [loadedSession, loadedActivity, mine] = await Promise.all([
         fetchBookingSession(requestedSessionId),
@@ -219,6 +223,7 @@ export function useBookingReview({ activityId, sessionId }) {
     intent,
     contactNameDefault,
     accountEmail,
+    emailEnabled,
     acceptOverlap,
     submit,
     markBooked,

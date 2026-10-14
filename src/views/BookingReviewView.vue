@@ -217,6 +217,7 @@ const backToActivity = computed(() =>
           :session="review.session.value"
           :activity="review.activity.value"
           :email="review.accountEmail.value"
+          :email-enabled="review.emailEnabled"
           :initial-name="review.contactNameDefault.value"
           :intent="review.intent.value"
           :submitting="review.state.value === 'submitting'"

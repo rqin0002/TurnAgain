@@ -9,36 +9,44 @@ import {
   formatSessionTime,
 } from '@/features/activities/domain/activityCatalogue.js'
 
+import { BOOKING_MESSAGES } from '../domain/bookingMessages.js'
 import { describeSessionAvailability, isLiveBooking } from '../domain/bookingRules.js'
 
 import SessionAvailabilityBadge from './SessionAvailabilityBadge.vue'
 
 // The sessions of one activity. Each row is focusable by id (`session-<id>`) and offers one
 // action from describeSessionAvailability; provider and drop-in sessions keep the copy and
-// provider link Activity Detail already showed.
+// provider link Activity Detail already showed. `canBook` false (a signed-in staff or admin
+// account: bookings are made from member accounts) shows a note where Book or Join waitlist
+// would be and ignores `myBookings`, so no booking of that account is linked or named.
 const props = defineProps({
   sessions: { type: Array, required: true },
   activity: { type: Object, required: true },
   now: { type: Date, required: true },
   myBookings: { type: Array, default: () => [] },
   truncated: { type: Boolean, default: false },
+  canBook: { type: Boolean, default: true },
 })
 
 const rows = computed(() =>
   props.sessions.map((session) => {
-    const myBooking =
-      props.myBookings.find(
-        (booking) => booking.sessionId === session.id && isLiveBooking(booking),
-      ) ?? null
+    const myBooking = props.canBook
+      ? (props.myBookings.find(
+          (booking) => booking.sessionId === session.id && isLiveBooking(booking),
+        ) ?? null)
+      : null
     return {
       session,
       myBooking,
       availability: describeSessionAvailability(session, props.now, { myBooking }),
+      when: `${formatSessionDate(session.startsAt)}, ${formatSessionTime(session.startsAt, session.endsAt)}`,
     }
   }),
 )
 
-// The badge names a state; the "Book this session" and "Join waitlist" links name the action.
+// The badge names a state; the "Book this session" and "Join waitlist" links name the action, and
+// each carries its session's date and time for screen readers (`when`), so a list of the page's
+// links still tells the rows apart.
 const showsBadge = ({ availability }) =>
   availability.label !== '' && (availability.action === 'none' || availability.tone === 'limited')
 </script>
@@ -51,7 +59,7 @@ const showsBadge = ({ availability }) =>
     </p>
     <ul class="session-list__items">
       <li
-        v-for="{ session, myBooking, availability } in rows"
+        v-for="{ session, myBooking, availability, when } in rows"
         :id="`session-${session.id}`"
         :key="session.id"
         class="session-list__row"
@@ -77,15 +85,24 @@ const showsBadge = ({ availability }) =>
             <SessionAvailabilityBadge :tone="availability.tone" :label="availability.label" />
           </p>
 
+          <p
+            v-if="
+              !canBook && (availability.action === 'book' || availability.action === 'waitlist')
+            "
+            class="session-list__member-note"
+          >
+            {{ BOOKING_MESSAGES.memberBookingNote }}
+          </p>
           <RouterLink
-            v-if="availability.action === 'book' || availability.action === 'waitlist'"
+            v-else-if="availability.action === 'book' || availability.action === 'waitlist'"
             class="button button--primary"
             :to="{
               name: 'booking-review',
               params: { activityId: activity.id, sessionId: session.id },
             }"
           >
-            {{ availability.action === 'book' ? 'Book this session' : availability.label }}
+            {{ availability.action === 'book' ? 'Book this session' : availability.label
+            }}<span class="visually-hidden">, {{ when }}</span>
           </RouterLink>
           <RouterLink
             v-else-if="availability.action === 'booked'"
@@ -179,7 +196,8 @@ const showsBadge = ({ availability }) =>
   font-weight: 600;
 }
 
-.session-list__availability .button {
+.session-list__availability .button,
+.session-list__availability .session-list__member-note {
   margin-top: 1rem;
 }
 

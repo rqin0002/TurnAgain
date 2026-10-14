@@ -1,15 +1,15 @@
 <script setup>
-import { computed, defineAsyncComponent, nextTick, ref, shallowRef } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 
 import AppButton from '@/shared/components/AppButton.vue'
 
-import { loadSessionCalendar } from './sessionCalendarChunk.js'
+import { loadSessionCalendar, reloadPage } from './sessionCalendarChunk.js'
 
 // Mounts the lazy SessionCalendar for both pages. The status line is mounted
 // before its text changes and says when the chunk is loading or failed; a failed first load
-// (FullCalendar is not yet cached and the connection dropped) offers a fresh load or the List
-// view, which shows the same sessions. Nothing is preloaded, so a visitor who never opens the
-// calendar never downloads it.
+// (FullCalendar is not yet cached and the connection dropped) offers a fresh load of the page or
+// the List view, which shows the same sessions. Nothing is preloaded, so a visitor who never opens
+// the calendar never downloads it.
 defineProps({
   events: { type: Array, required: true },
   initialDate: { type: String, required: true },
@@ -31,40 +31,28 @@ const statusText = computed(() => {
 })
 
 // Both outcomes resolve to a component and the loader never rejects, so Vue mounts no broken
-// component and reports nothing: the failure is this page's to say. A fresh definition per try
-// makes Vue load again instead of replaying the cached failure.
-const create = () =>
-  defineAsyncComponent(() =>
-    loadSessionCalendar().then(
-      (component) => {
-        state.value = 'ready'
-        return component
-      },
-      () => {
-        state.value = 'failed'
-        return { render: () => null }
-      },
-    ),
-  )
-const calendar = shallowRef(create())
-
-const statusLine = ref(null)
-// "Try again" unmounts with the failed state, so focus moves to the status line it updates.
-const tryAgain = async () => {
-  state.value = 'loading'
-  calendar.value = create()
-  await nextTick()
-  statusLine.value?.focus()
-}
+// component and reports nothing: the failure is this page's to say. The chunk is imported once
+// per page: the browser answers a second import of a file whose download failed from its record
+// of that failure, so the recovery control loads the page afresh instead (reloadPage).
+const calendar = defineAsyncComponent(() =>
+  loadSessionCalendar().then(
+    (component) => {
+      state.value = 'ready'
+      return component
+    },
+    () => {
+      state.value = 'failed'
+      return { render: () => null }
+    },
+  ),
+)
 </script>
 
 <template>
   <div class="session-calendar-loader">
-    <p ref="statusLine" class="session-calendar-loader__status" role="status" tabindex="-1">
-      {{ statusText }}
-    </p>
+    <p class="session-calendar-loader__status" role="status">{{ statusText }}</p>
     <div v-if="state === 'failed'" class="session-calendar-loader__actions">
-      <AppButton variant="primary" @click="tryAgain">Try again</AppButton>
+      <AppButton variant="primary" @click="reloadPage">Reload the page</AppButton>
       <AppButton variant="secondary" @click="emit('show-list')">Show the list</AppButton>
     </div>
     <component

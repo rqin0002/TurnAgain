@@ -37,7 +37,10 @@ const startsWithinSkew = (error) => {
 }
 
 // Lite gave up after its retries: `aborted` maps to conflict/aborted and a commit
-// precondition to unavailable; for a create both mean another booking won the place.
+// precondition to unavailable. For a create both mean another write changed what the booking
+// reads first (most often the session: a booking, a cancel or a staff edit), so the review hears
+// that the session changed and is offered the waitlist; whether a place is still free is not
+// known here.
 const isExhaustedRetry = (error) =>
   (error?.code === 'conflict' && error.details?.code === 'aborted') ||
   (error?.code === 'unavailable' && error.cause?.code === 'failed-precondition')

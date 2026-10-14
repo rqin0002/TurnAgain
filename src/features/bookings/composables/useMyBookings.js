@@ -35,6 +35,10 @@ const eitherSignal = (first, second) => {
  * then the current sessions arrive in chunks; a session that did not load leaves its bookings
  * `unconfirmed`, never cancelled. Member-private, so nothing is persisted, and every identity
  * change aborts the requests in flight, empties the lists and loads again.
+ * Bookings are a member account's only: for a signed-in account whose role is not exactly
+ * `member` (staff, admin, or none) the lists stay empty and idle and nothing is read, so a
+ * booking such an account made earlier is never shown; a change of role alone empties or
+ * reloads the lists like an identity change.
  * `autoLoad` may be a getter: the list then loads on mount, on an identity change and when the
  * getter turns true, only while it reads true.
  *
@@ -87,7 +91,7 @@ export function useMyBookings({ autoLoad = true, withSessions = true } = {}) {
     controller?.abort()
     controller = new AbortController()
     const run = ++generation
-    if (!authStore.isSignedIn || !authStore.user?.uid) {
+    if (!authStore.isSignedIn || !authStore.user?.uid || authStore.user.role !== 'member') {
       clear()
       return
     }
@@ -111,15 +115,13 @@ export function useMyBookings({ autoLoad = true, withSessions = true } = {}) {
     }
   }
 
-  watch(
-    () => authStore.identityEpoch,
-    () => {
-      controller?.abort()
-      generation += 1
-      clear()
-      if (mounted && wanted()) void load()
-    },
-  )
+  // Two sources, each compared on its own: a new user object with the same role reloads nothing.
+  watch([() => authStore.identityEpoch, () => authStore.user?.role ?? null], () => {
+    controller?.abort()
+    generation += 1
+    clear()
+    if (mounted && wanted()) void load()
+  })
   watch(wanted, (value) => {
     if (value && mounted && status.value === 'idle') void load()
   })

@@ -41,7 +41,12 @@ export function useBookingEmail({ bookingId, kind, requestOnMount = false }) {
 
   const message = computed(() => {
     if (status.value === 'requesting') return BOOKING_MESSAGES.emailChecking
-    if (refusal.value) return refusal.value.message
+    // An answer that used the day's last attempt states its outcome first and the cap after it; a
+    // refused call has no outcome of its own, so its reason stands alone.
+    if (refusal.value) {
+      const outcome = EMAIL_STATUS_COPY[status.value]
+      return outcome ? `${outcome}. ${refusal.value.message}` : refusal.value.message
+    }
     if (error.value) return error.value.message ?? ''
     return EMAIL_STATUS_COPY[status.value] ?? ''
   })

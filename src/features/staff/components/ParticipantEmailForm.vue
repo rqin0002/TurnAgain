@@ -12,7 +12,7 @@ import {
   offersNewSendFromLog,
   useParticipantEmail,
 } from '../composables/useParticipantEmail.js'
-import { recipientSummary } from '../domain/participants.js'
+import { formatParticipantCount, recipientSummary } from '../domain/participants.js'
 
 /**
  * "Email participants" on the staff session page: subject and message prefilled,
@@ -61,7 +61,11 @@ const {
   previousEmails,
 } = email
 
-const summary = computed(() => recipientSummary(props.selectedBookings, props.liveCount))
+const summary = computed(() =>
+  recipientSummary(props.selectedBookings, props.liveCount, {
+    copyToSender: copyToSender.value,
+  }),
+)
 const locked = computed(() => state.value === 'confirming' || state.value === 'sending')
 const composing = computed(() => ['composing', 'no-participants'].includes(state.value))
 // The zero-selection rule: with nobody selected, Send needs "Send me a copy". Other
@@ -104,7 +108,12 @@ const back = async () => {
 </script>
 
 <template>
-  <section id="session-email" class="session-email" aria-labelledby="session-email-heading">
+  <section
+    id="session-email"
+    class="session-email"
+    tabindex="-1"
+    aria-labelledby="session-email-heading"
+  >
     <h3 id="session-email-heading">Email participants</h3>
     <CapabilityNotice :enabled="enabled" feature="session-email" />
     <template v-if="enabled">
@@ -210,7 +219,7 @@ const back = async () => {
               {{ log.subject }}
             </p>
             <p class="session-email__log-meta">
-              {{ when(log.sentAt) }} · {{ log.recipientCount }} participants ·
+              {{ when(log.sentAt) }} · {{ formatParticipantCount(log.recipientCount) }} ·
               {{ EMAIL_LOG_STATUS_LABELS[log.status] }}
             </p>
             <AppButton

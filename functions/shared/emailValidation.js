@@ -15,7 +15,9 @@ export const SESSION_EMAIL_LIMITS = Object.freeze({
   bodyMax: 2000,
 })
 
-const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u
+// A selected id is a booking id, `<uid>_<sessionId>`, so up to 257 characters (each half is at
+// most 128); the function then checks every id against the session's own bookings.
+const BOOKING_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,256}$/u
 
 const codePoints = (text) => Array.from(text).length
 
@@ -34,7 +36,7 @@ function checkText(raw, { min, max, allowed }) {
 function checkRecipients(raw, copyToSender) {
   if (!Array.isArray(raw)) return { value: [], error: 'not-a-list' }
   if (raw.length > SESSION_EMAIL_LIMITS.maxRecipients) return { value: [], error: 'too-many' }
-  if (!raw.every((id) => typeof id === 'string' && ID_PATTERN.test(id))) {
+  if (!raw.every((id) => typeof id === 'string' && BOOKING_ID_PATTERN.test(id))) {
     return { value: [], error: 'invalid-id' }
   }
   if (new Set(raw).size !== raw.length) return { value: [], error: 'duplicate' }

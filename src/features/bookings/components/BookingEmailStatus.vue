@@ -11,6 +11,9 @@ import { EMAIL_ACTIONS } from '../domain/bookingMessages.js'
 // holds the sentence only; the buttons sit beside it and carry the countdown as their hint. A
 // button keeps focus while its own request runs (busy, never natively disabled); when the answer
 // removes or disables it, focus moves to the status sentence instead of falling to <body>.
+// Check status asks without resend, which never repeats an attempt (the function answers with the
+// latest one), so the daily cap that holds back Resend and Send again never disables it; it is
+// offered while an attempt is still sending too.
 const props = defineProps({
   bookingId: { type: String, required: true },
   kind: {
@@ -28,7 +31,7 @@ const email = useBookingEmail({
   kind: () => props.kind,
   requestOnMount: props.requestOnMount,
 })
-const { enabled, status, result, refusal, message, secondsLeft, canResend, exhausted } = email
+const { enabled, status, result, refusal, message, secondsLeft, canResend } = email
 
 // The buttons follow the last status the server reported; a refusal or an error keeps it.
 const shown = computed(() =>
@@ -85,7 +88,7 @@ watch(
         {{ EMAIL_ACTIONS.resend }}
       </AppButton>
       <template v-else-if="shown === 'unknown'">
-        <AppButton variant="secondary" :busy="busy" :disabled="exhausted" @click="onCheck">
+        <AppButton variant="secondary" :busy="busy" @click="onCheck">
           {{ EMAIL_ACTIONS.checkStatus }}
         </AppButton>
         <AppButton
@@ -98,6 +101,9 @@ watch(
           {{ EMAIL_ACTIONS.sendAgain }}
         </AppButton>
       </template>
+      <AppButton v-else-if="shown === 'sending'" variant="secondary" :busy="busy" @click="onCheck">
+        {{ EMAIL_ACTIONS.checkStatus }}
+      </AppButton>
       <AppButton v-else-if="shown === 'idle'" variant="secondary" :busy="busy" @click="onCheck">
         {{ EMAIL_ACTIONS.checkEmailStatus }}
       </AppButton>

@@ -8,12 +8,13 @@ import DataTable from '@/shared/components/DataTable.vue'
 import { isLiveParticipant } from '../domain/participants.js'
 
 /**
- * The participants of one session on the shared DataTable: one named native checkbox
- * per confirmed or waitlisted row (APG checkbox pattern; a cancelled row has none), the status as
- * a badge, user-typed text with `dir="auto"`, and on a recently promoted row "Send promotion
- * email" (or "Send again" after a failure) with that row's email line, only in a build with
- * functions (`emailEnabled`, decided from configuration). The email line is focusable and
- * carries `data-email-line`, so the page can move focus to it when the button leaves.
+ * The participants of one session on the shared DataTable (its cards titled at level 4, under the
+ * page's "Participants" heading): one named native checkbox per confirmed or waitlisted row (APG
+ * checkbox pattern; a cancelled row has none), the status as a badge, user-typed text with
+ * `dir="auto"`, and on a recently promoted row "Send promotion email" (or "Send again" after a
+ * failure) with that row's email line, only in a build with functions (`emailEnabled`, decided
+ * from configuration). The email line is focusable and carries `data-email-line`, so the page can
+ * move focus to it when the button leaves.
  * The selection itself lives in the page's useParticipants; this component only reports toggles.
  */
 const props = defineProps({
@@ -51,6 +52,8 @@ const emailLabel = (row) =>
     :truncated="truncated"
     caption="Participants"
     empty-message="No participants match these filters."
+    :heading-level="4"
+    wrap-actions
     @filter="(key, value) => emit('filter', key, value)"
     @clear-filters="emit('clear-filters')"
     @sort="(key, direction) => emit('sort', key, direction)"
