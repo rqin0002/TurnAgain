@@ -140,8 +140,15 @@ main {
 
 .button:disabled,
 .form-control:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.65;
+}
+
+/* The wait cursor means work is running: a busy button, or a button or field disabled inside a
+   busy region. A disabled button or field that is simply unavailable shows not-allowed (above). */
+:is(.button, .text-button)[aria-busy='true'],
+[aria-busy='true'] :is(.button, .form-control):disabled {
+  cursor: wait;
 }
 
 .form-control {
@@ -159,6 +166,40 @@ main {
 .form-control[aria-invalid='true'] {
   border-color: var(--color-danger);
   box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+/* A field the browser has autofilled. Chromium and Edge paint it with their own background and
+   text colour, and that text colour comes from the operating system: on some Windows set-ups it
+   is near-white even on a light page, which leaves the value unreadable on the pale autofill tint.
+   The browser's background cannot be overridden, so an inset shadow paints the theme's soft brand
+   tint over it and the value and caret are drawn in the theme's text colour. That holds while the
+   field is hovered, focused or left; editing the value ends the autofill state and the field's
+   usual look returns. Nothing here changes what the browser fills in or whether it offers to. */
+.form-control:is(:autofill, :-webkit-autofill) {
+  box-shadow: inset 0 0 0 100vmax var(--color-brand-soft);
+  caret-color: var(--color-text);
+  -webkit-text-fill-color: var(--color-text);
+}
+
+/* The autofill shadow would replace the red ring of an invalid field, so this rule draws both. */
+.form-control[aria-invalid='true']:is(:autofill, :-webkit-autofill) {
+  box-shadow:
+    0 0 0 1px var(--color-danger),
+    inset 0 0 0 100vmax var(--color-brand-soft);
+}
+
+/* The calendar and clock buttons of date and time fields. Chromium and Edge draw them in a colour
+   taken from the operating system rather than from this page, so on some Windows set-ups the
+   light theme gets a near-white icon on a white field. The theme's filter turns the icon black
+   whatever colour it was drawn in, and the dark theme then inverts it to white. Only the button is
+   filtered: the field's text, border and focus ring are untouched, and browsers that draw no such
+   button ignore the rule. In forced colours mode (a Windows contrast theme) the system's colours
+   replace the theme's and the filter would turn the whole button into a solid square, so there the
+   browser draws it as it always has. */
+@media (forced-colors: none) {
+  .form-control::-webkit-calendar-picker-indicator {
+    filter: var(--control-icon-filter);
+  }
 }
 
 .staff-page .state-panel {

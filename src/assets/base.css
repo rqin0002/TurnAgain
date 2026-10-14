@@ -39,10 +39,13 @@
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --duration-fast: 160ms;
   --duration-press: 80ms;
-  /* The header's min-height (App.vue): the map column is calc(100dvh - var(--header-h)). */
+  /* The header's min-height (App.vue). */
   --header-h: 4.25rem;
   /* Map tiles: a small override per theme, never an inversion. */
   --map-tile-filter: none;
+  /* Date and time picker buttons: drawn black on the light theme's fields whatever colour the
+     browser chose (src/assets/main.css says why); the dark blocks invert it to white. */
+  --control-icon-filter: brightness(0);
 }
 
 /* The header grows at the 992 breakpoint (App.vue), so the token grows with it. */
@@ -76,6 +79,7 @@
     --color-warning-soft: #3a2c10;
     --color-focus: #8ec4ff;
     --map-tile-filter: brightness(0.82) saturate(0.85) contrast(1.05);
+    --control-icon-filter: brightness(0) invert(1);
     color-scheme: dark;
   }
 }
@@ -102,6 +106,7 @@
   --color-warning-soft: #3a2c10;
   --color-focus: #8ec4ff;
   --map-tile-filter: brightness(0.82) saturate(0.85) contrast(1.05);
+  --control-icon-filter: brightness(0) invert(1);
   color-scheme: dark;
 }
 
@@ -112,8 +117,10 @@
   box-sizing: border-box;
 }
 
+/* The narrowest page is 320 CSS px (the WCAG 1.4.10 reflow width). It is set in px, not rem, so a
+   larger text size does not widen the page past a phone screen (WCAG 1.4.4). */
 html {
-  min-width: 20rem;
+  min-width: 320px;
   /* Keep the shell still when a route's loading state needs no scrollbar. */
   scrollbar-gutter: stable;
   background: var(--color-background);
@@ -124,7 +131,7 @@ html {
 }
 
 body {
-  min-width: 20rem;
+  min-width: 320px;
   min-height: 100vh;
   margin: 0;
   background: var(--color-background);

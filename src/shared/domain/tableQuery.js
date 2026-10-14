@@ -102,6 +102,10 @@ export function applyTableQuery(
  * @property {boolean} [nowrap]                                 the cell text never wraps
  * @property {boolean} [wrap]                                   long words may break anywhere
  * @property {string} [placeholder]                             text filter placeholder
+ * @property {boolean} [quickFilter]                            the filter stays in view above the
+ *                                                             rows; the others sit under "More filters"
+ * @property {string} [filterLabel]                             the filter's visible label;
+ *                                                             default "Filter by <label>"
  * @property {string} [anyLabel]                                select filter's "no filter" option;
  *                                                             default "Any <label in lower case>"
  */
@@ -120,7 +124,10 @@ const MISSING = Symbol('missing')
 
 const firstValue = (value) => (Array.isArray(value) ? value[0] : value)
 
-const cleanFilter = (value) => value.trim().replace(/\s+/gu, ' ').slice(0, FILTER_MAX_LENGTH)
+// Cut by code point, never between the two halves of an emoji: the router encodes the value with
+// encodeURI, which throws on a lone surrogate.
+const cleanFilter = (value) =>
+  Array.from(value.trim().replace(/\s+/gu, ' ')).slice(0, FILTER_MAX_LENGTH).join('')
 
 const isOption = (column, value) => (column.options ?? []).some((option) => option.value === value)
 

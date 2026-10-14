@@ -1,6 +1,8 @@
 import { ref, watch } from 'vue'
 
-const normalizeDraft = (value) => value.trim().replace(/\s+/gu, ' ').slice(0, 100)
+// The same tidying and 100-character cut as a table filter, by code point.
+const normalizeDraft = (value) =>
+  Array.from(value.trim().replace(/\s+/gu, ' ')).slice(0, 100).join('')
 
 /**
  * Keeps the text being edited separate from canonical URL criteria. A router

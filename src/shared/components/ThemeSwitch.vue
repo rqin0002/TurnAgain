@@ -73,11 +73,12 @@ const toggle = () => setPreference(isDark.value ? 'light' : 'dark')
   gap: 1rem;
 }
 
-/* The two track colours are the switch's own: white icons and knob keep
-   at least 3:1 against either. The switch shows the effective theme, so the orange track only ever
-   sits on the light page, which it already stands out from, and the near-black track only on the
-   dark page, which needs the border to separate them. The border stays 1px wide in both states so
-   the knob travels the same box. */
+/* The light track is the brand blue of the primary buttons; the dark track is the switch's own
+   near-black. White icons and knob keep at least 3:1 against either (about 5.6:1 on the blue).
+   The switch shows the effective theme, so the blue track is only ever painted on the light page,
+   where the brand token is a deep blue: on the dark page that token is a pale blue white would not
+   read on, and the dark page always gets the near-black track, which needs the border to separate
+   it from the page. The border stays 1px wide in both states so the knob travels the same box. */
 .theme-switch__track {
   position: relative;
   flex: none;
@@ -85,7 +86,7 @@ const toggle = () => setPreference(isDark.value ? 'light' : 'dark')
   height: 2.5rem;
   border: 1px solid transparent;
   border-radius: 999px;
-  background: #e8430e;
+  background: var(--color-brand);
   color: #ffffff;
   cursor: pointer;
   transition:

@@ -10,12 +10,10 @@ const props = defineProps({
   feature: {
     type: String,
     required: true,
-    validator: (value) => ['booking-email', 'session-email', 'promotion', 'team'].includes(value),
+    validator: (value) =>
+      ['booking-email', 'session-email', 'promotion', 'team', 'members'].includes(value),
   },
 })
-
-const CONSOLE_PROCEDURE_URL =
-  'https://github.com/rqin0002/TurnAgain/blob/main/seed/README.md#demo-accounts'
 
 const SENTENCES = Object.freeze({
   'booking-email':
@@ -24,7 +22,9 @@ const SENTENCES = Object.freeze({
     'Emails to participants are sent by a Cloud Function, so the session email form is unavailable in this build.',
   promotion:
     'Promoting the next waitlisted participant runs as a Cloud Function, so it is unavailable in this build.',
-  team: 'Role and status changes run as a Cloud Function, so the Team table is unavailable in this build; use the console procedure instead.',
+  team: 'Role and status changes run as a Cloud Function, so the Team table is unavailable in this build; an administrator can change roles and status in the Firebase console instead.',
+  members:
+    'Role and status changes run as a Cloud Function, so the Members table is unavailable in this build; an administrator can change roles and status in the Firebase console instead.',
 })
 
 const sentence = computed(() => SENTENCES[props.feature])
@@ -34,13 +34,6 @@ const sentence = computed(() => SENTENCES[props.feature])
   <div v-if="!enabled" class="capability-notice" role="status">
     <p class="capability-notice__text">
       <strong>Not enabled in this deployment.</strong> {{ sentence }}
-    </p>
-    <p v-if="feature === 'team'" class="capability-notice__link">
-      <a :href="CONSOLE_PROCEDURE_URL" target="_blank" rel="noopener noreferrer"
-        >Console procedure for demo and staff accounts<span class="visually-hidden">
-          (opens in a new tab)</span
-        ></a
-      >
     </p>
   </div>
 </template>

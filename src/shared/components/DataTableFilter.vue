@@ -4,8 +4,8 @@ import { computed } from 'vue'
 import { multiFilterValues } from '../domain/tableQuery.js'
 
 /**
- * One column's labelled filter for DataTable, shared by the wide filter row and the narrow
- * `<details>`, so both layouts always carry the same control with a visible label.
+ * One column's labelled filter for DataTable, rendered in its filter area (in view for a quick
+ * filter, else under More filters) in both layouts, so a control always has a visible label.
  * - text: binds the IME-safe `useSearchDraft` that DataTable owns, so the text being typed
  *   survives a switch between layouts; the placeholder is the column's, else a generic hint.
  * - select: the first option names the column ("Any status", or the column's `anyLabel`) and
@@ -21,7 +21,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['change'])
 
-const label = computed(() => `Filter by ${props.column.label}`)
+// A column may name its filter itself ("Search name or email"); otherwise "Filter by <label>".
+const label = computed(() => props.column.filterLabel ?? `Filter by ${props.column.label}`)
 const anyLabel = computed(
   () => props.column.anyLabel ?? `Any ${props.column.label.toLocaleLowerCase('en-AU')}`,
 )
@@ -98,7 +99,7 @@ const toggle = (optionValue, checked) => {
 
 .data-table-filter__option {
   display: inline-flex;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   align-items: center;
   gap: 0.35rem;
   white-space: nowrap;

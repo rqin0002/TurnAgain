@@ -1,6 +1,7 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
+import { focusAfterAction } from '@/shared/composables/focusAfterAction.js'
 import { GENERIC_FAILURE } from '@/shared/domain/errorCopy.js'
 
 // Loading, empty, error, offline and notice states in one place. `error` is read by
@@ -55,10 +56,29 @@ const role = computed(() => {
 })
 
 const showRetry = computed(() => props.variant === 'error' || props.variant === 'offline')
+
+// Try again usually swaps this panel for a loading one, so the button just pressed leaves the page
+// and focus would fall to <body>, sending the next Tab back to the top (WCAG 2.4.3 Focus Order).
+// Focus goes instead to the enclosing section's heading marked tabindex="-1" (the results list
+// keeps such a heading mounted through loading and error), or, when there is no such heading, to
+// the page's main landmark (#main-content), which the app shell keeps mounted. The section is
+// found before the emit, while this panel is still in the page. Focus that the owner's handler
+// moved elsewhere stays there, and a button that stays in the page keeps it.
+const root = ref(null)
+const retry = () => {
+  const section = root.value?.closest('section')
+  return focusAfterAction(
+    () => emit('retry'),
+    () =>
+      section?.querySelector('h1[tabindex="-1"], h2[tabindex="-1"]') ??
+      document.getElementById('main-content'),
+  )
+}
 </script>
 
 <template>
   <div
+    ref="root"
     class="state-panel"
     :class="`state-panel--${variant}`"
     :aria-busy="variant === 'loading' ? 'true' : undefined"
@@ -75,7 +95,7 @@ const showRetry = computed(() => props.variant === 'error' || props.variant === 
         v-if="showRetry"
         class="button button--primary state-panel__retry"
         type="button"
-        @click="emit('retry')"
+        @click="retry"
       >
         {{ retryLabel }}
       </button>
