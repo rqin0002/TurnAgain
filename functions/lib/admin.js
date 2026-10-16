@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
-import { FieldPath, FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
+import { FieldPath, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { setGlobalOptions } from 'firebase-functions/v2'
 
 /**
@@ -22,7 +22,7 @@ const app = initializeApp()
 
 export const db = getFirestore(app)
 export const auth = getAuth(app)
-export { FieldPath, FieldValue, Timestamp }
+export { FieldPath, Timestamp }
 
 /** Cloud Functions and `firebase emulators:exec` both supply FIREBASE_CONFIG; the env vars are the fallback. */
 export const projectId =

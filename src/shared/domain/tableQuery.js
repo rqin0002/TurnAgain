@@ -74,15 +74,6 @@ export function paginateRows(records, { page = 1, pageSize = 10 } = {}) {
   }
 }
 
-/** Filter, stable sort and page in one call. */
-export function applyTableQuery(
-  records,
-  { predicate = () => true, compare = () => 0, page = 1, pageSize = 10 } = {},
-) {
-  const source = Array.isArray(records) ? records : []
-  return paginateRows(sortRecords(source.filter(predicate), compare), { page, pageSize })
-}
-
 /**
  * @typedef {object} Column
  * @property {string} key                    URL key of the filter; never 'sort' or 'page'

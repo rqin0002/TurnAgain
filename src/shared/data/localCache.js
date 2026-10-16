@@ -6,7 +6,7 @@
  * stringify to `{ seconds, nanoseconds }` and break the cached paint).
  */
 
-export const CACHE_VERSION = 1
+const CACHE_VERSION = 1
 export const CACHE_PREFIX = 'turnagain:v1:'
 export const CACHE_KEYS = Object.freeze({
   services: 'turnagain:v1:catalogue:services',

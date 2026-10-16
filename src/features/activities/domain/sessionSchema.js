@@ -17,7 +17,7 @@ import {
  * older documents may lack (`revision`, `cancellationNoticeAt`).
  */
 
-export const SESSION_STATUSES = Object.freeze(['scheduled', 'full', 'cancelled', 'completed'])
+const SESSION_STATUSES = Object.freeze(['scheduled', 'full', 'cancelled', 'completed'])
 export const PUBLIC_SESSION_STATUSES = Object.freeze(['scheduled', 'full', 'cancelled'])
 export const REGISTRATION_TYPES = Object.freeze(['turnagain', 'provider', 'drop-in'])
 
@@ -43,6 +43,25 @@ const REQUIRED_KEYS = new Set([
 ])
 const OPTIONAL_KEYS = new Set(['cancellationNoticeAt', 'revision'])
 export const SESSION_KEYS = Object.freeze([...REQUIRED_KEYS, ...OPTIONAL_KEYS].sort())
+/**
+ * The content of a session: the fields a staff edit sends and the seed writes. Not content: the
+ * id, the stamps and the revision (the writer's), bookedCount and waitlistCount (moved only by
+ * bookings) and status (derived from the counters, or set by a status change).
+ */
+export const SESSION_CONTENT_KEYS = Object.freeze([
+  'activityId',
+  'startsAt',
+  'endsAt',
+  'venueName',
+  'address',
+  'suburb',
+  'postcode',
+  'capacity',
+  'registrationType',
+  'registrationUrl',
+  'sourceCheckedAt',
+  'participantNotice',
+])
 const ALLOWED_KEYS = new Set(SESSION_KEYS)
 
 export const hasKnownCapacity = (session) =>

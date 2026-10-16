@@ -42,6 +42,26 @@ const REQUIRED_KEYS = new Set([
 ])
 const OPTIONAL_KEYS = new Set(['revision'])
 export const ACTIVITY_KEYS = Object.freeze([...REQUIRED_KEYS, ...OPTIONAL_KEYS].sort())
+/**
+ * The content of an activity: the fields a staff edit sends and the seed writes. The id, the
+ * createdAt and updatedAt stamps and the revision belong to the writer, not to the content.
+ */
+export const ACTIVITY_CONTENT_KEYS = Object.freeze([
+  'title',
+  'summary',
+  'activityType',
+  'suitableItems',
+  'acceptedConditions',
+  'excludedConditions',
+  'costLabel',
+  'whatToBring',
+  'accessibilityLabel',
+  'cancellationLabel',
+  'providerName',
+  'providerUrl',
+  'sourceCheckedAt',
+  'status',
+])
 const ALLOWED_KEYS = new Set(ACTIVITY_KEYS)
 
 const list = (value, minimumEntries = 1) =>

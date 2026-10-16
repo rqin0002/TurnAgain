@@ -20,6 +20,6 @@ export function describeError(error) {
 }
 
 /** The codes that get the connection wording. */
-export const CONNECTION_ERROR_CODES = Object.freeze(['offline', 'network'])
+const CONNECTION_ERROR_CODES = Object.freeze(['offline', 'network'])
 
 export const isConnectionError = (error) => CONNECTION_ERROR_CODES.includes(error?.code)

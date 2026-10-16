@@ -13,7 +13,7 @@ import { toDate } from './melbourneTime.js'
 import { formatVenueLine } from './venue.js'
 
 export const ICS_PRODID = '-//TurnAgain//Bookings//EN'
-export const ICS_VERSION = '2.0'
+const ICS_VERSION = '2.0'
 export const SESSION_ICS_FILE_NAME = 'session.ics'
 
 const CRLF = '\r\n'

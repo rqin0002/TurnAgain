@@ -42,11 +42,11 @@ export const TEAM_MESSAGES = Object.freeze({
 export const DEFAULT_RETRY_AFTER_MS = 2000
 
 /** States in which a row's buttons are disabled: a call is running or about to run. */
-export const BUSY_ROW_STATES = Object.freeze(['checking', 'applying', 'reloading', 'waiting'])
+const BUSY_ROW_STATES = Object.freeze(['checking', 'applying', 'reloading', 'waiting'])
 
 /** The roles each page lists. */
-export const TEAM_ROLES = Object.freeze(['staff', 'admin'])
-export const MEMBER_ROLES = Object.freeze(['member'])
+const TEAM_ROLES = Object.freeze(['staff', 'admin'])
+const MEMBER_ROLES = Object.freeze(['member'])
 
 /**
  * @param {string} id - the document id

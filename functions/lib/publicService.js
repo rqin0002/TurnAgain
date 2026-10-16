@@ -5,7 +5,7 @@
  */
 
 export const ACTIONS = Object.freeze(['repair', 'reuse', 'recycle'])
-export const SORTS = Object.freeze(['name-asc', 'name-desc'])
+const SORTS = Object.freeze(['name-asc', 'name-desc'])
 export const DEFAULT_PAGE_SIZE = 10
 export const MAX_PAGE_SIZE = 50
 const MAX_QUERY_LENGTH = 100

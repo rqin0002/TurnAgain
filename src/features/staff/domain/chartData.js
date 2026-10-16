@@ -12,7 +12,7 @@ import { formatDate, formatTime } from '@/shared/domain/formatDate.js'
  */
 
 export const BOOKINGS_CHART_LIMIT = 8
-export const RATINGS_CHART_LIMIT = 8
+const RATINGS_CHART_LIMIT = 8
 
 const BOOKING_SERIES = Object.freeze([
   Object.freeze({ key: 'booked', label: 'Booked', of: (session) => session.bookedCount }),

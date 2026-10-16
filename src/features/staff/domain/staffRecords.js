@@ -60,7 +60,7 @@ export function toStaffRecord(kind, id, data) {
   return Object.hasOwn(PROJECTORS, kind) ? PROJECTORS[kind](id, data) : null
 }
 
-export const EMAIL_LOG_STATUSES = Object.freeze([
+const EMAIL_LOG_STATUSES = Object.freeze([
   'sending',
   'accepted',
   'partial',

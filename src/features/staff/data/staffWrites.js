@@ -7,9 +7,16 @@ import {
   writeBatch,
 } from 'firebase/firestore/lite'
 
-import { validateActivity } from '@/features/activities/domain/activitySchema.js'
-import { deriveSessionStatus, validateSession } from '@/features/activities/domain/sessionSchema.js'
-import { validateService } from '@/features/discovery/domain/serviceSchema.js'
+import {
+  ACTIVITY_CONTENT_KEYS,
+  validateActivity,
+} from '@/features/activities/domain/activitySchema.js'
+import {
+  SESSION_CONTENT_KEYS,
+  deriveSessionStatus,
+  validateSession,
+} from '@/features/activities/domain/sessionSchema.js'
+import { SERVICE_CONTENT_KEYS, validateService } from '@/features/discovery/domain/serviceSchema.js'
 import { RepositoryError, toRepositoryError } from '@/shared/data/RepositoryError.js'
 
 import { COLLECTION_OF_KIND } from '../domain/staffRecords.js'
@@ -34,58 +41,6 @@ export const CORRECTION_NOT_OPEN_MESSAGE =
   'This correction was already handled in another window, so the listing was not saved. Your changes stay in the form.'
 export const DUPLICATE_ID_MESSAGE = 'A record with this id already exists.'
 const INVALID_FIELDS_MESSAGE = 'Check the highlighted fields.'
-
-export const SERVICE_CONTENT_KEYS = Object.freeze([
-  'name',
-  'actionTypes',
-  'acceptedItems',
-  'aliases',
-  'summary',
-  'address',
-  'suburb',
-  'postcode',
-  'searchAreas',
-  'status',
-  'source',
-  'geo',
-  'itemCategories',
-  'acceptanceConditions',
-  'excludedConditions',
-  'preparation',
-  'access',
-  'openingHours',
-  'cost',
-])
-export const ACTIVITY_CONTENT_KEYS = Object.freeze([
-  'title',
-  'summary',
-  'activityType',
-  'suitableItems',
-  'acceptedConditions',
-  'excludedConditions',
-  'costLabel',
-  'whatToBring',
-  'accessibilityLabel',
-  'cancellationLabel',
-  'providerName',
-  'providerUrl',
-  'sourceCheckedAt',
-  'status',
-])
-export const SESSION_CONTENT_KEYS = Object.freeze([
-  'activityId',
-  'startsAt',
-  'endsAt',
-  'venueName',
-  'address',
-  'suburb',
-  'postcode',
-  'capacity',
-  'registrationType',
-  'registrationUrl',
-  'sourceCheckedAt',
-  'participantNotice',
-])
 
 export const ALLOWED_STATUS_CHANGES = Object.freeze({
   services: Object.freeze({ published: ['archived'], archived: ['published'] }),

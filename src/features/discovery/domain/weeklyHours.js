@@ -5,8 +5,8 @@ import { WEEKDAYS, parseOpeningHours } from './openingHours.js'
  * (openingHours.js). A service stores its hours as text lines whose first line is the weekly
  * schedule; the staff hours editor writes that line with `formatWeeklyLine`, in a shape the parser
  * reads back to the same week, and the pages turn the stored lines into what a visitor reads: the
- * week as a table (`readServiceHours`) and today's state on a card ("Open now · closes 6pm",
- * `formatHoursToday`). Pure: no clock; the caller passes the Melbourne weekday and minute
+ * week as a table (`readServiceHours`) and today's state on a card ("Open now" with "closes 6pm",
+ * `describeHoursToday`). Pure: no clock; the caller passes the Melbourne weekday and minute
  * (`melbourneClock` in functions/shared/melbourneTime.js). Times are minutes since midnight, a
  * closing time of 1440 being midnight at the end of the day, as the parser gives them.
  */
@@ -23,7 +23,7 @@ export const DAY_LABELS = Object.freeze({
 })
 
 /** The weekdays as the weekly line and the card write them. */
-export const DAY_SHORT = Object.freeze({
+const DAY_SHORT = Object.freeze({
   mon: 'Mon',
   tue: 'Tue',
   wed: 'Wed',
@@ -199,13 +199,4 @@ export function describeHoursToday(lines, clock) {
   const { weekday, minutes, today } = state.opens
   const day = today ? '' : `${DAY_SHORT[weekday]} `
   return { status: 'closed', label: 'Closed', detail: `opens ${day}${formatClock(minutes)}` }
-}
-
-/**
- * Today's state as one line: "Open now · closes 6pm", "Closed · opens Sat 10am", or "Hours not
- * checked" (see describeHoursToday).
- */
-export function formatHoursToday(lines, clock) {
-  const { label, detail } = describeHoursToday(lines, clock)
-  return detail ? `${label} · ${detail}` : label
 }

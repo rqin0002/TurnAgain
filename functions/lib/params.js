@@ -9,9 +9,9 @@ export const BREVO_API_KEY = defineSecret('BREVO_API_KEY')
  */
 export const MAIL_FROM = defineString('MAIL_FROM')
 
-export const EMAIL_DRY_RUN = defineString('EMAIL_DRY_RUN', { default: '0' })
+const EMAIL_DRY_RUN = defineString('EMAIL_DRY_RUN', { default: '0' })
 
-export const ALLOW_LIVE_ADMIN = defineString('ALLOW_LIVE_ADMIN', { default: '0' })
+const ALLOW_LIVE_ADMIN = defineString('ALLOW_LIVE_ADMIN', { default: '0' })
 
 /**
  * The one reader of the dry-run flag. `.value()` returns `process.env.EMAIL_DRY_RUN || ''` at run

@@ -23,7 +23,7 @@ import { deriveItemCategories } from './itemCategories.js'
 
 export const SERVICE_ACTIONS = Object.freeze(['repair', 'reuse', 'recycle'])
 export const SERVICE_STATUSES = Object.freeze(['published', 'archived'])
-export const GEO_PRECISIONS = Object.freeze(['venue', 'area'])
+const GEO_PRECISIONS = Object.freeze(['venue', 'area'])
 
 const REQUIRED_KEYS = new Set([
   'acceptedItems',
@@ -53,6 +53,31 @@ const OPTIONAL_KEYS = new Set([
   'revision',
 ])
 export const SERVICE_KEYS = Object.freeze([...REQUIRED_KEYS, ...OPTIONAL_KEYS].sort())
+/**
+ * The content of a service: the fields a staff edit sends and the seed writes. The id, the
+ * createdAt and updatedAt stamps and the revision belong to the writer, not to the content.
+ */
+export const SERVICE_CONTENT_KEYS = Object.freeze([
+  'name',
+  'actionTypes',
+  'acceptedItems',
+  'aliases',
+  'summary',
+  'address',
+  'suburb',
+  'postcode',
+  'searchAreas',
+  'status',
+  'source',
+  'geo',
+  'itemCategories',
+  'acceptanceConditions',
+  'excludedConditions',
+  'preparation',
+  'access',
+  'openingHours',
+  'cost',
+])
 const ALLOWED_KEYS = new Set(SERVICE_KEYS)
 const SOURCE_KEYS = new Set(['checkedAt', 'organisation', 'url'])
 const GEO_KEYS = new Set(['checkedAt', 'latitude', 'longitude', 'precision', 'sourceUrl'])

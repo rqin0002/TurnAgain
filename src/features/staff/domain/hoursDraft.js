@@ -27,7 +27,7 @@ export const HOURS_NOTES = Object.freeze({ minimum: 0, maximum: 6, entryMaximum:
 /** The note line the "Closed on public holidays" tick saves. */
 export const HOLIDAY_NOTE = 'Closed public holidays'
 /** The longest stored hours line (the rules' bound). */
-export const WEEKLY_LINE_MAXIMUM = 100
+const WEEKLY_LINE_MAXIMUM = 100
 
 const HOLIDAY_LINE = /^closed (?:on )?public holidays\.?$/iu
 // A closure of public holidays inside a weekly line: "closed public holidays", "closed Sundays and
@@ -106,7 +106,7 @@ export function hoursProblems(draft) {
 }
 
 /** The week the draft gives: each open day's readable times in opening order, closed days empty. */
-export function draftSchedule(draft) {
+function draftSchedule(draft) {
   return Object.fromEntries(
     WEEKDAYS.map((day) => {
       const { open, ranges } = draft.days[day]

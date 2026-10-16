@@ -4,7 +4,7 @@
  * Cloud Functions errors; AbortError and RepositoryError pass through.
  */
 
-export const REPOSITORY_ERROR_CODES = Object.freeze([
+const REPOSITORY_ERROR_CODES = Object.freeze([
   'network',
   'offline',
   'permission',

@@ -2,7 +2,7 @@ import { computed, onScopeDispose, shallowRef, toValue, watch } from 'vue'
 
 import { createViewportState, reduceViewport } from '../domain/mapViewport.js'
 
-export const FOLLOW_DEBOUNCE_MS = 300
+const FOLLOW_DEBOUNCE_MS = 300
 
 /**
  * The map viewport of Find nearby: the reducer's state, dispatched only

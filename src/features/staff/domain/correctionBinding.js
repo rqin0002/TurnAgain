@@ -61,7 +61,7 @@ export function correctionsWithStatus(corrections, status) {
     .map(({ correction }) => correction)
 }
 
-export const RESOLUTION_NOTE_MESSAGES = Object.freeze({
+const RESOLUTION_NOTE_MESSAGES = Object.freeze({
   long: 'Use 500 characters or fewer.',
   control: 'Remove control characters.',
 })

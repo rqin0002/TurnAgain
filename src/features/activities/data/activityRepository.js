@@ -1,26 +1,20 @@
-import { collection, doc, getDoc, query, where } from 'firebase/firestore/lite'
+import { collection, query, where } from 'firebase/firestore/lite'
 
 import { firestoreLite } from '@/firebase/firebaseFirestoreLiteClient.js'
 import { CACHE_KEYS, readCache, writeCache } from '@/shared/data/localCache.js'
-import {
-  RepositoryError,
-  throwIfAborted,
-  toRepositoryError,
-} from '@/shared/data/RepositoryError.js'
+import { throwIfAborted, toRepositoryError } from '@/shared/data/RepositoryError.js'
 import { readAll } from '@/shared/data/readAll.js'
-import { isValidId } from '@/shared/domain/catalogueValidation.js'
 
 import { projectActivity } from '../domain/activitySchema.js'
 import { PUBLIC_SESSION_STATUSES, projectSession } from '../domain/sessionSchema.js'
 
 /**
- * Firestore reads for the public activity catalogue. The app uses three exports:
- * fetchPublicActivityCatalogue (published activities and their public-status sessions, read
- * together), readCachedActivityCatalogue (the saved copy) and clearActivityCache. Public reads
- * share a five-minute module cache, and the last successful read is saved under
- * CACHE_KEYS.activities for the next visit's first paint. The readers fetchPublicSessions (all
- * public-status sessions), fetchActivity and fetchSession (by id) have no caller in src/; a
- * booking reads its session through bookingRepository. Staff reads live in staff/data/staffRepository.js and are never cached.
+ * Firestore reads for the public activity catalogue: fetchPublicActivityCatalogue (published
+ * activities and their public-status sessions, read together), readCachedActivityCatalogue (the
+ * saved copy) and clearActivityCache. Public reads share a five-minute module cache, and the last
+ * successful read is saved under CACHE_KEYS.activities for the next visit's first paint. A
+ * booking reads its session through bookingRepository; staff reads live in
+ * staff/data/staffRepository.js and are never cached.
  * Malformed documents are skipped and counted, never fatal.
  */
 
@@ -99,74 +93,6 @@ export async function fetchPublicActivityCatalogue({ signal, force = false } = {
     publicCache = { at: Date.now(), value }
     writeCache(CACHE_KEYS.activities, value)
     return value
-  } catch (error) {
-    throw toRepositoryError(error)
-  }
-}
-
-/**
- * Every public-status session. No caller in src/: the Activities calendar is built from
- * fetchPublicActivityCatalogue.
- */
-export async function fetchPublicSessions({ signal } = {}) {
-  try {
-    throwIfAborted(signal)
-    const { docs, truncated } = await readAll(publicSessions(), { signal })
-    const { records, skippedCount } = projectAll(docs, projectSession, 'activitySessions')
-    return { sessions: records, skippedCount, truncated }
-  } catch (error) {
-    throw toRepositoryError(error)
-  }
-}
-
-const readOne = async (path, projector, { signal, accept = () => true }) => {
-  throwIfAborted(signal)
-  const snapshot = await getDoc(path)
-  throwIfAborted(signal)
-  const record = snapshot.exists() ? projector(snapshot.id, snapshot.data()) : null
-  if (record === null || !accept(record)) {
-    throw new RepositoryError('not-found')
-  }
-  return record
-}
-
-/**
- * One published activity, from the cache when the catalogue was read recently. For the public
- * the rules refuse an absent or unpublished document outright (the SDK says `permission-denied`),
- * while a staff reader gets the document and readOne's status check. A published read needs no
- * identity, so that refusal can never mean a lost account: it is answered as `not-found`, without
- * the permission-denied event that would make the auth store re-validate the profile for nothing.
- */
-export async function fetchActivity(activityId, { signal } = {}) {
-  if (!isValidId(activityId)) {
-    throw new RepositoryError('not-found')
-  }
-  const cached = cachedPublic()?.activities.find((activity) => activity.id === activityId)
-  if (cached) {
-    return cached
-  }
-  try {
-    return await readOne(doc(firestoreLite, 'activities', activityId), projectActivity, {
-      signal,
-      accept: (record) => record.status === 'published',
-    })
-  } catch (error) {
-    if (error?.code === 'permission-denied') {
-      throw new RepositoryError('not-found', undefined, { cause: error })
-    }
-    throw toRepositoryError(error)
-  }
-}
-
-/** One session by id in any status the rules allow the caller to read. */
-export async function fetchSession(sessionId, { signal } = {}) {
-  if (!isValidId(sessionId)) {
-    throw new RepositoryError('not-found')
-  }
-  try {
-    return await readOne(doc(firestoreLite, 'activitySessions', sessionId), projectSession, {
-      signal,
-    })
   } catch (error) {
     throw toRepositoryError(error)
   }

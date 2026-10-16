@@ -32,7 +32,7 @@ const STAFF_ROLES = ['staff', 'admin']
 const PARTICIPANT_STATUSES = ['confirmed', 'waitlisted']
 const PAGE_SIZE = 100
 
-export const PARTICIPANT_COLUMNS = Object.freeze([
+const PARTICIPANT_COLUMNS = Object.freeze([
   { key: 'contactName', label: 'Name' },
   { key: 'email', label: 'Email' },
   { key: 'status', label: 'Status' },
