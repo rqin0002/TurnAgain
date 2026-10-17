@@ -25,10 +25,22 @@ export const COLLECTION_OF_KIND = Object.freeze({
 
 const storedRevision = (data) => data.revision ?? 0
 
-/** @returns {object | null} a StaffService, or null for a malformed document (skip and count) */
+/**
+ * The item categories keep the stored list (an absent one reads as empty): the public
+ * projection derives a list from the accepted items when it is empty, and an edit or an
+ * archive would otherwise write that derived list back.
+ *
+ * @returns {object | null} a StaffService, or null for a malformed document (skip and count)
+ */
 export function toStaffService(id, data) {
   const record = projectService(id, data)
-  return record === null ? null : { ...record, revision: storedRevision(data) }
+  return record === null
+    ? null
+    : {
+        ...record,
+        itemCategories: Array.isArray(data.itemCategories) ? [...data.itemCategories] : [],
+        revision: storedRevision(data),
+      }
 }
 
 /** @returns {object | null} a StaffActivity, or null */

@@ -104,6 +104,12 @@ const itemCategories = useItemCategories()
 // Only an admin is offered "Add new category"; the rules check the role again on the write.
 const canAddCategories = computed(() => authStore.canAccess(['admin']))
 const activities = computed(() => catalogue.activities.value)
+// Until the shared category list is ready only the bundled ids are known, so the record's own
+// stored categories count as known too; otherwise a valid admin-added one would block the save.
+const knownCategoryIds = () =>
+  itemCategories.status.value === 'ready'
+    ? itemCategories.ids.value
+    : [...itemCategories.ids.value, ...(record.value?.itemCategories ?? [])]
 const validate = (draft) => {
   now.value = new Date()
   return config.value.validate(draft, {
@@ -112,7 +118,7 @@ const validate = (draft) => {
     activities: activities.value,
     locked: locked.value,
     storedType: record.value?.registrationType ?? null,
-    categoryIds: itemCategories.ids.value,
+    categoryIds: knownCategoryIds(),
   })
 }
 

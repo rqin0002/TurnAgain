@@ -34,13 +34,14 @@
  * that closes on public holidays only ("(closed Christmas Day and New Year's Day)") is dropped.
  * Any other closure or stop ("(temporarily closed)", "(shut until further notice)", "(not
  * operating)", "(service suspended)", "(closed 12pm-1pm)"), a note that names some weeks ("(1st
- * and 3rd)", "(every other)"), or a note about days, dates, seasons or holidays ("(Wed from
- * 1pm)", "(not January)") may narrow the hours, so it makes the schedule `null`. Every other note
- * is dropped, a note that gives only times among them ("(lunch 12pm-1pm)"): the place reads open
- * during such a break. A leading "<label>: " ("Transfer station: ") is skipped, unless the label
- * is about days or dates ("Winter: ") or names a closure or some weeks ("Temporarily closed: "):
- * then the hours after it may not hold today, so the schedule is `null`. A label made only of
- * days ("Mon-Fri: ", "Open Mon-Fri: ") is not skipped: it gives the days of the hours after it.
+ * and 3rd)", "(every other)"), or a note about days, dates, seasons, years or holidays ("(Wed
+ * from 1pm)", "(not January)", "(dates vary)", "(seasonal)", "(from 2027)") may narrow the hours,
+ * so it makes the schedule `null`. Every other note is dropped, a note that gives only times among
+ * them ("(lunch 12pm-1pm)"): the place reads open during such a break. A leading "<label>: "
+ * ("Transfer station: ") is skipped, unless the label is about days or dates ("Winter: ") or names
+ * a closure or some weeks ("Temporarily closed: "): then the hours after it may not hold today, so
+ * the schedule is `null`. A label made only of days ("Mon-Fri: ", "Open Mon-Fri: ") is not skipped:
+ * it gives the days of the hours after it.
  *
  * Any segment or group it cannot read makes the whole schedule `null`, so a monthly pattern
  * ("Third Saturday of the month"), a date or prose is `unknown`. It does not know public holidays,
@@ -142,10 +143,16 @@ const DAY_WORDS = [
   'weekends',
 ]
 const NAMES_DAYS = new RegExp(`\\b(?:${DAY_WORDS.join('|')})\\b`, 'u')
-// Words that tie a note or a label to particular days or dates. "May" is left out: as a lone word
-// it is far more often the verb ("bookings may be needed").
+// Words that tie a note or a label to particular days or dates, including a season or a year
+// ("(dates vary)", "(seasonal)", "(from 2027)"). "May" is left out: as a lone word it is far more
+// often the verb ("bookings may be needed"). A year is four digits from 1900 to 2099, so a phone
+// or street number that happens to fall in that range also makes a note "unknown", never "open".
 const WHEN_WORDS = [
   ...DAY_WORDS,
+  'dates?',
+  'seasons?',
+  'seasonal',
+  '(?:19|20)\\d{2}',
   'holidays?',
   'terms?',
   'weeks?',

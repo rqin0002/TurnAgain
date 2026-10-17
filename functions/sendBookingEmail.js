@@ -1,4 +1,4 @@
-import { db } from './lib/admin.js'
+import { db, isEmulated, projectId } from './lib/admin.js'
 
 import { logger } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -11,7 +11,8 @@ import {
   toBookingSendResult,
   toMillis,
 } from './lib/emailSends.js'
-import { BREVO_API_KEY, MAIL_FROM, isEmailDryRun } from './lib/params.js'
+import { isLiveWriteBlocked } from './lib/liveWriteGuard.js'
+import { BREVO_API_KEY, MAIL_FROM, isEmailDryRun, isLiveAdminAllowed } from './lib/params.js'
 import { isDeliverableAddress } from './lib/recipients.js'
 import { assertBookingId, assertBoolean, assertEnum, requestData } from './lib/validate.js'
 import {
@@ -102,7 +103,10 @@ export async function handleSendBookingEmail(request) {
   const stored = snapshot.data()
   checkKind(kind, stored, caller)
 
-  const dryRun = isEmailDryRun()
+  // The Functions emulator against a real project is a dry run unless ALLOW_LIVE_ADMIN is '1'.
+  const dryRun =
+    isEmailDryRun() ||
+    isLiveWriteBlocked({ isEmulated, projectId, allowLiveAdmin: isLiveAdminAllowed() })
   if (!dryRun && !isDeliverableAddress(stored.email)) {
     throw precondition('undeliverable-address', "This account's email address can't receive mail.")
   }

@@ -33,7 +33,9 @@ import {
  * to) so the page can say where it went; nothing leaves on a request alone. A revision mismatch,
  * a lost lease or a reconciled failure reloads that row, and when the reload leaves no sign-in
  * evidence (team.js drops `access` on a conflict) one silent re-Check follows under the kept
- * notice; `in-progress` re-Checks after `retryAfterMs`.
+ * notice; `in-progress` re-Checks after `retryAfterMs`. That re-Check never applies a refused
+ * role change, Disable or Enable by itself: the row keeps the in-progress notice and the change
+ * as its last request, so the change stays visibly unapplied and Retry repeats it.
  *
  * Memory only: an identity change aborts the reads, clears the rows, the counts and the timers,
  * and loads again for an admin. Reads take the identity signal; the callable does not (a write is
@@ -123,7 +125,9 @@ export function useTeam({ section }) {
    * One adminSetUserAccess call for a row and the follow-up its outcome asks for. A busy row takes
    * no second call; the re-Check of a waiting row comes from its own timer; `keepMessage` marks
    * the silent re-Check after a reload, which keeps the row's notice and is never followed by
-   * another one. Resolves to the error of the call when it failed, else null.
+   * another one. When the waiting row's last request was a change, its re-Check keeps the notice
+   * and that request (the change was refused, not applied). Resolves to the error of the call
+   * when it failed, else null.
    */
   const send = async (uid, request, { afterWait = false, keepMessage = false } = {}) => {
     const before = rowOf(uid)
@@ -131,7 +135,15 @@ export function useTeam({ section }) {
     if (isRowBusy(before) && !(afterWait && before.state === 'waiting')) return null
     const run = generation
     clearTimer(uid)
-    dispatch(uid, request === null ? { type: 'check', keepMessage } : { type: 'apply', request })
+    const last = before.lastRequest ?? {}
+    const refusedChange = afterWait && request === null && Boolean(last.role || last.status)
+    const keepNotice = keepMessage || refusedChange
+    dispatch(
+      uid,
+      request === null
+        ? { type: 'check', keepMessage: keepNotice, keepRequest: refusedChange }
+        : { type: 'apply', request },
+    )
     let after
     let failure = null
     try {
@@ -141,7 +153,7 @@ export function useTeam({ section }) {
         expectedRevision: before.user.revision,
       })
       if (run !== generation) return null
-      dispatch(uid, { type: 'succeeded', result, keepMessage })
+      dispatch(uid, { type: 'succeeded', result, keepMessage: keepNotice })
       if (leaveIfMoved(uid)) return null
       after = rowOf(uid)
     } catch (caught) {

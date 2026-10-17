@@ -12,6 +12,7 @@ import {
   STATUS_LABELS,
   TEAM_MESSAGES,
   accessLine,
+  hasRefusedChange,
   isRowBusy,
   retryLabel,
   sectionOfRole,
@@ -23,7 +24,8 @@ import {
  * the page's quick filters in view, no pinned column and an actions cell that may wrap. A row
  * shows the name with the full email under it; the profile status with the sign-in state and the
  * row's message (its status lines, mounted with the row, so only their text changes); and two
- * entries at most: Manage, and a Retry named after the failed action. The caller's own row reads
+ * entries at most: Manage, and a Retry named after the action that failed or was refused as in
+ * progress (hasRefusedChange). The caller's own row reads
  * "That's you" and has no control.
  *
  * Manage opens a native <dialog> with the account's role, profile and sign-in state and its
@@ -318,7 +320,7 @@ const confirmDisable = () => {
             Manage <span class="visually-hidden">{{ user.displayName }}</span>
           </AppButton>
           <AppButton
-            v-if="teamRow(user)?.state === 'failed'"
+            v-if="teamRow(user)?.state === 'failed' || hasRefusedChange(teamRow(user))"
             variant="text"
             @click="actFromRow(user.uid, 'retry')"
           >

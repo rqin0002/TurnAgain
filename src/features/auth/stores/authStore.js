@@ -152,6 +152,8 @@ export const useAuthStore = defineStore('auth', () => {
   let unsubscribe = null
   let settleReady = () => undefined
   let readyTimer = null
+  // True while the promise behind `ready` has not resolved yet.
+  let readyPending = false
   /**
    * Counts identity changes inside this store: +1 when a resolution or logout() starts.
    * handleAuthEvent (for resolveUser), login, revalidateProfile, writeSaved and register capture it
@@ -217,6 +219,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Whether a disabled account still gets the 'account-disabled' sign-out. The SDK signs such an
+   * account out before the failing call rejects, so its null event has usually started a newer
+   * session by then; the notice is still due while nobody else is signed in. Once another identity
+   * holds the SDK, the result is stale and must not sign it out.
+   */
+  const owesDisabledNotice = (ended, stillCurrent) =>
+    ended === 'account-disabled' && (stillCurrent || currentUser() === null)
+
   const settleSignedOut = () => {
     const hadIdentity = user.value !== null
     user.value = null
@@ -249,14 +260,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Starts waiting for the account again: the next current resolution, or READY_TIMEOUT_MS from
+   * now, resolves `ready`. While an earlier promise is still pending (a navigation may be awaiting
+   * it), that same promise is kept and only its timeout restarts, so no waiter is left behind.
+   */
   const armReady = () => {
     clearTimeout(readyTimer)
-    readyPromise.value = new Promise((resolve) => {
-      settleReady = () => {
-        clearTimeout(readyTimer)
-        resolve()
-      }
-    })
+    if (!readyPending) {
+      readyPending = true
+      readyPromise.value = new Promise((resolve) => {
+        settleReady = () => {
+          clearTimeout(readyTimer)
+          readyPending = false
+          resolve()
+        }
+      })
+    }
     readyTimer = setTimeout(() => {
       // Never signed-out on a timeout: protected routes render the retry panel.
       if (status.value === 'restoring' || status.value === 'error') {
@@ -284,11 +304,13 @@ export const useAuthStore = defineStore('auth', () => {
       lastError.value = null
       return synced
     } catch (error) {
-      if (!isCurrent()) {
-        return profile
-      }
+      // An ended session goes to the caller even when it is stale: the caller decides whether a
+      // disabled account is still owed its notice.
       if (endedSessionReason(error) !== null) {
         throw error
+      }
+      if (!isCurrent()) {
+        return profile
       }
       // Signed in with the old address on screen until Retry succeeds.
       lastError.value = readFailure(error)
@@ -298,7 +320,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * The state machine. `isCurrent()` turns false once a newer resolution or a
-   * logout has started, so a slow resolution never commits, signs out or navigates over it.
+   * logout has started, so a slow resolution never commits, signs out or navigates over it. The one
+   * exception is a disabled account the SDK has already signed out (see owesDisabledNotice).
    */
   const resolveUser = async (firebaseUser, isCurrent) => {
     if (firebaseUser === null) {
@@ -387,13 +410,13 @@ export const useAuthStore = defineStore('auth', () => {
       commitUser(firebaseUser, profile)
       return 'signed-in'
     } catch (error) {
-      if (!isCurrent()) {
-        return 'stale'
-      }
       const ended = endedSessionReason(error)
-      if (ended === 'account-disabled') {
+      if (owesDisabledNotice(ended, isCurrent())) {
         await logout('account-disabled')
         return 'account-disabled'
+      }
+      if (!isCurrent()) {
+        return 'stale'
       }
       if (ended === 'session-expired') {
         settleSignedOut()
@@ -618,12 +641,12 @@ export const useAuthStore = defineStore('auth', () => {
           lastError.value = null
         }
       } catch (error) {
-        if (!isCurrent()) {
+        const ended = endedSessionReason(error)
+        if (owesDisabledNotice(ended, isCurrent())) {
+          await logout('account-disabled')
           return
         }
-        const ended = endedSessionReason(error)
-        if (ended === 'account-disabled') {
-          await logout('account-disabled')
+        if (!isCurrent()) {
           return
         }
         if (ended === 'session-expired') {
@@ -838,16 +861,14 @@ export const useAuthStore = defineStore('auth', () => {
       if (ended === null) {
         throw error
       }
-      // The SDK has already signed out; when its null event has not reached the store yet, the
-      // page leaves here, as the profile re-check does. A disabled account is never told that
-      // its password was wrong.
-      if (startedIn === session) {
-        if (ended === 'account-disabled') {
-          await logout('account-disabled')
-        } else {
-          settleSignedOut()
-          leaveProtectedRoute()
-        }
+      // The SDK has already signed out. A disabled account leaves with its notice, as the profile
+      // re-check does, and is never told that its password was wrong; a revoked session leaves
+      // here only when the SDK's null event has not done so already.
+      if (owesDisabledNotice(ended, startedIn === session)) {
+        await logout('account-disabled')
+      } else if (startedIn === session) {
+        settleSignedOut()
+        leaveProtectedRoute()
       }
       throw new AuthError('requires-recent-login', { cause: error })
     }

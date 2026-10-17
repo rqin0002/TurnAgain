@@ -220,6 +220,20 @@ export function retryLabel(row) {
 }
 
 /**
+ * True for an idle row whose last role change, Disable or Enable was refused as in progress and
+ * has not been applied since: the Check after the wait kept its notice and its request, so the
+ * row offers the Retry of that change. A change that went through says "Saved" instead.
+ */
+export function hasRefusedChange(row) {
+  const last = row?.lastRequest ?? {}
+  return (
+    row?.state === 'idle' &&
+    row.message === TEAM_MESSAGES.inProgress &&
+    Boolean(last.role || last.status)
+  )
+}
+
+/**
  * True for a failure every account would meet in turn: the callable is missing or unreachable
  * (`not-found`, or `unavailable` without a recovery code), the connection is down, the caller
  * lost access, or the functions refuse in development mode. A check run stops there instead of
@@ -347,15 +361,18 @@ function failedRow(row, error) {
 }
 
 /**
- * The row state machine. Events: `{ type: 'check', keepMessage? }`, `{ type: 'apply', request }`
- * (request = `{ role }` or `{ status }`), `{ type: 'succeeded', result, keepMessage? }`,
- * `{ type: 'failed', error }` and `{ type: 'reloaded', user }`. `keepMessage` is the silent
- * re-Check after a conflict reload: the row's notice stays through the check and its success. A
- * change the function confirmed says "Saved"; a Check that succeeds says nothing. The caller's
- * own row ignores every event.
+ * The row state machine. Events: `{ type: 'check', keepMessage?, keepRequest? }`,
+ * `{ type: 'apply', request }` (request = `{ role }` or `{ status }`),
+ * `{ type: 'succeeded', result, keepMessage? }`, `{ type: 'failed', error }` and
+ * `{ type: 'reloaded', user }`. `keepMessage` marks a Check the composable starts by itself (the
+ * silent re-Check after a conflict reload, or the Check after an in-progress wait): the row's
+ * notice stays through the check and its success. `keepRequest` keeps the row's last request
+ * through such a Check, so a change that was refused as in-progress and never applied keeps its
+ * Retry. A change the function confirmed says "Saved"; a Check that succeeds says nothing. The
+ * caller's own row ignores every event.
  *
  * @param {TeamRow} row
- * @param {{ type: string, request?: object, result?: object, error?: unknown, user?: object, keepMessage?: boolean }} event
+ * @param {{ type: string, request?: object, result?: object, error?: unknown, user?: object, keepMessage?: boolean, keepRequest?: boolean }} event
  * @returns {TeamRow}
  */
 export function reduceTeamRow(row, event) {
@@ -367,7 +384,7 @@ export function reduceTeamRow(row, event) {
         state: 'checking',
         message: event.keepMessage ? row.message : '',
         retryAfterMs: null,
-        lastRequest: {},
+        lastRequest: event.keepRequest ? row.lastRequest : {},
       })
     case 'apply':
       return Object.freeze({

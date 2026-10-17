@@ -1,4 +1,4 @@
-import { FieldPath, Timestamp, db } from './lib/admin.js'
+import { FieldPath, Timestamp, db, isEmulated, projectId } from './lib/admin.js'
 
 import { logger } from 'firebase-functions/v2'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
@@ -13,7 +13,8 @@ import {
   sessionContentHash,
   toMillis,
 } from './lib/emailSends.js'
-import { BREVO_API_KEY, MAIL_FROM, isEmailDryRun } from './lib/params.js'
+import { isLiveWriteBlocked } from './lib/liveWriteGuard.js'
+import { BREVO_API_KEY, MAIL_FROM, isEmailDryRun, isLiveAdminAllowed } from './lib/params.js'
 import { isDeliverableAddress, splitDeliverable } from './lib/recipients.js'
 import { assertId, assertUuid, invalidArgument, requestData } from './lib/validate.js'
 import { escapeHtml } from './shared/bookingEmails.js'
@@ -113,7 +114,10 @@ export async function handleSendSessionEmail(request) {
   const strangers = input.recipientBookingIds.filter((id) => !byId.has(id))
   const selected = input.recipientBookingIds.filter((id) => byId.has(id)).map((id) => byId.get(id))
 
-  const dryRun = isEmailDryRun()
+  // The Functions emulator against a real project is a dry run unless ALLOW_LIVE_ADMIN is '1'.
+  const dryRun =
+    isEmailDryRun() ||
+    isLiveWriteBlocked({ isEmulated, projectId, allowLiveAdmin: isLiveAdminAllowed() })
   const { deliverable, skipped } = dryRun
     ? { deliverable: selected, skipped: [] }
     : splitDeliverable(selected, (booking) => booking.email)

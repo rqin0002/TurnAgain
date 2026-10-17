@@ -58,15 +58,25 @@ export function isCalendarDate(value) {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
 }
 
+// The rules' isValidHttpsUrl pattern, checked on the raw text: the URL parser alone would
+// accept 'HTTPS://', 'https:host' and spaces, which it repairs but the rules refuse.
+const RULES_HTTPS_URL = /^https:\/\/[^ ]+$/u
+
 /**
- * Accepts bounded HTTPS source/provider links without embedded credentials.
+ * Accepts bounded HTTPS source/provider links without embedded credentials, written as the
+ * database rules require: a literal lower-case `https://` and no spaces.
  * This validates link shape, not the provider's identity or destination content.
  *
  * @param {unknown} value - Untrusted catalogue URL.
  * @returns {boolean}
  */
 export function isHttpsUrl(value) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > 2048) {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.length > 2048 ||
+    !RULES_HTTPS_URL.test(value)
+  ) {
     return false
   }
 
